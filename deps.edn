@@ -1,7 +1,13 @@
 {:paths ["src" "resources"]
  :deps {org.clojure/clojure {:mvn/version "1.11.1"}
+
         top.kzre/krro-core {:mvn/version "0.1.0"}
         top.kzre/krro-ui-javafx {:mvn/version "0.1.0"}
+        top.kzre/krro-brush {:mvn/version "0.1.0"}
+
+        top.kzre/krro-canvas-core {:mvn/version "0.1.0"}
+        top.kzre/krro-canvas-raster {:mvn/version "0.1.0"}
+        top.kzre/pen4j-all {:mvn/version "1.0-SNAPSHOT"}
 
         ;; LWJGL 核心 + OpenGL（含多平台 natives）
         org.lwjgl/lwjgl {:mvn/version "3.3.3"}
@@ -13,6 +19,9 @@
         org.lwjgl/lwjgl$natives-windows        {:mvn/version "3.3.3"}
         org.lwjgl/lwjgl-opengl$natives-windows {:mvn/version "3.3.3"}
         org.lwjgl/lwjgl-glfw$natives-windows   {:mvn/version "3.3.3"}
+
+        com.taoensso/timbre {:mvn/version "6.3.1"}
+        com.taoensso/tufte {:mvn/version "2.6.3"}
         }
 
  :aliases

@@ -8,7 +8,7 @@
 #*#
 .idea/
 
-krro-plugin-paint.iml
+krro-plugin-painting.iml
 
 target/
 .nrepl-port
