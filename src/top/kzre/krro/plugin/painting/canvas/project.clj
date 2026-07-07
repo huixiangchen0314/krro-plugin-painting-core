@@ -1,10 +1,11 @@
 (ns top.kzre.krro.plugin.painting.canvas.project
   "项目数据集成."
   (:require [top.kzre.krro.core.project :as proj]
+            [top.kzre.krro.canvas.raster.core :as rl]
             [top.kzre.krro.core.resource :as res]))
 
 ;; ── 专用画布数据容器 ──────────────────────────────
-(deftype CanvasData [width height data])
+(deftype CanvasData [width height data layers])
 
 (def canvas-codec-plugin-def
   {:type    :krro.plugin/resource-codec
@@ -14,9 +15,12 @@
               {:krro/type :krro.painting/canvas-data
                :width (.width c)
                :height (.height c)
-               :data (.data c)})
+               :data (.data c)
+               :layers (.layers c)})
    :decoder (fn [m]
-              (CanvasData. (:width m) (:height m) (res/realize (:data m))))})
+              (CanvasData. (:width m) (:height m)
+                           (res/realize (:data m))
+                           (res/realize (:layers m)) ))})
 
 (defn polyfill-canvas-data
   "确保项目原子中存在活跃的 CanvasData，并返回该实例。
@@ -30,6 +34,7 @@
       canvas  ;; 直接返回项目中的实例
       ;; 创建新画布，并注册到项目
       (let [new-data (float-array (* width height 4) 0.0)
-            new-canvas (CanvasData. width height new-data)]
+            default-layer (rl/make-raster-layer width height)
+            new-canvas (CanvasData. width height new-data [default-layer])]
         (swap! proj/project assoc-in [:krro.painting/canvases canvas-id] new-canvas)
         new-canvas))))

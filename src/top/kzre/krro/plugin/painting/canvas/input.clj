@@ -22,8 +22,8 @@
      (fn [canvas runtime-state {:keys [on-stroke-start on-stroke-end]}]
        (let [on-press (reify EventHandler
                         (handle [_ e]
-                          (state/begin-stroke! runtime-state)
                           (reset! pressed? true)
+                          (state/begin-stroke! runtime-state)
                           (when on-stroke-start (on-stroke-start))
                           (state/push-event! runtime-state
                                              (->event-map (.getX e) (.getY e)))))
