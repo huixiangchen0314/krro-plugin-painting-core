@@ -85,6 +85,11 @@
 (defn canvas-size [rt] (let [cd (get-canvas-data rt)] [(.width cd) (.height cd)]))
 (defn preview-buffer [rt] (:preview-buffer rt))
 (defn layer-buffer [rt] (:layer-buffer rt))
+
+(defn layers [^CanvasRuntime rt]
+  (let [cd (get-canvas-data rt)]
+   (or  (.layers cd) [])))
+
 (defn begin-stroke!
   [rt]
   (reset! (:new-events rt) [])

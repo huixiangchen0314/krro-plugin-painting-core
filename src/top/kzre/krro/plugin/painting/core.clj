@@ -3,7 +3,7 @@
   (:require
     [top.kzre.krro.ui.javafx.core]
     [top.kzre.krro.canvas.core.core]
-    [top.kzre.krro.canvas.raster.core]
+    [top.kzre.krro.canvas.raster.core :as rc]
     [top.kzre.krro.canvas.vector.core]
    [top.kzre.krro.core.plugin :as plugin]
     [top.kzre.krro.plugin.painting.canvas.project :as canvas-proj]
@@ -12,8 +12,9 @@
 
 
 (defn init []
-  ;; 2. 注册绘图模式
+  (rc/use-raster-merge-layer!)
   (plugin/register-plugin! canvas-proj/canvas-codec-plugin-def)
+  (plugin/register-plugin! canvas-proj/layer-meta-codec-plugin-def)
   (mode/register!)
   )
 

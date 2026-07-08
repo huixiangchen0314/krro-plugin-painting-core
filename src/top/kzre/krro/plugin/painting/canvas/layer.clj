@@ -1,17 +1,19 @@
 (ns top.kzre.krro.plugin.painting.canvas.layer
   "图层操作：通过不可变方式管理 CanvasData，自动同步到项目原子。"
-  (:require [top.kzre.krro.canvas.raster.core :as rl]
+  (:require [top.kzre.krro.canvas.core.core :as canv]
+            [top.kzre.krro.canvas.raster.core :as rl]
             [top.kzre.krro.canvas.core.canvas.protocol :as cp]
             [top.kzre.krro.core.project :as proj]
             [top.kzre.krro.plugin.painting.canvas.state :as state])
-  (:import [top.kzre.krro.plugin.painting.canvas.state CanvasRuntime]
+  (:import (java.util Arrays)
+           [top.kzre.krro.plugin.painting.canvas.state CanvasRuntime]
            [top.kzre.krro.plugin.painting.canvas.project CanvasData]))
 
 ;; ── 内部工具 ──────────────────────────────────────
 (defn- with-layers
   "构造新的 CanvasData 实例，用于替换旧实例。"
   [^CanvasData old-cd new-layers]
-  (CanvasData. (.width old-cd) (.height old-cd) (.data old-cd) (vec new-layers)))
+  (CanvasData. (.width old-cd) (.height old-cd) (vec new-layers)))
 
 (defn- update-project!
   "将新的 CanvasData 写入项目原子，并同步到运行时引用。"
@@ -183,8 +185,12 @@
       (throw (ex-info "Selected layer is not a raster layer" {:type (:type layer)})))
     (throw (ex-info "No layer is currently selected" {}))))
 
-
 (defn render-canvas!
   "渲染当前画布,简化成拷贝当前图层"
   [^CanvasRuntime rt ^floats dest]
-  (copy-selected-raster-layer-pixels! rt dest))
+  (let [cd (state/get-canvas-data rt)
+        layers (.layers cd)
+        w (.width cd)
+        h (.-height cd)]
+    (Arrays/fill dest (float 0.0))
+    (canv/render-layers! layers dest w h)))

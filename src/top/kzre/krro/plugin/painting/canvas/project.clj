@@ -5,7 +5,7 @@
             [top.kzre.krro.core.resource :as res]))
 
 ;; ── 专用画布数据容器 ──────────────────────────────
-(deftype CanvasData [width height data layers])
+(deftype CanvasData [width height layers])
 
 (def canvas-codec-plugin-def
   {:type    :krro.plugin/resource-codec
@@ -15,14 +15,12 @@
               {:krro/type :krro.painting/canvas-data
                :width (.width c)
                :height (.height c)
-               :data (.data c)
                :layers (.layers c)})
    :decoder (fn [m]
               (CanvasData. (:width m) (:height m)
-                           (res/realize (:data m))
                            (res/realize (:layers m)) ))})
 
-(defn polyfill-canvas-data
+(defn polyfill-canvas-data!
   "确保项目原子中存在活跃的 CanvasData，并返回该实例。
    若画布已存在，以项目中的实际尺寸为准（忽略传入的 width/height）。
    若不存在，则用传入的 width/height 创建新画布。
@@ -33,8 +31,40 @@
     (if (instance? CanvasData canvas)
       canvas  ;; 直接返回项目中的实例
       ;; 创建新画布，并注册到项目
-      (let [new-data (float-array (* width height 4) 0.0)
-            default-layer (rl/make-raster-layer width height)
-            new-canvas (CanvasData. width height new-data [default-layer])]
+      (let [default-layer (rl/make-raster-layer width height)
+            new-canvas (CanvasData. width height [default-layer])]
         (swap! proj/project assoc-in [:krro.painting/canvases canvas-id] new-canvas)
         new-canvas))))
+
+
+(deftype LayerMeta [locked? alpha-locked? expanded?])
+
+
+;; ── 图层元数据编解码器 ──────────────────────────
+(def layer-meta-codec-plugin-def
+  {:type     :krro.plugin/resource-codec
+   :id       :krro.painting/layer-meta-codec
+   :resource :krro.painting/layer-meta
+   :encoder  (fn [^LayerMeta m]
+               {:krro/type      :krro.painting/layer-meta
+                :locked?        (.locked? m)
+                :alpha-locked?  (.alpha-locked? m)
+                :expanded?      (.expanded? m)})
+   :decoder  (fn [m]
+               (LayerMeta. (boolean (:locked? m))
+                           (boolean (:alpha-locked? m))
+                           (boolean (:expanded? m))))})
+
+;; ── 图层元数据（侧表，存储于项目原子）─────────
+(defn polyfill-layer-meta!
+  "确保项目原子中存在指定图层的 LayerMeta 实例，返回该实例。
+   若不存在，则创建一个默认（所有属性为 false）的 LayerMeta 并存储。"
+  ^LayerMeta
+  [canvas-id layer-id]
+  (let [path [:krro.painting/layer-meta canvas-id layer-id]
+        existing (get-in @proj/project path)]
+    (if (instance? LayerMeta existing)
+      existing
+      (let [new-meta (LayerMeta. false false false)]
+        (swap! proj/project assoc-in path new-meta)
+        new-meta))))
