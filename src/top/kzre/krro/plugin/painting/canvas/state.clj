@@ -5,20 +5,20 @@
 (defrecord CanvasRuntime
   [new-events        ;; atom: 本帧新事件
    all-events        ;; atom: 整个笔画事件序列（提交用）
-   current-brush     ;; atom: 当前笔刷
+
    preview-buffer    ;; 预览缓冲区
    layer-buffer      ;; 图层原始数据备份（笔画开始时拷贝）
    canvas-data       ;; atom: CanvasData
    selected-layer-id
    last-stroke
-   stroke-length])   ;; atom: 已预览像素长度（用作 start-dist）
+   stroke-length;; atom: 已预览像素长度（用作 start-dist）
+   ])
 
 (defn create [^CanvasData canvas-data]
   (let [n (* (.width canvas-data) (.height canvas-data) 4)]
     (map->CanvasRuntime
       {:new-events       (atom [])
        :all-events       (atom [])
-       :current-brush    (atom nil)
        :preview-buffer   (float-array n)
        :layer-buffer     (float-array n)
        :canvas-data      (atom canvas-data)
@@ -78,8 +78,7 @@
 
 (defn get-all-events [rt] @(:all-events rt))
 (defn get-stroke-length [rt] @(:stroke-length rt))
-(defn current-brush [rt] @(:current-brush rt))
-(defn set-current-brush! [rt b] (reset! (:current-brush rt) b))
+
 (defn get-canvas-data [rt] @(:canvas-data rt))
 (defn set-canvas-data! [rt cd] (reset! (:canvas-data rt) cd))
 (defn canvas-size [rt] (let [cd (get-canvas-data rt)] [(.width cd) (.height cd)]))

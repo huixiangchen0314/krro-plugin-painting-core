@@ -11,3 +11,8 @@
    :mix-mode   :default
    :taper-start 50    ;; 起笔渐隐像素长度
    :taper-end   50})  ;; 收笔渐隐像素长度
+
+(defonce global-brush (atom default-brush))
+
+(defn set-global-brush! [brush]
+  (reset! global-brush brush))
