@@ -1,42 +1,62 @@
 (ns top.kzre.krro.plugin.painting.canvas.core
   (:require
-   [top.kzre.krro.core.frame :as frame]
-   [top.kzre.krro.plugin.painting.canvas.input :as input]
-   [top.kzre.krro.plugin.painting.canvas.loop :as loop]
-   [top.kzre.krro.plugin.painting.canvas.project :as canvas-proj]
-   [top.kzre.krro.plugin.painting.canvas.state :as state]
-   [top.kzre.krro.plugin.painting.canvas.upload :as upload]
-   [top.kzre.krro.plugin.painting.canvas.undo :as painting-undo]
-   [top.kzre.krro.plugin.painting.spec :as spec])
+    [top.kzre.krro.core.frame :as frame]
+    [top.kzre.krro.core.hook :as hook]
+    [top.kzre.krro.plugin.painting.canvas.input :as input]
+    [top.kzre.krro.plugin.painting.canvas.layer :as layer]
+    [top.kzre.krro.plugin.painting.canvas.loop :as loop]
+    [top.kzre.krro.plugin.painting.canvas.project :as proj]
+    [top.kzre.krro.plugin.painting.canvas.state :as state]
+    [top.kzre.krro.plugin.painting.canvas.upload :as upload]
+    [top.kzre.krro.plugin.painting.spec :as spec]
+    [top.kzre.krro.ui.javafx.core :refer [make-component]])
   (:import
-   (java.util UUID)
-   [javafx.scene.canvas Canvas]))
+   (javafx.scene.canvas Canvas)))
 
-(defn create-canvas [props f]
-  (let [canvas-id (or (when f (frame/param f spec/canvas-id-key))
-                      (str (UUID/randomUUID)))
-        canvas-width (int (or (when f (frame/param f spec/canvas-width-key))
-                              (:krro.painting/canvas-width props)
-                              800))
-        canvas-height (int (or (when f (frame/param f spec/canvas-height-key))
-                               (:krro.painting/canvas-height props)
-                               600))
-        canvas-data (canvas-proj/polyfill-canvas-data! canvas-id canvas-width canvas-height)
-        runtime     (state/create canvas-data)
-        w           (long (.width canvas-data))
-        h           (long (.height canvas-data))
-        fx-canvas   (Canvas. w h)
-        upload-fn   (upload/make-uploader fx-canvas)
-        cleanup-undo (painting-undo/init-undo-hooks! upload-fn)
-        loop-ctrl   (loop/make-loop runtime upload-fn)
-        timer       (:timer loop-ctrl)
-        commit!     (:commit loop-ctrl)
-        input-src   (input/make-mouse-input)
-        stop-input  ((:start! input-src) fx-canvas runtime
-                     {:on-stroke-start #(.start timer)
-                      :on-stroke-end   #(do (commit!) (.stop timer))})]
-    (frame/set-param! f spec/canvas-runtime-key runtime)
-    {:node      fx-canvas
-     :on-unmount   (fn []
-                  (cleanup-undo)
-                  (stop-input))}))
+
+(defn- start-canvas-session [^Canvas canvas canvas-id f]
+  (let [runtime (state/canvas-runtime canvas-id)
+        [w h]   (proj/canvas-size canvas-id)
+        upload-fn (upload/make-uploader canvas)             ;; TODO无限画布.
+        loop-ctrl (loop/make-loop canvas-id runtime w h  upload-fn f)
+        timer    (:timer loop-ctrl)
+        commit!  (:commit loop-ctrl)
+        dirty-cb (fn [dirty-id]
+                   (when (= dirty-id canvas-id)
+                     (let [runtime (state/canvas-runtime canvas-id)
+                           preview  (state/preview-buffer runtime)]
+                       (upload-fn preview w h))))
+        input-src (input/make-mouse-input)
+        stop-input ((:start! input-src) canvas runtime
+                    {:on-stroke-start #(.start timer)
+                     :on-stroke-end   #(do (commit!) (.stop timer))})]
+    (.setWidth canvas (double w))
+    (.setHeight canvas (double h))
+    (layer/auto-select-layer! f canvas-id)
+    (hook/add-hook! spec/canvas-dirty-hook-key dirty-cb)
+    ;; 首次渲染：上传当前画布的初始内容
+    (when-let [preview (state/preview-buffer runtime)]
+      (upload-fn preview w h))
+    ;; 保存状态.
+    (frame/set-param! f ::upload-fn upload-fn)   ;; 保存 upload-fn 到 Frame
+    ;; 返回清理函数
+    (fn []
+      (stop-input)
+      (hook/remove-hook! spec/canvas-dirty-hook-key dirty-cb)
+      (frame/remove-param! f ::upload-fn))))
+
+(def create-canvas
+  (make-component [:krro.painting/canvas-id]
+                  (fn [] (doto (Canvas.) (.setId "painting-canvas")))
+                  (fn [^Canvas canvas old-props new-props f]
+                    (let [canvas-id (:krro.painting/canvas-id new-props)]
+                      (if (nil? old-props)
+                        ;; 首次挂载：创建完整会话
+                        (start-canvas-session canvas canvas-id f)
+                        ;; 更新（canvas-id 未变）：仅重新渲染当前运行时内容
+                        (when-let [runtime (state/canvas-runtime canvas-id)]
+                          (let [[w h]   (proj/canvas-size canvas-id)
+                                preview  (state/preview-buffer runtime)
+                                upload-fn (frame/param f ::upload-fn)]
+                            (when upload-fn
+                              (upload-fn preview w h)))))))))

@@ -3,6 +3,7 @@
    光栅图层像素数据存储于顶层受保护侧表，仅首次创建时注册，后续直接引用。"
   (:require [top.kzre.krro.core.core :refer [insert! select-by-id update-by-id! delete-by-id! path-select]]
             [top.kzre.krro.core.project :as proj]
+            [top.kzre.krro.core.core :as kcc]
             [top.kzre.krro.core.rdb :as rdb]
             [top.kzre.krro.canvas.raster.core :as rl]
             [top.kzre.krro.canvas.core.canvas.protocol :as cp]
@@ -38,6 +39,7 @@
   (when-let [path (path-select :krro.painting/raster id)]
     (:data (proj/get-in-project! path))))
 
+
 (defn remove-raster!
   "从 raster 表移除像素数据。"
   [id]
@@ -47,6 +49,25 @@
 ;; 画布数据容器
 ;; ═══════════════════════════════════════════════════════
 (defrecord CanvasData [width height layers])
+
+
+(defn canvas-data ^CanvasData [canvas-id]
+  (kcc/select-by-id :krro.painting/canvas canvas-id))
+
+(defn layers
+  [ ^CanvasData  canvas-data]
+  (:layers canvas-data))
+
+(defn layers-by-id [canvas-id]
+  (when-let [^CanvasData  cd (canvas-data canvas-id)]
+    (layers cd)))
+
+(defn canvas-size [canvas-id]
+  (let [^CanvasData cd (canvas-data canvas-id)
+        w (:width cd)
+        h (:height cd)]
+    [w h]))
+
 
 ;; ═══════════════════════════════════════════════════════
 ;; 资源编解码器（复用已有引用）
@@ -90,20 +111,19 @@
 ;; ═══════════════════════════════════════════════════════
 ;; polyfill 函数
 ;; ═══════════════════════════════════════════════════════
-(defn polyfill-canvas-data!
+(defn ensure-canvas-data!
   "确保画布存在，首次创建时保留运行时必需的 :canvas 字段，同时建立侧表引用。"
   [canvas-id width height]
   (if-let [canvas-map (select-by-id :krro.painting/canvas canvas-id)]
-    (map->CanvasData canvas-map)
+    (map->CanvasData canvas-map)                            ;;  TODO 激活资源
     (let [default-layer (rl/make-raster-layer width height)
           canvas        (:canvas default-layer)
           pixels        (cp/data canvas)
           raster-id     (register-raster! pixels)
-          ;; 保留 :canvas 以保证外部运行时操作正常，同时标记侧表引用
           layer-ref     (assoc default-layer :krro.painting/raster-ref raster-id)
-          new-canvas    (map->CanvasData {:width width :height height :layers [layer-ref]})]
-      (insert! :krro.painting/canvas (assoc new-canvas :id canvas-id))
-      new-canvas)))
+          new-canvas-data    (->CanvasData width height [layer-ref])]
+      (insert! :krro.painting/canvas (assoc new-canvas-data :id canvas-id))
+      new-canvas-data)))
 
 ;; ═══════════════════════════════════════════════════════
 ;; LayerMeta 记录

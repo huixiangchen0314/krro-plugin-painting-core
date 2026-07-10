@@ -9,10 +9,12 @@
     [top.kzre.krro.core.frame :as frame]
     [top.kzre.krro.core.hook :as hook]
     [top.kzre.krro.plugin.painting.canvas.layer :as layer]
+    [top.kzre.krro.plugin.painting.canvas.project :as canv-proj]
     [top.kzre.krro.plugin.painting.canvas.state :as state]
     [top.kzre.krro.plugin.painting.spec :as spec]
     [top.kzre.krro.plugin.undo.core :as undo]
-    [top.kzre.krro.plugin.undo.protocol :as undo-p])
+    [top.kzre.krro.plugin.undo.protocol :as undo-p]
+    [top.kzre.krro.core.message :as msg])
   (:import
     (java.io File FileNotFoundException)
     (javafx.application Platform)
@@ -38,15 +40,14 @@
 
 ;; ── 核心 undo/redo 功能 ──────────────────────────────────────
 (defn record-raster-state!
-  "为光栅图层的当前笔画创建 OBB 快照，同时保存旧像素和新像素，并记录到 undo 系统。
-   自动分配递增的 :seq 编号并记入 meta。"
-  [^CanvasRuntime runtime old-pixels new-pixels dirty-rects]
+  "为光栅图层的当前笔画创建 OBB 快照，并记录到 undo 系统。"
+  [canvas-id layer-id old-pixels new-pixels dirty-rects]
   (log/debug "Recording raster undo state...")
   (try
-    (let [cd         (state/get-canvas-data runtime)
+    (let [cd         (canv-proj/canvas-data canvas-id)
           width      (.width cd)
           height     (.height cd)
-          seq-num    (inc-canvas-raster-state-seq-key)   ; 获取序号
+          seq-num    (inc-canvas-raster-state-seq-key)
           obb        (obb/rects->obb dirty-rects)
           old-snap   (obb/save-obb-snapshot old-pixels width height obb)
           new-snap   (obb/save-obb-snapshot new-pixels width height obb)
@@ -57,26 +58,26 @@
           _          (with-open [out (io/output-stream new-file)]
                        (obb/write-snapshot! new-snap out))
           meta       {:krro.painting/undo-type :raster-stroke
-                      :seq   seq-num                       ; 记录序号
+                      :seq   seq-num
                       :obb   obb
                       :old-snapshot-file (.getPath old-file)
                       :new-snapshot-file (.getPath new-file)
-                      :layer-id (layer/get-selected-layer-id runtime)}]
+                      :layer-id layer-id
+                      :canvas-id canvas-id}]
       (undo/record-state meta)
-      (log/info "Raster undo state recorded [seq:" seq-num "]"
-                "Old file:" (.getPath old-file)
-                "New file:" (.getPath new-file)
-                "OBB:" obb))
+      (log/info "Raster undo state recorded [seq:" seq-num "]"))
     (catch Exception e
       (log/error e "Failed to record raster undo state."))))
 
 (defn restore-raster-state!
   "根据快照文件恢复光栅图层像素，并刷新画布。
    meta 中应包含 :seq :layer-id :obb 及快照文件路径。"
-  [runtime meta upload-fn snapshot-file-key]
+  [meta snapshot-file-key]
   (let [seq-num   (:seq meta "?")
+        canvas-id (:canvas-id meta)
         layer-id  (:layer-id meta)
-        cd        (state/get-canvas-data runtime)
+        runtime   (state/ensure-runtime! canvas-id)
+        cd         (canv-proj/canvas-data canvas-id)
         w         (:width cd)
         h         (:height cd)
         layer-buf (state/layer-buffer runtime)
@@ -84,7 +85,7 @@
     (log/info "Restoring raster state [seq:" seq-num "] from" snapshot-file-key
               "layer:" layer-id)
     (if-not layer
-      (log/warn "Cannot restore [seq:" seq-num "]: layer" layer-id "not found.")
+      (msg/error (str "Cannot restore [seq:" seq-num "]: layer" layer-id "not found."))
       (try
         (let [obb    (:obb meta)
               file   (snapshot-file-key meta)
@@ -95,9 +96,8 @@
                 canvas  (:canvas layer)
                 dest    (cp/data canvas)]
             (Arrays/copy layer-buf dest)
-            (layer/render-canvas! runtime preview)
-            (Platform/runLater
-              (fn [] (upload-fn preview w h))))
+            (layer/render-canvas-by-id! canvas-id preview)
+            (hook/run-hook! spec/canvas-dirty-hook-key canvas-id))
           (log/info "Raster state restored successfully [seq:" seq-num "]"))
         (catch FileNotFoundException e
           (log/error e "Snapshot file not found [seq:" seq-num "]:"
@@ -105,38 +105,34 @@
         (catch Exception e
           (log/error e "Failed to restore raster state [seq:" seq-num "]"))))))
 
-(defn- make-undo-handler [upload-fn]
+(defn- make-undo-handler []
   (fn [event]
     (let [node (:old-node event)
           meta (when node (undo-p/metadata node))]
       (log/debug "Undo triggered [seq:" (:seq meta "?") "] meta:" meta)
       (if (= :raster-stroke (:krro.painting/undo-type meta))
-        (if-let [runtime (frame/param frame/*current-frame* spec/canvas-runtime-key)]
-          (tufte/profile {:id :krro.painting/raster-stroke-undo
-                          :dynamic? true}
-                         (p :krro.painting/raster-stroke-undo
-                            (restore-raster-state! runtime meta upload-fn :old-snapshot-file)))
-          (log/warn "Undo handler: cannot get CanvasRuntime from frame."))
+        (tufte/profile {:id :krro.painting/raster-stroke-undo
+                        :dynamic? true}
+                       (p :krro.painting/raster-stroke-undo
+                          (restore-raster-state! meta :old-snapshot-file)))
         (log/debug "Undo event not a raster stroke, skipped.")))))
 
-(defn- make-redo-handler [upload-fn]
+(defn- make-redo-handler []
   (fn [event]
     (let [node (:new-node event)
           meta (when node (undo-p/metadata node))]
       (log/debug "Redo triggered [seq:" (:seq meta "?") "] meta:" meta)
       (if (= :raster-stroke (:krro.painting/undo-type meta))
-        (if-let [runtime (frame/param frame/*current-frame* spec/canvas-runtime-key)]
-          (tufte/profile {:id :krro.painting/raster-stroke-redo
-                          :dynamic? true}
-                         (p :krro.painting/raster-stroke-redo
-                            (restore-raster-state! runtime meta upload-fn :new-snapshot-file)))
-          (log/warn "Redo handler: cannot get CanvasRuntime from frame."))
+        (tufte/profile {:id :krro.painting/raster-stroke-redo
+                        :dynamic? true}
+                       (p :krro.painting/raster-stroke-redo
+                          (restore-raster-state!  meta  :new-snapshot-file)))
         (log/debug "Redo event not a raster stroke, skipped.")))))
 
-(defn init-undo-hooks! [upload-fn]
+(defn init-undo-hooks! []
   (log/info "Initializing undo/redo hooks...")
-  (let [undo-handler (make-undo-handler upload-fn)
-        redo-handler (make-redo-handler upload-fn)]
+  (let [undo-handler (make-undo-handler )
+        redo-handler (make-redo-handler )]
     (hook/add-hook! :krro.undo/undo-hook undo-handler)
     (hook/add-hook! :krro.undo/redo-hook redo-handler)
     (fn []

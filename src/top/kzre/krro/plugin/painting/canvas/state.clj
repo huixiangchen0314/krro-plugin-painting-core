@@ -1,29 +1,77 @@
 (ns top.kzre.krro.plugin.painting.canvas.state
   "运行时状态：事件、笔刷、缓冲区、累积长度。"
-  (:import [top.kzre.krro.plugin.painting.canvas.project CanvasData]))
+  (:require
+   [top.kzre.krro.canvas.core.core :as canv]
+   [top.kzre.krro.plugin.painting.canvas.project :as canv-proj]
+   )
+  (:import
+   [top.kzre.krro.canvas.core Arrays]
+   (top.kzre.krro.plugin.painting.canvas.project CanvasData)))
+
 
 (defrecord CanvasRuntime
   [new-events        ;; atom: 本帧新事件
    all-events        ;; atom: 整个笔画事件序列（提交用）
-
    preview-buffer    ;; 预览缓冲区
    layer-buffer      ;; 图层原始数据备份（笔画开始时拷贝）
-   canvas-data       ;; atom: CanvasData
-   selected-layer-id
    last-stroke
    stroke-length;; atom: 已预览像素长度（用作 start-dist）
    ])
 
-(defn create [^CanvasData canvas-data]
-  (let [n (* (.width canvas-data) (.height canvas-data) 4)]
+(defn create
+  [width height]
+  (let [n (* width height 4)]
     (map->CanvasRuntime
-      {:new-events       (atom [])
-       :all-events       (atom [])
-       :preview-buffer   (float-array n)
-       :layer-buffer     (float-array n)
-       :canvas-data      (atom canvas-data)
-       :selected-layer-id (atom nil)
-       :stroke-length    (atom 0.0)})))
+      {:new-events     (atom [])
+       :all-events     (atom [])
+       :preview-buffer (float-array n)
+       :layer-buffer   (float-array n)
+       :stroke-length  (atom 0.0)})))
+
+(defn clone
+ [ ^CanvasRuntime cr]
+  (map->CanvasRuntime cr))
+
+(defonce canvas-runtimes (atom {}))
+
+(defn canvas-runtime [canvas-id]
+  (get @canvas-runtimes canvas-id))
+
+
+
+
+(defn get-all-events [rt] @(:all-events rt))
+(defn get-stroke-length [rt] @(:stroke-length rt))
+(defn preview-buffer [rt] (:preview-buffer rt))
+(defn layer-buffer [rt] (:layer-buffer rt))
+
+(defn begin-stroke!
+  [rt]
+  (reset! (:new-events rt) [])
+  (reset! (:all-events rt) [])
+  (reset! (:stroke-length rt) 0.0))
+
+(defn render-canvas!
+  "渲染当前画布所有图层到目标数组。"
+  [canvas-id ^floats dest]
+  (when-let [cd (canv-proj/canvas-data canvas-id)]
+    (let [layers (:layers ^CanvasData cd)
+          w (.width ^CanvasData cd)
+          h (.height ^CanvasData cd)]
+      (Arrays/fill dest (float 0.0))
+      (canv/render-layers! layers dest w h))))
+
+(defn ensure-runtime!
+  ([canvas-id]
+   (ensure-runtime! canvas-id 800 600))
+  ([canvas-id w h]
+   (or (canvas-runtime canvas-id)
+       (let [_cd (canv-proj/ensure-canvas-data! canvas-id w h)
+             rt (create w h)
+             preview (:preview-buffer rt)]
+         (render-canvas! canvas-id preview)
+         (swap! canvas-runtimes assoc canvas-id rt)
+         rt))))
 
 (defn push-event! [rt event]
   (let [last-p (last @(:all-events rt))]   ;; 上一个事件
@@ -75,22 +123,3 @@
             keep-evs (subvec evs keep-start)]
         (reset! (:new-events rt) keep-evs)
         evs))))
-
-(defn get-all-events [rt] @(:all-events rt))
-(defn get-stroke-length [rt] @(:stroke-length rt))
-
-(defn get-canvas-data [rt] @(:canvas-data rt))
-(defn set-canvas-data! [rt cd] (reset! (:canvas-data rt) cd))
-(defn canvas-size [rt] (let [cd (get-canvas-data rt)] [(.width cd) (.height cd)]))
-(defn preview-buffer [rt] (:preview-buffer rt))
-(defn layer-buffer [rt] (:layer-buffer rt))
-
-(defn layers [^CanvasRuntime rt]
-  (let [cd (get-canvas-data rt)]
-   (or  (.layers cd) [])))
-
-(defn begin-stroke!
-  [rt]
-  (reset! (:new-events rt) [])
-  (reset! (:all-events rt) [])
-  (reset! (:stroke-length rt) 0.0))
