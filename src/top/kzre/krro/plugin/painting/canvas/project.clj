@@ -5,16 +5,14 @@
     [top.kzre.krro.canvas.core.layer.core :as lc]
     [top.kzre.krro.core.core :refer [delete-by-id! insert! select-by-id update-by-id!]]
     [top.kzre.krro.core.project :as proj]
-    [top.kzre.krro.core.rdb :as rdb]
-    [top.kzre.krro.core.resource :as res])
+    [top.kzre.krro.core.rdb :as rdb])
   (:import (java.util UUID)))
 
 ;; ═══════════════════════════════════════════════════════
 ;; 表定义与约束
 ;; ═══════════════════════════════════════════════════════
 (defrecord CanvasData [id width height layers])
-(defrecord LayerMeta [id canvas-id locked? alpha-locked? expanded?])
-(defrecord Raster [id canvas-id data])
+
 (rdb/defschema :krro.painting/canvas
                :primary-key :id
                :not-null [:id :width :height :layers]
@@ -149,22 +147,6 @@
                      decoded-layers (mapv #(active-layer! % w h) (:layers m))]
                  (map->CanvasData {:id id :width w :height h :layers decoded-layers})))})
 
-(def layer-meta-codec-plugin-def
-  {:type     :krro.plugin/resource-codec
-   :id       :krro.painting/layer-meta-codec
-   :resource :krro.painting/layer-meta
-   :pred     #(instance? LayerMeta % )
-   :encoder  (fn [^LayerMeta m]
-               {:krro/type      :krro.painting/layer-meta
-                :id (:id m)
-                :locked?        (:locked? m)
-                :alpha-locked?  (:alpha-locked? m)
-                :expanded?      (:expanded? m)})
-   :decoder  (fn [m]
-               (map->LayerMeta {:id (:id m)
-                                :locked?       (boolean (:locked? m))
-                                :alpha-locked? (boolean (:alpha-locked? m))
-                                :expanded?     (boolean (:expanded? m))}))})
 
 ;; ═══════════════════════════════════════════════════════
 ;; 激活 / 反激活（委托给 resource 系统）

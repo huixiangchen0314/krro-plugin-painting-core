@@ -1,9 +1,8 @@
 (ns top.kzre.krro.plugin.painting.canvas.undo
   "撤销系统：记录与恢复图层操作及光栅笔触。
    图层属性通过 project 的多方法 persistable-layer / restore-layer! 处理，
-   像素数据独立于侧表，存入临时文件。"
+   像素数据使用 snapshot 模块的混合存储策略（小尺寸留内存，大尺寸写临时文件）。"
   (:require
-    [clojure.java.io :as io]
     [taoensso.timbre :as log]
     [top.kzre.krro.canvas.core.canvas.protocol :as cp]
     [top.kzre.krro.canvas.core.layer.core :as layer-core]
@@ -13,11 +12,12 @@
     [top.kzre.krro.core.message :as msg]
     [top.kzre.krro.plugin.painting.canvas.layer :as layer]
     [top.kzre.krro.plugin.painting.canvas.project :as proj]
+    [top.kzre.krro.plugin.painting.canvas.snapshot :as snap]
     [top.kzre.krro.plugin.painting.spec :as spec]
     [top.kzre.krro.plugin.undo.core :as undo]
     [top.kzre.krro.plugin.undo.protocol :as undo-p])
   (:import
-    (java.io File FileNotFoundException)
+    (java.io FileNotFoundException)
     (top.kzre.krro.canvas.core Arrays)))
 
 ;; 通用图层更新
@@ -38,36 +38,37 @@
     old-seq))
 
 ;; ── 元数据工厂（委托给 persistable-layer）─────────
-(defn make-raster-stroke-meta [canvas-id layer-id obb old-file new-file]
+(defn make-raster-stroke-meta [canvas-id layer-id obb old-wrapper new-wrapper]
   {:type              undo-type-raster-stroke
    :seq               (inc-undo-metadata-seq-key)
    :canvas-id         canvas-id
    :layer-id          layer-id
    :obb               obb
-   :old-snapshot-file old-file
-   :new-snapshot-file new-file})
+   :old-snapshot      old-wrapper
+   :new-snapshot      new-wrapper})
 
 (defn make-layer-changed-meta [canvas-id]
   {:type         undo-type-layer-changed
    :seq               (inc-undo-metadata-seq-key)
    :canvas-id         canvas-id})
 
-(defn make-raster-layer-add-meta [canvas-id path layer snapshot-file]
+(defn make-raster-layer-add-meta [canvas-id path layer snapshot-wrapper]
   {:type     undo-type-raster-layer-add
    :seq           (inc-undo-metadata-seq-key)
    :canvas-id     canvas-id
    :path          path
-   :layer   (proj/persistable-layer layer)   ;; 多方法
-   :snapshot-file snapshot-file})
+   :layer   (proj/persistable-layer layer)
+   :snapshot      snapshot-wrapper})
 
-(defn make-raster-layer-remove-meta [canvas-id path layer snapshot-file]
+(defn make-raster-layer-remove-meta [canvas-id path layer snapshot-wrapper]
   {:type          undo-type-raster-layer-remove
    :seq           (inc-undo-metadata-seq-key)
    :canvas-id     canvas-id
    :path          path
    :layer         (proj/persistable-layer layer)
-   :snapshot-file snapshot-file})
+   :snapshot      snapshot-wrapper})
 
+;; ── 记录函数 ─────────────────────────────────
 (defn record-raster-stroke!
   [canvas-id layer-id old-pixels new-pixels dirty-rects]
   (log/debug "Recording raster undo state...")
@@ -76,11 +77,11 @@
           width      (:width cd)
           height     (:height cd)
           obb-desc   (obb/rects->obb dirty-rects)
-          old-snap (obb/save-obb-snapshot old-pixels width height obb-desc)
-          new-snap (obb/save-obb-snapshot new-pixels width height obb-desc)
-          old-file   (obb/write-snapshot-temp! old-snap)
-          new-file   (obb/write-snapshot-temp! new-snap)
-          meta       (make-raster-stroke-meta canvas-id layer-id obb-desc old-file new-file)]
+          old-snap   (obb/save-obb-snapshot old-pixels width height obb-desc)
+          new-snap   (obb/save-obb-snapshot new-pixels width height obb-desc)
+          old-w      (snap/wrap-snapshot! old-snap)
+          new-w      (snap/wrap-snapshot! new-snap)
+          meta       (make-raster-stroke-meta canvas-id layer-id obb-desc old-w new-w)]
       (undo/record-state! meta)
       (log/info "Raster undo state recorded [seq:" (:seq meta) "]"))
     (catch Exception e
@@ -92,17 +93,18 @@
 (defn record-raster-layer-add!
   [canvas-id path layer]
   (let [pixels (cp/data (:canvas layer))
-        file (Arrays/writeTemp pixels)
-        meta (make-raster-layer-add-meta canvas-id path layer file)]
+        wrapper (snap/wrap-pixels! pixels)
+        meta (make-raster-layer-add-meta canvas-id path layer wrapper)]
     (undo/record-state! meta)))
 
 (defn record-raster-layer-remove!
   [canvas-id path removed]
   (let [pixels (layer/raster-layer-buffer canvas-id (:id removed))
-        file (Arrays/writeTemp pixels)
-        meta (make-raster-layer-remove-meta canvas-id path removed file)]
+        wrapper (snap/wrap-pixels! pixels)
+        meta (make-raster-layer-remove-meta canvas-id path removed wrapper)]
     (undo/record-state! meta)))
 
+;; ── 恢复函数 ─────────────────────────────────
 (defn restore-raster-state!
   "恢复光栅笔触快照。"
   [meta snapshot-key]
@@ -121,8 +123,8 @@
         (msg/error (str "Layer buffer does not exist: layer" layer-id))
         (try
           (let [obb    (:obb meta)
-                file   (snapshot-key meta)
-                snap   (obb/read-snapshot-temp! file)]
+                snap-w (snapshot-key meta)
+                snap   (snap/read-snapshot! snap-w)]
             (obb/restore-obb-snapshot layer-buf w h obb snap)
             (let [canvas  (:canvas layer)
                   dest    (cp/data canvas)]
@@ -138,32 +140,27 @@
 (defmulti restore-canvas-state!
           (fn [lifycycle meta] [lifycycle (:type meta)]))
 
-
 (defmethod restore-canvas-state! [:after-undo undo-type-raster-layer-add] [_ meta]
   (let [canvas-id (:canvas-id meta)
-        layer-id (:layer-id meta)]                          ;; 我们只管理保护键数据.
+        layer-id (:layer-id meta)]
     (proj/delete-raster! layer-id)
     (hook/run-hook! spec/layer-changed-hook-key canvas-id)))
 
 (defmethod restore-canvas-state! [:before-redo undo-type-raster-layer-add] [_ meta]
   (let [canvas-id (:canvas-id meta)
         layer-id (:layer-id meta)
-        snapshot-file (:snapshot-file meta)
-        buffer (Arrays/readTemp snapshot-file)]
-    (proj/add-raster* layer-id canvas-id (:data buffer))))
+        buffer   (snap/read-pixels! (:snapshot meta))]
+    (proj/add-raster* layer-id canvas-id buffer)))
 
 (defmethod restore-canvas-state! [:after-redo undo-type-raster-layer-add] [_ meta]
   (let [canvas-id  (:canvas-id meta)]
     (hook/run-hook! spec/layer-changed-hook-key canvas-id)))
 
-
-
 (defmethod restore-canvas-state! [:before-undo undo-type-raster-layer-remove] [_ meta]
   (let [canvas-id (:canvas-id meta)
         layer-id (:layer-id meta)
-        snapshot-file (:snapshot-file meta)
-        buffer (Arrays/readTemp snapshot-file)]
-    (proj/add-raster* layer-id canvas-id (:data buffer))))
+        buffer   (snap/read-pixels! (:snapshot meta))]
+    (proj/add-raster* layer-id canvas-id buffer)))
 
 (defmethod restore-canvas-state! [:after-undo undo-type-raster-layer-remove] [_ meta]
   (let [canvas-id  (:canvas-id meta)]
@@ -171,18 +168,18 @@
 
 (defmethod restore-canvas-state! [:after-redo undo-type-raster-layer-remove] [_ meta]
   (let [canvas-id (:canvas-id meta)
-        layer-id (:layer-id meta)]                          ;; 我们只管理保护键数据.
+        layer-id (:layer-id meta)]
     (proj/delete-raster! layer-id)
     (hook/run-hook! spec/layer-changed-hook-key canvas-id)))
 
 (defmethod restore-canvas-state! [:after-undo undo-type-raster-stroke] [_ meta]
-  (restore-raster-state! meta :old-snapshot-file))
+  (restore-raster-state! meta :old-snapshot))
 
 (defmethod restore-canvas-state! [:after-redo undo-type-raster-stroke] [_ meta]
-  (restore-raster-state! meta :new-snapshot-file))
+  (restore-raster-state! meta :new-snapshot))
 
 (defmethod restore-canvas-state! [:after-undo undo-type-layer-changed] [_ metadata]
- (hook/run-hook! spec/layer-changed-hook-key (:canvas-id metadata)))
+  (hook/run-hook! spec/layer-changed-hook-key (:canvas-id metadata)))
 
 (defmethod restore-canvas-state! [:after-redo undo-type-layer-changed] [_ metadata]
   (hook/run-hook! spec/layer-changed-hook-key (:canvas-id metadata)))

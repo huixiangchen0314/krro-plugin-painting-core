@@ -17,7 +17,6 @@
   (proj/register-protected-key! :krro.painting/raster)
   (rc/use-raster-merge-layer!)
   (plugin/register-plugin! canvas-proj/canvas-codec-plugin-def)
-  (plugin/register-plugin! canvas-proj/layer-meta-codec-plugin-def)
   (mode/register!)
   (undo/init-undo-hooks!)
   )
