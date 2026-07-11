@@ -1,7 +1,6 @@
 (ns top.kzre.krro.plugin.painting.canvas.core
   (:require
     [top.kzre.krro.core.frame :as frame]
-    [top.kzre.krro.core.hook :as hook]
     [top.kzre.krro.plugin.painting.canvas.input :as input]
     [top.kzre.krro.plugin.painting.canvas.layer :as layer]
     [top.kzre.krro.plugin.painting.canvas.loop :as loop]
@@ -18,32 +17,26 @@
   (let [runtime (state/canvas-runtime canvas-id)
         [w h]   (proj/canvas-size canvas-id)
         upload-fn (upload/make-uploader canvas)             ;; TODO无限画布.
-        loop-ctrl (loop/make-loop canvas-id runtime w h  upload-fn f)
+        loop-ctrl (loop/make-loop canvas-id runtime w h  f)
         timer    (:timer loop-ctrl)
         commit!  (:commit loop-ctrl)
-        dirty-cb (fn [dirty-id]
-                   (when (= dirty-id canvas-id)
-                     (let [runtime (state/canvas-runtime canvas-id)
-                           preview  (state/preview-buffer runtime)]
-                       (upload-fn preview w h))))
+
         input-src (input/make-mouse-input)
         stop-input ((:start! input-src) canvas runtime
                     {:on-stroke-start #(.start timer)
                      :on-stroke-end   #(do (commit!) (.stop timer))})]
     (.setWidth canvas (double w))
     (.setHeight canvas (double h))
-    (layer/auto-select-layer! f canvas-id)
-    (hook/add-hook! spec/canvas-dirty-hook-key dirty-cb)
+    (layer/auto-select-layer! canvas-id)
     ;; 首次渲染：上传当前画布的初始内容
     (when-let [preview (state/preview-buffer runtime)]
       (upload-fn preview w h))
     ;; 保存状态.
-    (frame/set-param! f ::upload-fn upload-fn)   ;; 保存 upload-fn 到 Frame
+    (frame/set-param! f spec/update-fn-key upload-fn)   ;; 保存 upload-fn 到 Frame
     ;; 返回清理函数
     (fn []
       (stop-input)
-      (hook/remove-hook! spec/canvas-dirty-hook-key dirty-cb)
-      (frame/remove-param! f ::upload-fn))))
+      (frame/remove-param! f spec/update-fn-key))))
 
 (def create-canvas
   (make-component [:krro.painting/canvas-id]

@@ -1,153 +1,193 @@
 (ns top.kzre.krro.plugin.painting.canvas.project
-  "项目数据集成：画布与图层元数据管理。基于 rdb 提供结构化的数据访问。
-   光栅图层像素数据存储于顶层受保护侧表，仅首次创建时注册，后续直接引用。"
-  (:require [top.kzre.krro.core.core :refer [insert! select-by-id update-by-id! delete-by-id! path-select]]
-            [top.kzre.krro.core.project :as proj]
-            [top.kzre.krro.core.core :as kcc]
-            [top.kzre.krro.core.rdb :as rdb]
-            [top.kzre.krro.canvas.raster.core :as rl]
-            [top.kzre.krro.canvas.core.canvas.protocol :as cp]
-            [top.kzre.krro.core.resource :as res]))
+  ""
+  (:require
+    [top.kzre.krro.canvas.core.canvas.raster :as raster]
+    [top.kzre.krro.canvas.core.layer.core :as lc]
+    [top.kzre.krro.core.core :refer [delete-by-id! insert! select-by-id update-by-id!]]
+    [top.kzre.krro.core.project :as proj]
+    [top.kzre.krro.core.rdb :as rdb]
+    [top.kzre.krro.core.resource :as res])
+  (:import (java.util UUID)))
 
 ;; ═══════════════════════════════════════════════════════
-;; Schema 定义
+;; 表定义与约束
 ;; ═══════════════════════════════════════════════════════
+(defrecord CanvasData [id width height layers])
+(defrecord LayerMeta [id canvas-id locked? alpha-locked? expanded?])
+(defrecord Raster [id canvas-id data])
+(rdb/defschema :krro.painting/canvas
+               :primary-key :id
+               :not-null [:id :width :height :layers]
+               :defaults {:layers [] :width 800 :height 600})
+
 (rdb/defschema :krro.painting/raster
                :primary-key :id
-               :not-null [:data]
-               :unique [:id])
-
-(rdb/defschema :krro.painting/canvas
-               :primary-key :id)
+               :not-null [:canvas-id :data]
+               :foreign-keys [{:column :canvas-id
+                               :references {:table :krro.painting/canvas :column :id}
+                               :validator (fn [raster-row canvas-row]
+                                            (let [layers (:layers canvas-row)]
+                                              (some? (lc/find-layer (:id raster-row) layers))))
+                               :on-delete :cascade}])
 
 (rdb/defschema :krro.painting/layer-meta
-               :primary-key :id)
-
-;; ═══════════════════════════════════════════════════════
-;; 像素数据侧表操作
-;; ═══════════════════════════════════════════════════════
-(defn register-raster!
-  "将像素数组存入 raster 表，返回唯一 ID。仅首次创建时调用。"
-  [pixels]
-  (let [id (keyword (str (gensym "raster-")))]
-    (insert! :krro.painting/raster {:id id :data pixels})
-    id))
-
-(defn get-raster
-  "根据 ID 获取像素数组，确保通过 get-in-project! 激活。"
-  [id]
-  (when-let [path (path-select :krro.painting/raster id)]
-    (:data (proj/get-in-project! path))))
-
-
-(defn remove-raster!
-  "从 raster 表移除像素数据。"
-  [id]
-  (delete-by-id! :krro.painting/raster id))
-
-;; ═══════════════════════════════════════════════════════
-;; 画布数据容器
-;; ═══════════════════════════════════════════════════════
-(defrecord CanvasData [width height layers])
-
-
-(defn canvas-data ^CanvasData [canvas-id]
-  (kcc/select-by-id :krro.painting/canvas canvas-id))
-
-(defn layers
-  [ ^CanvasData  canvas-data]
-  (:layers canvas-data))
-
-(defn layers-by-id [canvas-id]
-  (when-let [^CanvasData  cd (canvas-data canvas-id)]
-    (layers cd)))
-
-(defn canvas-size [canvas-id]
-  (let [^CanvasData cd (canvas-data canvas-id)
-        w (:width cd)
-        h (:height cd)]
-    [w h]))
+               :primary-key :id
+               :not-null [:id :canvas-id :locked? :alpha-locked? :expanded?]
+               :defaults {:locked? false :alpha-locked? false :expanded? false}
+               :foreign-keys [{:column :canvas-id
+                               :references {:table :krro.painting/canvas :column :id}
+                               :validator (fn [meta-row canvas-row]
+                                            (let [layers (:layers canvas-row)]
+                                              (some? (lc/find-layer (:id meta-row) layers))))
+                               :on-delete :cascade}])
 
 
 ;; ═══════════════════════════════════════════════════════
-;; 资源编解码器（复用已有引用）
+;; Canvas CRUD
 ;; ═══════════════════════════════════════════════════════
+
+(defn create-canvas!
+  "创建新画布，返回活跃的 CanvasData 实例。"
+  ([id w h]
+   (let [cd (CanvasData. id w h [])]   ;; 活跃对象
+     (insert! :krro.painting/canvas (assoc cd :id id))
+     cd))
+  ([] (create-canvas! (keyword (str (UUID/randomUUID))) 800 600)))
+
+(defn delete-canvas! [id]
+  (delete-by-id! :krro.painting/canvas id))
+
+;; ═══════════════════════════════════════════════════════
+;; Raster CRUD
+;; ═══════════════════════════════════════════════════════
+
+(defn add-raster!
+  ([layer-id canvas-id data]
+   (insert! :krro.painting/raster {:id layer-id :canvas-id canvas-id :data data}))
+ ([layer-id canvas-id width height]
+  (insert! :krro.painting/raster {:id layer-id :canvas-id canvas-id :data (float-array (* width height 4))})))
+
+;; 带星号的是没有一致性保证的方法.
+(defn add-raster* [layer-id canvas-id data]
+  (swap! proj/project assoc-in [:krro.painting/raster layer-id]
+         {:id layer-id :canvas-id canvas-id :data data}))
+(defn get-raster [layer-id]
+  (select-by-id :krro.painting/raster layer-id))
+
+(defn update-raster! [layer-id f]
+  (update-by-id! :krro.painting/raster layer-id f))
+
+(defn delete-raster! [layer-id]
+  (delete-by-id! :krro.painting/raster layer-id))
+
+;; ═══════════════════════════════════════════════════════
+;; LayerMeta CRUD
+;; ═══════════════════════════════════════════════════════
+
+(defn add-layer-meta! [layer-id canvas-id]
+  (insert! :krro.painting/layer-meta {:id layer-id :canvas-id canvas-id})
+  layer-id)
+
+(defn get-layer-meta [layer-id]
+  (select-by-id :krro.painting/layer-meta layer-id))
+
+(defn update-layer-meta! [layer-id f]
+  (update-by-id! :krro.painting/layer-meta layer-id f))
+
+(defn delete-layer-meta! [layer-id]
+  (delete-by-id! :krro.painting/layer-meta layer-id))
+
+
+(defn canvas-data ^CanvasData [id]
+  (select-by-id :krro.painting/canvas id))
+(defn canvas-data!
+  (^CanvasData [id]
+   (proj/get-in-project! [:krro.painting/canvas id])))
+
+(defn layers-by-id!
+  ([canvas-id] (:layers (canvas-data! canvas-id))))
+
+(defn canvas-size [canvas-id] (when-let [cd (canvas-data! canvas-id)] [(:width cd) (:height cd)]))
+
+
+(defmulti persistable-layer :type)
+(defmulti active-layer! (fn [layer _width _height] (:type layer)))
+
+(defmethod persistable-layer :default [layer] layer)
+
+(defmethod persistable-layer :raster [layer] (dissoc layer :canvas))
+
+(defmethod active-layer! :default [layer _w _h] layer)
+
+(defmethod active-layer! :raster [layer width height]
+  (if (:canvas layer)
+    layer
+    (let [pixels (:data (get-raster (:id layer)))
+          canvas (raster/make-raster-canvas width height :data pixels)]
+      (assoc layer :canvas canvas))))
+
+;; ═══════════════════════════════════════════════════════
+;; 编解码器（直接使用多方法）
+;; ═══════════════════════════════════════════════════════
+
 (def canvas-codec-plugin-def
   {:type     :krro.plugin/resource-codec
    :id       :krro.painting/canvas-codec
    :resource :krro.painting/canvas-data
-   :encoder (fn [^CanvasData c]
-              (let [encoded-layers
-                    (mapv (fn [layer]
-                            (if (= :raster (:type layer))
-                              ;; 光栅图层：移除 :canvas，若已有引用则复用，否则首次注册
-                              (let [layer' (dissoc layer :canvas)]
-                                (if (:krro.painting/raster-ref layer')
-                                  layer'
-                                  (let [pixels (cp/data (:canvas layer))
-                                        raster-id (register-raster! pixels)]
-                                    (assoc layer' :krro.painting/raster-ref raster-id))))
-                              ;; 非光栅图层：正常编码
-                              (res/encode layer)))
-                          (:layers c))]
-                {:krro/type :krro.painting/canvas-data
-                 :width  (:width c)
-                 :height (:height c)
-                 :layers encoded-layers}))
+   :pred     #(instance? CanvasData % )
+   :encoder  (fn [c]
+               (let [encoded-layers (mapv persistable-layer (:layers c))]
+                 {:krro/type :krro.painting/canvas-data
+                  :id (:id c)
+                  :width  (:width c)
+                  :height (:height c)
+                  :layers encoded-layers}))
    :decoder  (fn [m]
-               (let [decoded-layers
-                     (mapv (fn [layer]
-                             (if (:krro.painting/raster-ref layer)
-                               (let [pixels (get-raster (:krro.painting/raster-ref layer))
-                                     canvas (rl/make-raster-layer (:width m) (:height m) :data pixels)
-                                     c (:canvas canvas)]
-                                 (-> layer
-                                     (dissoc :krro.painting/raster-ref)
-                                     (assoc :canvas c)))
-                               (res/realize layer)))
-                           (:layers m))]
-                 (map->CanvasData {:width (:width m) :height (:height m) :layers decoded-layers})))})
-
-;; ═══════════════════════════════════════════════════════
-;; polyfill 函数
-;; ═══════════════════════════════════════════════════════
-(defn ensure-canvas-data!
-  "确保画布存在，首次创建时保留运行时必需的 :canvas 字段，同时建立侧表引用。"
-  [canvas-id width height]
-  (if-let [canvas-map (select-by-id :krro.painting/canvas canvas-id)]
-    (map->CanvasData canvas-map)                            ;;  TODO 激活资源
-    (let [default-layer (rl/make-raster-layer width height)
-          canvas        (:canvas default-layer)
-          pixels        (cp/data canvas)
-          raster-id     (register-raster! pixels)
-          layer-ref     (assoc default-layer :krro.painting/raster-ref raster-id)
-          new-canvas-data    (->CanvasData width height [layer-ref])]
-      (insert! :krro.painting/canvas (assoc new-canvas-data :id canvas-id))
-      new-canvas-data)))
-
-;; ═══════════════════════════════════════════════════════
-;; LayerMeta 记录
-;; ═══════════════════════════════════════════════════════
-(defrecord LayerMeta [locked? alpha-locked? expanded?])
+               (let [id (:id m)
+                     w (:width m)
+                     h (:height m)
+                     decoded-layers (mapv #(active-layer! % w h) (:layers m))]
+                 (map->CanvasData {:id id :width w :height h :layers decoded-layers})))})
 
 (def layer-meta-codec-plugin-def
   {:type     :krro.plugin/resource-codec
    :id       :krro.painting/layer-meta-codec
    :resource :krro.painting/layer-meta
+   :pred     #(instance? LayerMeta % )
    :encoder  (fn [^LayerMeta m]
                {:krro/type      :krro.painting/layer-meta
+                :id (:id m)
                 :locked?        (:locked? m)
                 :alpha-locked?  (:alpha-locked? m)
                 :expanded?      (:expanded? m)})
    :decoder  (fn [m]
-               (map->LayerMeta {:locked?       (boolean (:locked? m))
+               (map->LayerMeta {:id (:id m)
+                                :locked?       (boolean (:locked? m))
                                 :alpha-locked? (boolean (:alpha-locked? m))
                                 :expanded?     (boolean (:expanded? m))}))})
 
-(defn polyfill-layer-meta!
-  [canvas-id layer-id]
-  (if-let [meta-map (select-by-id :krro.painting/layer-meta layer-id)]
-    (map->LayerMeta meta-map)
-    (let [new-meta (map->LayerMeta {:locked? false :alpha-locked? false :expanded? false})]
-      (insert! :krro.painting/layer-meta (assoc new-meta :id layer-id))
-      new-meta)))
+;; ═══════════════════════════════════════════════════════
+;; 激活 / 反激活（委托给 resource 系统）
+;; ═══════════════════════════════════════════════════════
+
+(defn activate-canvas!
+  "将画布数据从代理 map 激活为 CanvasData 实例。"
+  [canvas-id]
+  (proj/get-in-project! [:krro.painting/canvas canvas-id]))
+
+(defn deactivate-canvas!
+  "将 CanvasData 编码回代理 map。"
+  [canvas-id]
+  (proj/deactivate-resource! [:krro.painting/canvas canvas-id]))
+
+;; ═══════════════════════════════════════════════════════
+;; polyfill
+;; ═══════════════════════════════════════════════════════
+
+(defn ensure-canvas-data!
+  "确保画布存在并返回激活的 CanvasData。"
+  [canvas-id width height]
+  (if-let [cd (activate-canvas! canvas-id)]
+    cd
+    (let [_ (create-canvas! canvas-id width height)]
+      (activate-canvas! canvas-id))))

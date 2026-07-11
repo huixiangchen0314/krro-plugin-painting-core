@@ -1,20 +1,24 @@
+;; ── layer-browser.clj ────────────────────────────────
 (ns top.kzre.krro.plugin.painting.ui.layer-browser
+  "图层面板：标题、图层列表（自定义组件）和工具栏。"
   (:require
     [top.kzre.krro.plugin.painting.canvas.layer :as layer]
-    [top.kzre.krro.plugin.painting.canvas.project :as canv-proj]))
+    [top.kzre.krro.plugin.painting.canvas.layer-undo :as layer-undo]
+    [top.kzre.krro.plugin.painting.canvas.state :as state]))
 
 (defn layer-panel-vnode [canvas-id f]
-  ;; 返回图层列表的 EDN 向量，可被 layout-fn 直接使用
-  (let [layers      (canv-proj/layers-by-id canvas-id)
-        selected-id (layer/get-selected-layer-id f)]
-    [:block {:direction :vertical :style {:padding 8}}
-     [:text {:content "Layers" :style {:font-weight "bold" :font-size 14}}]
-     (if (seq layers)
-       (vec (map-indexed (fn [idx l]
-                           (let [lid (:id l) name (or (:name l) (str lid))]
-                             [:block {:key lid :style {:padding 2}}
-                              [:text {:content name :style {:color (if (= lid selected-id) "yellow" "lightgray")}
-                                      :on-click (fn [_] (layer/set-selected-layer-id! f lid))}]
-                              [:button {:content "×" :on-click (fn [_] (layer/remove-layer! f canvas-id lid))}]]))
-                         layers))
-       [:text {:content "No layers"}])]))
+  [:block {:class "layer-browser" :direction :vertical}
+   [:text {:class "layer-browser-title" :content "Layers"}]
+   ;; 使用自定义图层列表组件
+   [:krro.painting/layer-list {:krro.painting/canvas-id canvas-id}]
+   [:block {:class "layer-toolbar" :direction :horizontal}
+    [:button {:class "layer-toolbar-button" :content "＋"
+              :on-click (fn [_] (layer-undo/add-raster-layer-over-selected-undo! canvas-id))}]
+    [:button {:class "layer-toolbar-button" :content "×"
+              :on-click (fn [_]
+                          (when-let [path (layer/selected-layer-path canvas-id)]
+                            (layer-undo/remove-layer-at-undo! canvas-id path)))}]
+    [:button {:class "layer-toolbar-button" :content "▣"
+              :on-click (fn [_]
+                          (when-let [sid (state/selected-layer-id canvas-id)]
+                            (layer-undo/duplicate-layer-undo! canvas-id sid)))}]]])

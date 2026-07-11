@@ -2,12 +2,18 @@
   "运行时状态：事件、笔刷、缓冲区、累积长度。"
   (:require
    [top.kzre.krro.canvas.core.core :as canv]
+   [top.kzre.krro.core.frame :as frame]
+   [top.kzre.krro.core.hook :as hook]
    [top.kzre.krro.plugin.painting.canvas.project :as canv-proj]
-   )
+   [top.kzre.krro.plugin.painting.spec :as spec])
   (:import
-   [top.kzre.krro.canvas.core Arrays]
-   (top.kzre.krro.plugin.painting.canvas.project CanvasData)))
+    (top.kzre.krro.canvas.core Arrays)
+    (top.kzre.krro.plugin.painting.canvas.project CanvasData)))
 
+(defn frames-with-canvas-id
+  "返回所有显示指定画布的 Frame。"
+  [canvas-id]
+  (frame/frames-with-param spec/canvas-id-key canvas-id))
 
 (defrecord CanvasRuntime
   [new-events        ;; atom: 本帧新事件
@@ -15,6 +21,7 @@
    preview-buffer    ;; 预览缓冲区
    layer-buffer      ;; 图层原始数据备份（笔画开始时拷贝）
    last-stroke
+   selected-layer-id
    stroke-length;; atom: 已预览像素长度（用作 start-dist）
    ])
 
@@ -26,19 +33,26 @@
        :all-events     (atom [])
        :preview-buffer (float-array n)
        :layer-buffer   (float-array n)
+       :selected-layer-id (atom nil)
        :stroke-length  (atom 0.0)})))
-
-(defn clone
- [ ^CanvasRuntime cr]
-  (map->CanvasRuntime cr))
 
 (defonce canvas-runtimes (atom {}))
 
 (defn canvas-runtime [canvas-id]
   (get @canvas-runtimes canvas-id))
 
+(defn selected-layer-id [canvas-id]
+  (when-let [rt (canvas-runtime canvas-id)]
+    @(:selected-layer-id rt)))
 
-
+(defn set-selected-layer-id! [canvas-id layer-id]
+  (when-let [rt (canvas-runtime canvas-id)]
+    (let [sa (:selected-layer-id rt)]
+      (when (not= @sa layer-id)
+        (reset! sa layer-id)
+        (hook/run-hook! spec/selected-layer-changed-hook-key
+                        canvas-id
+                        layer-id)))))
 
 (defn get-all-events [rt] @(:all-events rt))
 (defn get-stroke-length [rt] @(:stroke-length rt))
@@ -51,15 +65,20 @@
   (reset! (:all-events rt) [])
   (reset! (:stroke-length rt) 0.0))
 
+(declare ensure-runtime!)
 (defn render-canvas!
   "渲染当前画布所有图层到目标数组。"
-  [canvas-id ^floats dest]
-  (when-let [cd (canv-proj/canvas-data canvas-id)]
-    (let [layers (:layers ^CanvasData cd)
-          w (.width ^CanvasData cd)
-          h (.height ^CanvasData cd)]
-      (Arrays/fill dest (float 0.0))
-      (canv/render-layers! layers dest w h))))
+  ([canvas-id]
+   (let [rt (ensure-runtime! canvas-id)
+         preview (:preview-buffer rt)]
+     (render-canvas! canvas-id preview)))
+  ([canvas-id ^floats dest]
+   (when-let [cd (canv-proj/canvas-data! canvas-id)]
+     (let [layers (:layers ^CanvasData cd)
+           w (.width ^CanvasData cd)
+           h (.height ^CanvasData cd)]
+       (Arrays/fill dest (float 0.0))
+       (canv/render-layers! layers dest w h)))))
 
 (defn ensure-runtime!
   ([canvas-id]

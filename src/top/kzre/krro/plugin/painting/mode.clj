@@ -6,11 +6,16 @@
    [top.kzre.krro.core.hook :as hook]
    [top.kzre.krro.core.plugin :as plugin]
    [top.kzre.krro.plugin.painting.canvas.core :as canvas]
+   [top.kzre.krro.canvas.core.layer.core :as layer]
+   [top.kzre.krro.plugin.painting.canvas.project :as proj]
    [top.kzre.krro.plugin.painting.canvas.state :as state]
    [top.kzre.krro.plugin.painting.spec :as spec]
-   [top.kzre.krro.plugin.painting.ui.layer-browser :as lb])
+   [top.kzre.krro.plugin.painting.ui.layer-browser :as lb]
+   [top.kzre.krro.plugin.painting.ui.layer-list :as layer-list]
+   [top.kzre.krro.canvas.core.canvas.protocol :as cp])
   (:import
-   (java.util UUID)))
+    (java.util UUID)
+    (top.kzre.krro.canvas.core Arrays)))
 
 (defn- watch-canvas-id [f]
   (let [watch-key ::canvas-id-watch]
@@ -27,6 +32,18 @@
   (remove-watch (frame/params-atom f) watch-key))
 
 
+(defn- watch-selected-layer-changed!
+  "- 当选中图层更新时候，刷新预览状态."
+  []
+  (let [cb (fn [canvas-id layer-id]
+             (when-let [cd (proj/canvas-data! canvas-id)]
+               (when-let [l (layer/find-layer layer-id (:layers cd))]
+                 (let [data (cp/data (:canvas l))
+                       rt (state/canvas-runtime canvas-id)
+                       buf (state/layer-buffer rt)]
+                   (Arrays/copy data buf)))))]
+    (hook/add-hook! spec/selected-layer-changed-hook-key cb)
+    cb))
 
 
 (defn layout-fn [f]
@@ -46,14 +63,21 @@
                  :layout layout-fn)
   (hook/add-hook! :krro.painting/painting-mode-enter-hook
                   (fn [f]
-                    (frame/set-param! f ::canvas-id-watch (watch-canvas-id f))))
+                    (frame/set-param! f ::canvas-id-watch (watch-canvas-id f))
+                    ))
   (hook/add-hook! :krro.painting/painting-mode-exit-hook
                   (fn [f]
                     (when-let [watch-key (frame/param f ::canvas-id-watch)]
                       (unwatch-canvas-id f watch-key)
                       (frame/remove-param! f ::canvas-id-watch))))
+  (watch-selected-layer-changed!)
   (plugin/register-plugin!
     {:id    :krro.painting/canvas-tag
      :type    :krro.plugin/javafx-tag
      :tag     :krro.painting/canvas
-     :handler canvas/create-canvas}))
+     :handler canvas/create-canvas})
+  (plugin/register-plugin!
+    {:id    :krro.painting/layer-list-tag
+     :type  :krro.plugin/javafx-tag
+     :tag   :krro.painting/layer-list
+     :handler layer-list/create-layer-list}))
