@@ -55,6 +55,17 @@
     (when path
       (update-layer-at-undo! canvas-id path updater))))
 
+(defn toggle-layer-visibility! [canvas-id layer-id]
+  (letfn [(updator [layer]
+            (let [visible? (:visible? layer)]
+              (assoc layer :visible? (not visible?))))]
+    (when (layer/update-layer-by-id! canvas-id layer-id updator)
+      (undo/record-visibility-state! canvas-id))))
+
+(defn set-layer-visibility! [canvas-id layer-id visible?]
+  (letfn [(updator [layer] (assoc layer :visible? visible?))]
+    (when (layer/update-layer-by-id! canvas-id layer-id updator)
+      (undo/record-visibility-state! canvas-id))))
 (defn update-selected-layer-undo! [canvas-id updater]
   (when-let [selected-id (state/selected-layer-id canvas-id)]
     (update-layer-by-id-undo! canvas-id selected-id updater)))

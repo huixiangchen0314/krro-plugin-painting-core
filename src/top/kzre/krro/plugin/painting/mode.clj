@@ -1,20 +1,20 @@
 (ns top.kzre.krro.plugin.painting.mode
   "绘画模式定义，使用新的 define-major-mode 宏。"
   (:require
-   [top.kzre.krro.core.core :as core]
-   [top.kzre.krro.core.frame :as frame]
-   [top.kzre.krro.core.hook :as hook]
-   [top.kzre.krro.core.plugin :as plugin]
-   [top.kzre.krro.plugin.painting.canvas.core :as canvas]
-   [top.kzre.krro.canvas.core.layer.core :as layer]
-   [top.kzre.krro.plugin.painting.canvas.project :as proj]
-   [top.kzre.krro.plugin.painting.canvas.state :as state]
-   [top.kzre.krro.plugin.painting.spec :as spec]
-   [top.kzre.krro.plugin.painting.ui.layer-browser :as lb]
-   [top.kzre.krro.plugin.painting.ui.layer-list :as layer-list]
-   [top.kzre.krro.canvas.core.canvas.protocol :as cp])
+    [top.kzre.krro.canvas.core.canvas.protocol :as cp]
+    [top.kzre.krro.canvas.core.layer.core :as layer]
+    [top.kzre.krro.core.core :as core]
+    [top.kzre.krro.core.frame :as frame]
+    [top.kzre.krro.core.hook :as hook]
+    [top.kzre.krro.core.plugin :as plugin]
+    [top.kzre.krro.plugin.painting.canvas.core :as canvas]
+    [top.kzre.krro.plugin.painting.canvas.project :as proj]
+    [top.kzre.krro.plugin.painting.canvas.state :as state]
+    [top.kzre.krro.plugin.painting.spec :as spec]
+    [top.kzre.krro.plugin.painting.ui.layer-browser :as lb])
   (:import
     (java.util UUID)
+    (javafx.application Platform)
     (top.kzre.krro.canvas.core Arrays)))
 
 (defn- watch-canvas-id [f]
@@ -27,10 +27,17 @@
                    (core/rerender! f))))
     watch-key))
 
+(defn- watch-layer-changed-changed!
+  "- 当图层更新时候，刷新UI布局."
+  [f]
+  (let [cb (fn [canvas-id]
+             (when (= (frame/param f spec/canvas-id-key) canvas-id)
+               (core/rerender! f)))]
+    (hook/add-hook! spec/layer-changed-hook-key cb)
+    cb))
 
 (defn- unwatch-canvas-id [f watch-key]
   (remove-watch (frame/params-atom f) watch-key))
-
 
 (defn- watch-selected-layer-changed!
   "- 当选中图层更新时候，刷新预览状态."
@@ -44,6 +51,9 @@
                    (Arrays/copy data buf)))))]
     (hook/add-hook! spec/selected-layer-changed-hook-key cb)
     cb))
+
+(defn- unwatch-selected-layer-changed! [cb]
+  (hook/remove-hook! spec/selected-layer-changed-hook-key cb))
 
 
 (defn layout-fn [f]
@@ -64,20 +74,25 @@
   (hook/add-hook! :krro.painting/painting-mode-enter-hook
                   (fn [f]
                     (frame/set-param! f ::canvas-id-watch (watch-canvas-id f))
-                    ))
+                    (frame/set-param! f ::layer-changed-watch (watch-layer-changed-changed! f))))
   (hook/add-hook! :krro.painting/painting-mode-exit-hook
                   (fn [f]
                     (when-let [watch-key (frame/param f ::canvas-id-watch)]
                       (unwatch-canvas-id f watch-key)
+                      (frame/remove-param! f ::canvas-id-watch))
+                    (when-let [watch-key (frame/param f ::canvas-id-watch)]
+                      (unwatch-selected-layer-changed! watch-key)
                       (frame/remove-param! f ::canvas-id-watch))))
   (watch-selected-layer-changed!)
+
   (plugin/register-plugin!
     {:id    :krro.painting/canvas-tag
      :type    :krro.plugin/javafx-tag
      :tag     :krro.painting/canvas
      :handler canvas/create-canvas})
-  (plugin/register-plugin!
-    {:id    :krro.painting/layer-list-tag
-     :type  :krro.plugin/javafx-tag
-     :tag   :krro.painting/layer-list
-     :handler layer-list/create-layer-list}))
+  ;(plugin/register-plugin!
+  ;  {:id    :krro.painting/layer-list-tag
+  ;   :type  :krro.plugin/javafx-tag
+  ;   :tag   :krro.painting/layer-list
+  ;   :handler layer-list/create-layer-list})
+  )

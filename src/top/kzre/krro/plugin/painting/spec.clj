@@ -7,7 +7,6 @@
 ;; Frame 参数中使用的命名空间关键字
 (def canvas-id-key  ::canvas-id)
 
-(def selected-layer-id-key ::selected-layer-id)
 
 (def selected-layer-changed-hook-key ::selected-layer-changed)
 

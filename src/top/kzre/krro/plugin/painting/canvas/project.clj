@@ -5,7 +5,8 @@
     [top.kzre.krro.canvas.core.layer.core :as lc]
     [top.kzre.krro.core.core :refer [delete-by-id! insert! select-by-id update-by-id!]]
     [top.kzre.krro.core.project :as proj]
-    [top.kzre.krro.core.rdb :as rdb])
+    [top.kzre.krro.core.rdb :as rdb]
+    [top.kzre.krro.canvas.core.layer.core :as layer])
   (:import (java.util UUID)))
 
 ;; ═══════════════════════════════════════════════════════
@@ -96,11 +97,26 @@
   (delete-by-id! :krro.painting/layer-meta layer-id))
 
 
-(defn canvas-data ^CanvasData [id]
-  (select-by-id :krro.painting/canvas id))
+(defn canvas-data ^CanvasData
+  ([id]
+   (select-by-id :krro.painting/canvas id))
+  ([id db-map]
+   (get-in db-map [:krro.painting/canvas id] )))
+
 (defn canvas-data!
   (^CanvasData [id]
    (proj/get-in-project! [:krro.painting/canvas id])))
+
+(defn visible-layer?
+  ([canvas-id layer-id]
+   (when-let [cd (canvas-data canvas-id)]
+     (when-let [l (layer/find-layer layer-id (:layers cd))]
+       (:visible? l))))
+  ([canvas-id layer-id db-map]
+   (when-let [cd (canvas-data canvas-id db-map)]
+     (when-let [l (layer/find-layer layer-id (:layers cd))]
+       (:visible? l)))))
+
 
 (defn layers-by-id!
   ([canvas-id] (:layers (canvas-data! canvas-id))))
