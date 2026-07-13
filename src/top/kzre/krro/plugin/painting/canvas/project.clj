@@ -5,8 +5,8 @@
     [top.kzre.krro.canvas.core.layer.core :as lc]
     [top.kzre.krro.core.core :refer [delete-by-id! insert! select-by-id update-by-id!]]
     [top.kzre.krro.core.project :as proj]
-    [top.kzre.krro.core.rdb :as rdb]
-    [top.kzre.krro.canvas.core.layer.core :as layer])
+    [top.kzre.krro.core.resources :as ress]
+    [top.kzre.krro.core.rdb :as rdb])
   (:import (java.util UUID)))
 
 ;; ═══════════════════════════════════════════════════════
@@ -68,8 +68,13 @@
 
 ;; 带星号的是没有一致性保证的方法.
 (defn add-raster* [layer-id canvas-id data]
+  {:pre [(keyword? layer-id)
+         (keyword? canvas-id)
+         (instance? ress/float-array-class data)]}
   (swap! proj/project assoc-in [:krro.painting/raster layer-id]
-         {:id layer-id :canvas-id canvas-id :data data}))
+         {:id layer-id
+          :canvas-id canvas-id
+          :data data}))
 (defn get-raster [layer-id]
   (select-by-id :krro.painting/raster layer-id))
 
@@ -110,16 +115,20 @@
 (defn visible-layer?
   ([canvas-id layer-id]
    (when-let [cd (canvas-data canvas-id)]
-     (when-let [l (layer/find-layer layer-id (:layers cd))]
+     (when-let [l (lc/find-layer layer-id (:layers cd))]
        (:visible? l))))
   ([canvas-id layer-id db-map]
    (when-let [cd (canvas-data canvas-id db-map)]
-     (when-let [l (layer/find-layer layer-id (:layers cd))]
+     (when-let [l (lc/find-layer layer-id (:layers cd))]
        (:visible? l)))))
 
 
 (defn layers-by-id!
   ([canvas-id] (:layers (canvas-data! canvas-id))))
+
+(defn find-layer-in-canvas! [canvas-id layer-id]
+  (when-let [ls (layers-by-id! canvas-id)]
+    (lc/find-layer layer-id ls)))
 
 (defn canvas-size [canvas-id] (when-let [cd (canvas-data! canvas-id)] [(:width cd) (:height cd)]))
 

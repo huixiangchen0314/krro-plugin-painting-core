@@ -23,13 +23,13 @@
 
 (cmd/register-command!
   :krro.painting/duplicate-layer
-  (fn [project]
+  (fn [_project]
     (let [canvas-id (current-canvas-id)
           selected-id (state/selected-layer-id canvas-id)]
       (when selected-id
-        (layer-undo/duplicate-layer-undo! canvas-id selected-id)))
-    @project)
+        (layer-undo/duplicate-layer-undo! canvas-id selected-id))))
   :description "复制当前选中的图层（可撤销）")
+
 
 (cmd/register-command!
   :krro.painting/remove-layer

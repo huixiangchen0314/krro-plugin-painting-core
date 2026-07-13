@@ -34,14 +34,20 @@
           (Platform/runLater #(ufn preview w h)))))))
 
 (defn raster-layer-buffer [canvas-id layer-id]
-  (let [lid (state/selected-layer-id canvas-id)]
-    (if (= lid layer-id)
-      (when-let [rt (state/canvas-runtime canvas-id)]
-        (state/layer-buffer rt))
-      (when-let [cd (proj/canvas-data! canvas-id)]
-        (when-let [l (lc/find-layer layer-id (:layers cd))]
-          (when (= :raster (:type l))
+  (when-let [cd (proj/canvas-data! canvas-id)]
+    (when-let [l (lc/find-layer layer-id (:layers cd))]
+      (when (= :raster (:type l))
+        (let [lid (state/selected-layer-id canvas-id)]
+          (if (= lid layer-id)
+            (when-let [rt (state/canvas-runtime canvas-id)]
+              (state/layer-buffer rt))
             (cp/data (:canvas l))))))))
+
+;(defn raster-layer-buffer [canvas-id layer-id]
+;  (when-let [cd (proj/canvas-data! canvas-id)]
+;    (when-let [l (lc/find-layer layer-id (:layers cd))]
+;      (when (= :raster (:type l))
+;        (cp/data (:canvas l))))))
 
 ;; ── 路径查询 ──────────────────────────────────────
 (defn selected-layer-path [canvas-id]
@@ -77,13 +83,11 @@
 
 (defn add-raster-layer-over-selected! [canvas-id]
   (let [^CanvasData cd (proj/canvas-data! canvas-id)
-        width (:width cd)
-        height (:height cd)
         selected-id (state/selected-layer-id canvas-id)
         result (add-raster-layer-over-selected cd selected-id)   ;; 完整纯函数结果
         {:keys [canvas-data layer layer-id path]} result]
     (update-project! canvas-id canvas-data)
-    (proj/add-raster! layer-id canvas-id width height)
+    (proj/add-raster! layer-id canvas-id (cp/data (:canvas layer)))
     (state/set-selected-layer-id! canvas-id layer-id)
     (refresh-canvas-frames! canvas-id)
     (hook/run-hook! spec/layer-changed-hook-key canvas-id)
@@ -102,17 +106,15 @@
 
 (defn add-layer-at! [canvas-id path layer]
   (let [^CanvasData cd (proj/canvas-data! canvas-id)
-        width (:width cd)
-        height (:height cd)
         result (add-layer-at cd path layer)
         {:keys [canvas-data layer-id]} result]
     (when canvas-data
       (update-project! canvas-id canvas-data)
-      (proj/add-raster! layer-id canvas-id width height)
-      (state/set-selected-layer-id! canvas-id layer-id)
+      (proj/add-raster! layer-id canvas-id (cp/data (:canvas layer)))
       (refresh-canvas-frames! canvas-id)
+      (state/set-selected-layer-id! canvas-id layer-id)
       (hook/run-hook! spec/layer-changed-hook-key canvas-id)
-      result)))   ;; 返回完整 map
+      result)))
 
 ;; ── 删除图层 ──────────────────────────────────────
 
@@ -120,34 +122,32 @@
   "纯：删除路径处的图层。
    返回 {:canvas-data, :removed, :new-selected-id}"
   [cd selected-id path]
-  (when (seq path)
-    (let [layers        (:layers cd)
-          parent-layers (lc/parent-container path layers)
-          idx           (last path)
-          removed       (nth parent-layers idx)
-          [final-layers _] (lc/remove-layer path layers)
-          new-cd        (with-layers cd final-layers)
-          layer-id      (:id removed)
-          new-sel       (if (= selected-id layer-id)
-                          (let [new-parent (lc/parent-container path final-layers)
-                                new-idx    (min idx (dec (count new-parent)))]
-                            (when (>= new-idx 0) (:id (nth new-parent new-idx))))
-                          selected-id)]
-      {:canvas-data new-cd
-       :removed     removed
-       :layer-id layer-id
-       :new-selected-id new-sel})))
+  (let [layers        (:layers cd)
+        [final-layers removed] (lc/remove-layer path layers)
+        new-cd        (with-layers cd final-layers)
+        layer-id      (:id removed)
+        ;; 计算新选择的图层
+        idx           (last path)
+        new-sel       (if (= selected-id layer-id)
+                        (let [new-parent (lc/parent-container path final-layers)
+                              new-idx    (min idx (dec (count new-parent)))]
+                          (when (>= new-idx 0) (:id (nth new-parent new-idx))))
+                        selected-id)]
+    {:canvas-data new-cd
+     :removed     removed
+     :layer-id    layer-id
+     :new-selected-id new-sel}))
 
 (defn remove-layer-at! [canvas-id path]
   (let [cd (proj/canvas-data! canvas-id)
         selected-id (state/selected-layer-id canvas-id)
         result (remove-layer-at cd selected-id path)
-        {:keys [canvas-data removed layer-id new-selected-id]} result]
+        {:keys [canvas-data _removed layer-id new-selected-id]} result]
     (when canvas-data
       (update-project! canvas-id canvas-data)
       (proj/delete-raster! layer-id)
-      (when new-selected-id (state/set-selected-layer-id! canvas-id new-selected-id))
       (refresh-canvas-frames! canvas-id)
+      (when new-selected-id (state/set-selected-layer-id! canvas-id new-selected-id))
       (hook/run-hook! spec/layer-changed-hook-key canvas-id)
       result)))
 
@@ -210,8 +210,8 @@
       (update-project! canvas-id canvas-data)
       (proj/add-raster! new-layer-id canvas-id width height)
       (proj/add-layer-meta! new-layer-id canvas-id)
-      (state/set-selected-layer-id! canvas-id new-layer-id)
       (refresh-canvas-frames! canvas-id)
+      (state/set-selected-layer-id! canvas-id new-layer-id)
       (hook/run-hook! spec/layer-changed-hook-key canvas-id)
       result)))
 
@@ -233,9 +233,6 @@
 (defn update-layer-by-id [cd layer-id updater]
   (when-let [path (lc/find-layer-path layer-id (:layers cd))]
     (update-layer-at cd path updater)))
-
-(defn update-selected-layer [cd selected-id updater]
-  (update-layer-by-id cd selected-id updater))
 
 (defn update-layer-at! [canvas-id path updater]
   (when-let [new-cd (update-layer-at (proj/canvas-data! canvas-id) path updater)]

@@ -5,10 +5,13 @@
    [top.kzre.krro.core.frame :as frame]
    [top.kzre.krro.core.hook :as hook]
    [top.kzre.krro.plugin.painting.canvas.project :as canv-proj]
-   [top.kzre.krro.plugin.painting.spec :as spec])
+   [top.kzre.krro.plugin.painting.canvas.project :as proj]
+   [top.kzre.krro.plugin.painting.spec :as spec]
+   [top.kzre.krro.canvas.core.canvas.protocol :as cp]
+   [top.kzre.krro.core.message :as msg])
   (:import
-    (top.kzre.krro.canvas.core Arrays)
-    (top.kzre.krro.plugin.painting.canvas.project CanvasData)))
+   (top.kzre.krro.canvas.core Arrays)
+   (top.kzre.krro.plugin.painting.canvas.project CanvasData)))
 
 (defn frames-with-canvas-id
   "返回所有显示指定画布的 Frame。"
@@ -45,14 +48,28 @@
   (when-let [rt (canvas-runtime canvas-id)]
     @(:selected-layer-id rt)))
 
+(defn backup-layer-data!
+  [canvas-id layer-id]
+  (when-let [l (proj/find-layer-in-canvas! canvas-id layer-id)]
+    (case (:type l)
+      ;; 光栅图层备份像素缓冲.
+      :raster (let [^CanvasRuntime rt (canvas-runtime canvas-id)
+                    buf (:layer-buffer rt)
+                    pixels (cp/data (:canvas l))]
+                (Arrays/copy pixels buf))
+      :default (msg/warn (str "unknown layer type to backup" (:type l))))))
+
 (defn set-selected-layer-id! [canvas-id layer-id]
   (when-let [rt (canvas-runtime canvas-id)]
     (let [sa (:selected-layer-id rt)]
-      (when (not= @sa layer-id)
+      (when (not= @sa layer-id)                             ;; 选中一个新图层，备份其数据
         (reset! sa layer-id)
+        (backup-layer-data! canvas-id layer-id)
         (hook/run-hook! spec/selected-layer-changed-hook-key
                         canvas-id
                         layer-id)))))
+
+
 
 (defn get-all-events [rt] @(:all-events rt))
 (defn get-stroke-length [rt] @(:stroke-length rt))

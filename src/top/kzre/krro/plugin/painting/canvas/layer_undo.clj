@@ -21,12 +21,9 @@
     (undo/record-raster-layer-add! canvas-id path layer)
     result))
 
-;; ── 删除图层 ──────────────────────────────────────
-
 (defn remove-layer-at-undo! [canvas-id path]
-  (let [cd (proj/canvas-data! canvas-id)
-        removed (layer-core/find-layer-by-path path (:layers cd))]
-    (layer/remove-layer-at! canvas-id path)
+  (let [result (layer/remove-layer-at! canvas-id path)
+        {:keys [removed]} result]
     (undo/record-raster-layer-remove! canvas-id path removed)))
 
 ;; ── 移动图层 ──────────────────────────────────────

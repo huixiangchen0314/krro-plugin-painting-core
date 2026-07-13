@@ -61,9 +61,10 @@
 
 
 (defn make-raster-layer-add-meta [canvas-id path layer snapshot-wrapper]
-  {:type     undo-type-raster-layer-add
+  {:type          undo-type-raster-layer-add
    :seq           (inc-undo-metadata-seq-key)
    :canvas-id     canvas-id
+   :layer-id      (:id layer)
    :path          path
    :layer   (proj/persistable-layer layer)
    :snapshot      snapshot-wrapper})
@@ -72,6 +73,7 @@
   {:type          undo-type-raster-layer-remove
    :seq           (inc-undo-metadata-seq-key)
    :canvas-id     canvas-id
+   :layer-id      (:id layer)
    :path          path
    :layer         (proj/persistable-layer layer)
    :snapshot      snapshot-wrapper})
@@ -110,7 +112,7 @@
 
 (defn record-raster-layer-remove!
   [canvas-id path removed]
-  (let [pixels (layer/raster-layer-buffer canvas-id (:id removed))
+  (let [pixels (cp/data (:canvas removed))
         wrapper (snap/wrap-pixels! pixels)
         meta (make-raster-layer-remove-meta canvas-id path removed wrapper)]
     (undo/record-state! meta)))
@@ -128,26 +130,26 @@
         layer-buf (layer/raster-layer-buffer canvas-id layer-id)
         layer     (layer-core/find-layer layer-id (:layers cd))]
     (log/info "Restoring raster state [seq:" seq-num "] from" snapshot-key)
-    (if-not layer
-      (msg/error (str "Cannot restore [seq:" seq-num "]: layer" layer-id "not found."))
-      (if-not layer-buf
-        (msg/error (str "Layer buffer does not exist: layer" layer-id))
-        (try
-          (let [obb    (:obb meta)
-                snap-w (snapshot-key meta)
-                snap   (snap/read-snapshot! snap-w)]
-            (obb/restore-obb-snapshot layer-buf w h obb snap)
-            (let [canvas  (:canvas layer)
-                  dest    (cp/data canvas)]
-              (when (not= layer-buf dest) (Arrays/copy layer-buf dest))
-              (layer/refresh-canvas-frames! canvas-id))
-            (log/info "Raster state restored successfully [seq:" seq-num "]"))
-          (catch FileNotFoundException e
-            (log/error e "Snapshot file not found [seq:" seq-num "]"))
-          (catch Exception e
-            (log/error e "Failed to restore raster state [seq:" seq-num "]")))))))
+    (if-not layer-buf
+      (msg/error (str "Layer buffer does not exist: layer" layer-id))
+      (try
+        (let [obb    (:obb meta)
+              snap-w (snapshot-key meta)
+              snap   (snap/read-snapshot! snap-w)]
+          (obb/restore-obb-snapshot layer-buf w h obb snap)
+          (let [canvas  (:canvas layer)
+                dest    (cp/data canvas)]
+            (when (not= layer-buf dest) (Arrays/copy layer-buf dest))
+            (layer/refresh-canvas-frames! canvas-id))
+          (log/debug "Raster state restored successfully [seq:" seq-num "]"))
+        (catch FileNotFoundException e
+          (log/error e "Snapshot file not found [seq:" seq-num "]"))
+        (catch Exception e
+          (log/error e "Failed to restore raster state [seq:" seq-num "]"))))))
 
-(defn refresh-canvas-and-layer! [canvas-id]
+(defn refresh-canvas-and-layer!
+  "刷新画布并重新渲染UI布局, 当图层发生了影响画布渲染的行动时候使用."
+  [canvas-id]
   (let [canvas-id canvas-id]
     (layer/refresh-canvas-frames! canvas-id)
     (hook/run-hook! spec/layer-changed-hook-key canvas-id)))
@@ -175,18 +177,19 @@
 (defmethod restore-canvas-state! [:before-undo undo-type-raster-layer-remove] [_ meta]
   (let [canvas-id (:canvas-id meta)
         layer-id (:layer-id meta)
-        buffer   (snap/read-pixels! (:snapshot meta))]
-    (proj/add-raster* layer-id canvas-id buffer)))
+        pixels   (snap/read-pixels! (:snapshot meta))]
+    (proj/add-raster* layer-id canvas-id pixels)
+    ))
 
 (defmethod restore-canvas-state! [:after-undo undo-type-raster-layer-remove] [_ meta]
   (let [canvas-id  (:canvas-id meta)]
-    (hook/run-hook! spec/layer-changed-hook-key canvas-id)))
+    (refresh-canvas-and-layer! canvas-id)))
 
 (defmethod restore-canvas-state! [:after-redo undo-type-raster-layer-remove] [_ meta]
   (let [canvas-id (:canvas-id meta)
         layer-id (:layer-id meta)]
     (proj/delete-raster! layer-id)
-    (hook/run-hook! spec/layer-changed-hook-key canvas-id)))
+    (refresh-canvas-and-layer! canvas-id)))
 
 (defmethod restore-canvas-state! [:after-undo undo-type-raster-stroke] [_ meta]
   (restore-raster-state! meta :old-snapshot))
