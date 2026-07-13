@@ -17,7 +17,7 @@
   (let [runtime (state/canvas-runtime canvas-id)
         [w h]   (pc/canvas-size canvas-id)
         upload-fn (upload/make-uploader canvas)             ;; TODO无限画布.
-        loop-ctrl (loop/make-loop canvas-id w h)
+        loop-ctrl (loop/make-loop canvas-id )
         timer    (:timer loop-ctrl)
         commit!  (:commit loop-ctrl)
 

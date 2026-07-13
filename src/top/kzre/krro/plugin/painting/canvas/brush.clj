@@ -1,7 +1,7 @@
 (ns top.kzre.krro.plugin.painting.canvas.brush
   (:import [top.kzre.colorutils.color RGB]))
 
-(def default-brush
+(defonce default-brush
   {:dab        {:type :circle :mask-type :hard :radius 8.0}
    :color      (RGB/rgba 0.0 0.0 1.0 1.0)
    :dynamics   {:pressure {:radius {:curve :linear :min 5.0 :max 15.0}}}
@@ -16,3 +16,4 @@
 
 (defn set-global-brush! [brush]
   (reset! global-brush brush))
+
