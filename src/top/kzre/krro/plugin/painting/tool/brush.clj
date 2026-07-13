@@ -10,11 +10,10 @@
     [top.kzre.krro.plugin.painting.canvas.brush :as brush]
     [top.kzre.krro.plugin.painting.canvas.state :as state]
     [top.kzre.krro.plugin.painting.canvas.undo :as undo]
-    [top.kzre.krro.plugin.undo.protocol]
-    [top.kzre.krro.plugin.painting.tool.protocol :as tp])
+    [top.kzre.krro.plugin.painting.tool.protocol :as tp]
+    [top.kzre.krro.plugin.undo.protocol])
   (:import
-    (top.kzre.krro.canvas.core Arrays)
-    (top.kzre.krro.plugin.painting.tool.protocol ToolContext)))
+    (top.kzre.krro.canvas.core Arrays)))
 
 ;; ── 内部状态 ─────────────────────────────────────
 (defrecord BrushState

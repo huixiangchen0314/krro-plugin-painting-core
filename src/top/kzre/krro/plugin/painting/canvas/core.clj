@@ -2,17 +2,18 @@
   (:require
    [top.kzre.krro.core.frame :as frame]
    [top.kzre.krro.plugin.painting.canvas.backup :as backup]
+   [top.kzre.krro.plugin.painting.canvas.input :as input]
    [top.kzre.krro.plugin.painting.canvas.layer :as layer]
    [top.kzre.krro.plugin.painting.canvas.loop :as loop]
    [top.kzre.krro.plugin.painting.canvas.state :as state]
    [top.kzre.krro.plugin.painting.canvas.upload :as upload]
+   [top.kzre.krro.plugin.painting.canvas.viewport :as vp]
    [top.kzre.krro.plugin.painting.platform.javafx.input :as jfx-input]
    [top.kzre.krro.plugin.painting.project.canvas :as pc]
    [top.kzre.krro.plugin.painting.spec :as spec]
    [top.kzre.krro.plugin.painting.tool.brush :as brush-tool]
    [top.kzre.krro.plugin.painting.tool.protocol :as tp]
-   [top.kzre.krro.ui.javafx.core :refer [make-component]]
-   [top.kzre.krro.plugin.painting.canvas.input :as input])
+   [top.kzre.krro.ui.javafx.core :refer [make-component]])
   (:import
    (javafx.scene.canvas Canvas)))
 
@@ -29,7 +30,7 @@
                     (when-let [current-tool @tool]
                       (when-let [layer (state/selected-layer! canvas-id)]
                         (let [data (pc/canvas-data! canvas-id)
-                              ctx  (tp/->ToolContext canvas-id data runtime)]
+                              ctx  (tp/make-context canvas-id f data runtime)]
                           ;; preview! 返回图层（通常不变）
                           (tp/preview! current-tool layer ctx)))))
 
@@ -38,7 +39,10 @@
                    (when-let [current-tool @tool]
                      (when-let [layer (state/selected-layer! canvas-id)]
                        (let [data (pc/canvas-data! canvas-id)
-                             ctx  (tp/->ToolContext canvas-id data runtime)
+                             viewport (vp/get-viewport f)
+                             logic-coords (vp/screen->logic viewport (:x ev) (:y ev))
+                             ev (assoc ev :x (:x logic-coords) :y (:y logic-coords))
+                             ctx  (tp/make-context canvas-id f data runtime)
                              action (tp/apply! current-tool layer ev ctx)]
                          (case action
                            :start
@@ -75,7 +79,7 @@
 
     ;; 首次上传画布
     (when-let [preview (state/preview-buffer runtime)]
-      (upload-fn preview w h))
+      (upload-fn preview w h (:viewport runtime)))
 
     (frame/set-param! f spec/update-fn-key upload-fn)
 
@@ -97,6 +101,7 @@
                         (when-let [runtime (state/canvas-runtime canvas-id)]
                           (let [[w h]   (pc/canvas-size canvas-id)
                                 preview  (state/preview-buffer runtime)
+                                viewport (vp/get-viewport f)
                                 upload-fn (frame/param f spec/update-fn-key)]
                             (when upload-fn
-                              (upload-fn preview w h)))))))))
+                              (upload-fn preview w h viewport)))))))))

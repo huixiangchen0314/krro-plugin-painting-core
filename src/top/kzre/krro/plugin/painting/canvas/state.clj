@@ -5,10 +5,12 @@
     [top.kzre.krro.canvas.core.layer.core :as lc]
     [top.kzre.krro.core.frame :as frame]
     [top.kzre.krro.plugin.painting.project.canvas :as pc]
+    [top.kzre.krro.plugin.painting.canvas.viewport :as vp]
     [top.kzre.krro.plugin.painting.spec :as spec])
   (:import
-   (top.kzre.krro.canvas.core Arrays)
-   (top.kzre.krro.plugin.painting.project.canvas CanvasData)))
+    (top.kzre.krro.canvas.core Arrays)
+    (top.kzre.krro.plugin.painting.canvas.viewport ViewPort)
+    (top.kzre.krro.plugin.painting.project.canvas CanvasData)))
 
 (defn frames-with-canvas-id
   "返回所有显示指定画布的 Frame。"
@@ -16,22 +18,18 @@
   (frame/frames-with-param spec/canvas-id-key canvas-id))
 
 (defrecord CanvasRuntime
-  [new-events         ;; 本帧新事件
-   all-events         ;; 整个笔画事件序列（提交用）
-   ^floats preview-buffer     ;; 预览缓冲区
+  [^floats preview-buffer     ;; 预览缓冲区
    ^floats layer-buffer       ;; 光栅图层原始数据备份（笔画开始时拷贝）
+   ^ViewPort viewport
    selected-layer-id  ;; 当前选中的图层id
-   stroke-length      ;; 已预览像素长度（用作 start-dist）
    ])
 
 (defn default-state
   [buffer-size]
-  {:new-events     []
-   :all-events     []
-   :preview-buffer (float-array buffer-size)
+  {:preview-buffer (float-array buffer-size)
    :layer-buffer   (float-array buffer-size)
    :selected-layer-id nil
-   :stroke-length  0.0})
+   :viewport vp/default-viewport})
 
 (defn make-state
   [width height]
@@ -47,6 +45,10 @@
 (defn selected-layer-id [canvas-id]
   (when-let [rt (canvas-runtime canvas-id)]
     (:selected-layer-id rt)))
+
+(defn viewport [canvas-id]
+  (when-let [rt (canvas-runtime canvas-id)]
+    (:viewport rt)))
 
 (defn selected-layer! [canvas-id]
   (when-let [rt (pc/canvas-data! canvas-id)]

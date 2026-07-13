@@ -10,6 +10,7 @@
    [top.kzre.krro.core.hook :as hook]
    [top.kzre.krro.plugin.painting.canvas.backup :as backup]
    [top.kzre.krro.plugin.painting.canvas.state :as state]
+   [top.kzre.krro.plugin.painting.canvas.viewport :as vp]
    [top.kzre.krro.plugin.painting.project.canvas :as pc]
    [top.kzre.krro.plugin.painting.project.layer-meta :as pm]
    [top.kzre.krro.plugin.painting.project.raster-layer :as pr]
@@ -25,16 +26,15 @@
 (defn update-project! [canvas-id new-cd]
   (kcc/update-by-id! :krro.painting/canvas canvas-id (constantly new-cd)))
 
-(defn refresh-canvas-frames!
-  "重新渲染画布并通知所有相关 Frame 上传。"
-  [canvas-id]
+(defn refresh-canvas-frames! [canvas-id]
   (when-let [rt (state/canvas-runtime canvas-id)]
     (let [preview (state/preview-buffer rt)
           [w h]   (pc/canvas-size canvas-id)]
       (state/render-canvas! canvas-id preview)
       (doseq [f (state/frames-with-canvas-id canvas-id)]
         (when-let [ufn (frame/param f spec/update-fn-key)]
-          (Platform/runLater #(ufn preview w h)))))))
+          (let [viewport (vp/get-viewport f)]
+            (Platform/runLater #(ufn preview w h viewport))))))))
 
 (defn raster-layer-buffer [canvas-id layer-id]
   (when-let [cd (pc/canvas-data! canvas-id)]
