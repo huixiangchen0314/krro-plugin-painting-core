@@ -1,32 +1,26 @@
 (ns top.kzre.krro.plugin.painting.canvas.loop
+  "全局动画循环管理，与具体工具解耦。"
   (:require
     [taoensso.timbre :as log]
-    [top.kzre.krro.plugin.painting.canvas.layer :as layer]
-    [top.kzre.krro.plugin.painting.canvas.state :as state]
-    [top.kzre.krro.plugin.painting.stroke.raster-brush :as raster])
+    [top.kzre.krro.plugin.painting.canvas.layer :as layer])
   (:import
     [javafx.animation AnimationTimer]))
 
+(defonce animation-timers (atom {}))
 
-(defn preview-stroke-events! [canvas-id]
-  (case (state/selected-layer-type canvas-id)
-    :raster (raster/preview! canvas-id)
-    nil))
+(defn start-loop! [canvas-id render-fn]
+  (when-not (get @animation-timers canvas-id)
+    (let [timer (proxy [AnimationTimer] []
+                  (handle [_]
+                    (try
+                      (render-fn)
+                      (layer/refresh-canvas-frames! canvas-id)
+                      (catch Exception e
+                        (log/error e (str "Render loop error: " (.getMessage e)))))))]
+      (swap! animation-timers assoc canvas-id timer)
+      (.start timer))))
 
-(defn commit-stroke! [canvas-id]
-  (case (state/selected-layer-type canvas-id)
-    :raster (raster/commit! canvas-id)
-    nil))
-
-(defn make-loop [canvas-id]
-  (let [timer (proxy [AnimationTimer] []
-                (handle [_]
-                  (try
-                    (preview-stroke-events! canvas-id)
-                    (layer/refresh-canvas-frames! canvas-id)
-                    (catch Exception e
-                      (log/error e (str "Render loop error: " (.getMessage e)))))))
-
-        commit-fn #(do (commit-stroke! canvas-id)
-                       (layer/refresh-canvas-frames! canvas-id))]
-    {:timer timer :commit commit-fn}))
+(defn stop-loop! [canvas-id]
+  (when-let [timer (get @animation-timers canvas-id)]
+    (.stop timer)
+    (swap! animation-timers dissoc canvas-id)))

@@ -16,13 +16,12 @@
   (frame/frames-with-param spec/canvas-id-key canvas-id))
 
 (defrecord CanvasRuntime
-  [new-events        ;; 本帧新事件
-   all-events        ;; 整个笔画事件序列（提交用）
-   preview-buffer    ;; 预览缓冲区
-   layer-buffer      ;; 图层原始数据备份（笔画开始时拷贝）
-   last-stroke
-   selected-layer-id
-   stroke-length;; atom: 已预览像素长度（用作 start-dist）
+  [new-events         ;; 本帧新事件
+   all-events         ;; 整个笔画事件序列（提交用）
+   ^floats preview-buffer     ;; 预览缓冲区
+   ^floats layer-buffer       ;; 光栅图层原始数据备份（笔画开始时拷贝）
+   selected-layer-id  ;; 当前选中的图层id
+   stroke-length      ;; 已预览像素长度（用作 start-dist）
    ])
 
 (defn default-state

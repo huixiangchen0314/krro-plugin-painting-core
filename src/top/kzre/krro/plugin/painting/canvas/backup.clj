@@ -1,9 +1,10 @@
-(ns top.kzre.krro.plugin.painting.stroke.stroke
+(ns top.kzre.krro.plugin.painting.canvas.backup
   (:require
+    [top.kzre.krro.plugin.painting.canvas.state]
    [top.kzre.krro.canvas.core.canvas.protocol :as cp])
   (:import
-    (top.kzre.krro.canvas.core Arrays)
-    (top.kzre.krro.plugin.painting.canvas.state CanvasRuntime)))
+   [top.kzre.krro.canvas.core Arrays]
+   (top.kzre.krro.plugin.painting.canvas.state CanvasRuntime)))
 
 (defmulti backup-layer!
           "在开始对图层进行操作前备份图层数据."

@@ -16,6 +16,21 @@
                 :class-dir class-dir
                 :basis basis}))
 
+(defn- copy-clj-sources []
+       (let [src-dir (java.io.File. "src")
+             target-dir (java.io.File. class-dir)]
+            (when (.exists src-dir)
+                  (doseq [^java.io.File f (file-seq src-dir)
+                          :when (and (.isFile f) (.endsWith (.getName f) ".clj"))]
+                         (let [rel-path (-> (.toPath src-dir) (.relativize (.toPath f)))
+                               dest (java.io.File. target-dir (.toString rel-path))]
+                              (.mkdirs (.getParentFile dest))
+                              (java.nio.file.Files/copy (.toPath f) (.toPath dest)
+                                                        (make-array java.nio.file.CopyOption 0)))))))
+
+
+
+
 (defn jar [_]
       (clean nil)
       ;(compile-java nil)
@@ -27,7 +42,8 @@
                     :scm {:url "https://github.com/topkzre/krro-plugin-painting"
                           :connection "scm:git:git://github.com/topkzre/krro-plugin-painting.git"
                           :developerConnection "scm:git:ssh://git@github.com:topkzre/krro-plugin-painting.git"}})
-      (b/copy-dir {:src-dirs ["src" "resources"] :target-dir class-dir})
+      (copy-clj-sources)
+      (b/copy-dir {:src-dirs [ "resources"] :target-dir class-dir})
       (b/jar {:class-dir class-dir
               :jar-file jar-file})
       (println "Jar created:" jar-file))

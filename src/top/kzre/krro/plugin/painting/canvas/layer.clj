@@ -2,18 +2,18 @@
   "图层操作：纯函数、副作用函数与带撤销函数。
    基于路径管理嵌套图层组，自动同步到项目原子。"
   (:require
-    [top.kzre.krro.canvas.core.canvas.protocol :as cp]
-    [top.kzre.krro.canvas.core.layer.core :as lc]
-    [top.kzre.krro.canvas.raster.core :as rl]
-    [top.kzre.krro.core.core :as kcc]
-    [top.kzre.krro.core.frame :as frame]
-    [top.kzre.krro.core.hook :as hook]
-    [top.kzre.krro.plugin.painting.canvas.state :as state]
-    [top.kzre.krro.plugin.painting.project.canvas :as pc]
-    [top.kzre.krro.plugin.painting.project.layer-meta :as pm]
-    [top.kzre.krro.plugin.painting.project.raster-layer :as pr]
-    [top.kzre.krro.plugin.painting.spec :as spec]
-    [top.kzre.krro.plugin.painting.stroke.stroke :as stroke])
+   [top.kzre.krro.canvas.core.canvas.protocol :as cp]
+   [top.kzre.krro.canvas.core.layer.core :as lc]
+   [top.kzre.krro.canvas.raster.core :as rl]
+   [top.kzre.krro.core.core :as kcc]
+   [top.kzre.krro.core.frame :as frame]
+   [top.kzre.krro.core.hook :as hook]
+   [top.kzre.krro.plugin.painting.canvas.backup :as backup]
+   [top.kzre.krro.plugin.painting.canvas.state :as state]
+   [top.kzre.krro.plugin.painting.project.canvas :as pc]
+   [top.kzre.krro.plugin.painting.project.layer-meta :as pm]
+   [top.kzre.krro.plugin.painting.project.raster-layer :as pr]
+   [top.kzre.krro.plugin.painting.spec :as spec])
   (:import
    (javafx.application Platform)
    (top.kzre.krro.plugin.painting.project.canvas CanvasData)))
@@ -53,7 +53,7 @@
         (let [new-rt (assoc rt :selected-layer-id layer-id)
               layers (pc/layers-by-id! canvas-id)
               layer (lc/find-layer layer-id layers)
-              new-rt (stroke/backup-layer! layer new-rt)]
+              new-rt (backup/backup-layer! layer new-rt)]
           (swap! state/canvas-runtimes assoc canvas-id new-rt)
           (hook/run-hook! spec/selected-layer-changed-hook-key
                           canvas-id
