@@ -48,7 +48,7 @@
           current-id (state/selected-layer-id canvas-id)]
       (when-let [idx (first (keep-indexed #(when (= (:id %2) current-id) %1) layers))]
         (let [new-idx (max 0 (dec idx))]
-          (state/set-selected-layer-id! canvas-id (:id (nth layers new-idx))))))
+          (layer/set-selected-layer-id! canvas-id (:id (nth layers new-idx))))))
     @project)
   :description "选择上一个图层（索引减 1）")
 
@@ -60,7 +60,7 @@
           current-id (state/selected-layer-id canvas-id)]
       (when-let [idx (first (keep-indexed #(when (= (:id %2) current-id) %1) layers))]
         (let [new-idx (min (dec (count layers)) (inc idx))]
-          (state/set-selected-layer-id! canvas-id (:id (nth layers new-idx))))))
+          (layer/set-selected-layer-id! canvas-id (:id (nth layers new-idx))))))
     @project)
   :description "选择下一个图层（索引加 1）")
 

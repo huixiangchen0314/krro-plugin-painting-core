@@ -94,6 +94,8 @@
 
 
 ;; 其他低级查询
+(defn layers-by-id
+  ([canvas-id] (:layers (canvas-data canvas-id))))
 
 (defn layers-by-id!
   ([canvas-id] (:layers (canvas-data! canvas-id))))

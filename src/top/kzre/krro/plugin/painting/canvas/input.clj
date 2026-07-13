@@ -19,23 +19,23 @@
 (defn make-mouse-input []
   (let [pressed? (atom false)]
     {:start!
-     (fn [canvas runtime-state {:keys [on-stroke-start on-stroke-end]}]
+     (fn [canvas canvas-id {:keys [on-stroke-start on-stroke-end]}]
        (let [on-press (reify EventHandler
                         (handle [_ e]
                           (reset! pressed? true)
-                          (state/begin-stroke! runtime-state)
+                          (state/begin-stroke! canvas-id)
                           (when on-stroke-start (on-stroke-start))
-                          (state/push-event! runtime-state
+                          (state/push-event! canvas-id
                                              (->event-map (.getX e) (.getY e)))))
              on-drag  (reify EventHandler
                         (handle [_ e]
                           (when @pressed?
-                            (state/push-event! runtime-state
+                            (state/push-event! canvas-id
                                                (->event-map (.getX e) (.getY e))))))
              on-release (reify EventHandler
                           (handle [_ e]
                             (when @pressed?
-                              (state/push-event! runtime-state
+                              (state/push-event! canvas-id
                                                  (->event-map (.getX e) (.getY e)))
                               (reset! pressed? false)
                               (when on-stroke-end (on-stroke-end)))))]

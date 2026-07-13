@@ -60,7 +60,7 @@
              :style    (if (= lid selected-id)
                          {:fill "yellow" :font-weight "bold"}   ;; 字符串值
                          {:fill "lightgray"})
-             :on-click (fn [_] (state/set-selected-layer-id! canvas-id lid))}]
+             :on-click (fn [_] (layer/set-selected-layer-id! canvas-id lid))}]
      ;; 锁定图标
      (when locked?
        [:text {:content "🔒" :style {:font-size "10" :fill "gray"}}])  ;; 字符串值

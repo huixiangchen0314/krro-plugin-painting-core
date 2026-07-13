@@ -17,12 +17,12 @@
   (let [runtime (state/canvas-runtime canvas-id)
         [w h]   (pc/canvas-size canvas-id)
         upload-fn (upload/make-uploader canvas)             ;; TODO无限画布.
-        loop-ctrl (loop/make-loop canvas-id runtime w h  f)
+        loop-ctrl (loop/make-loop canvas-id w h)
         timer    (:timer loop-ctrl)
         commit!  (:commit loop-ctrl)
 
         input-src (input/make-mouse-input)
-        stop-input ((:start! input-src) canvas runtime
+        stop-input ((:start! input-src) canvas canvas-id
                     {:on-stroke-start #(.start timer)
                      :on-stroke-end   #(do (commit!) (.stop timer))})]
     (.setWidth canvas (double w))

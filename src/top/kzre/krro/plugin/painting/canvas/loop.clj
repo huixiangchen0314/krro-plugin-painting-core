@@ -16,13 +16,13 @@
 
 (defn preview-stroke-events!
   "处理一帧的预览渲染."
-  [runtime w h get-brush  get-target-pixels]
-  (let [new-evs (state/drain-new-events runtime)]
+  [canvas-id w h get-brush  get-target-pixels]
+  (let [new-evs (state/drain-new-events! canvas-id)]
     (when (seq new-evs)
       (if-let [src (get-target-pixels)]
         (let [b (get-brush)
               stroke (brush-core/events->stroke b new-evs (:spacing b) (:radius b))
-              global-end (state/get-stroke-length runtime)
+              global-end (state/get-stroke-length-by-id canvas-id)
               tapered (taper/taper-stroke-start stroke (:taper-start b)
                                                 :fields [:radius :opacity]
                                                 :end-dist global-end)]
@@ -31,13 +31,13 @@
 
 (defn commit-stroke!
   "结束当前笔画。"
-  [canvas-id runtime w h get-brush frame]  ;; 增加 frame 参数
-  (if-let [selected-layer (layer/get-selected-layer frame canvas-id)]
-    (let [all-evs (state/get-all-events runtime)
+  [canvas-id w h get-brush]  ;; 增加 frame 参数
+  (if-let [selected-layer (state/selected-layer! canvas-id)]
+    (let [all-evs (state/get-all-events-by-id canvas-id)
           b       (get-brush)
           layer-id (:id selected-layer)
           dest    (cp/data (:canvas selected-layer))
-          layer-buf (state/layer-buffer runtime)]
+          layer-buf (state/layer-buffer-by-id canvas-id)]
       (when (and (seq all-evs) dest)
         (let [buf-size (alength dest)
               temp (pool/borrow buf-size)]
@@ -46,7 +46,7 @@
             (Arrays/copy layer-buf temp)
             ;; 2. 渲染最终笔触到临时缓冲区
             (let [stroke     (brush-core/events->stroke b all-evs (:spacing b) (:radius b))
-                  global-end (state/get-stroke-length runtime)
+                  global-end (state/get-stroke-length-by-id canvas-id)
                   tapered    (taper/taper-stroke stroke (:taper-start b) (:taper-end b)
                                                  :fields [:radius :opacity]
                                                  :end-dist global-end)
@@ -62,19 +62,19 @@
 
 (defn make-loop
   "创建渲染循环控制器。现在需要显式传入 frame。"
-  [canvas-id runtime w h frame]   ;; 增加 frame 参数
+  [canvas-id w h]   ;; 增加 frame 参数
   (let [get-brush     #(or @brush/global-brush brush/default-brush)
         ;; 使用 frame 获取当前选中图层的像素数据
-        get-target-pixels #(when-let [l (layer/get-selected-layer frame canvas-id)]
+        get-target-pixels #(when-let [l (state/selected-layer! canvas-id)]
                                 (cp/data (:canvas l)))
         timer (proxy [AnimationTimer] []
                 (handle [_]
                   (try
-                    (preview-stroke-events! runtime w h get-brush  get-target-pixels)
+                    (preview-stroke-events! canvas-id w h get-brush  get-target-pixels)
                     (layer/refresh-canvas-frames! canvas-id)
                     (catch Exception e
                       (log/error e (str "Render loop error: "
                                         (.getMessage e)))))))
         ;; 提交函数现在捕获 frame
-        commit-fn #(commit-stroke! canvas-id runtime w h get-brush frame)]
+        commit-fn #(commit-stroke! canvas-id w h get-brush)]
     {:timer timer :commit commit-fn}))

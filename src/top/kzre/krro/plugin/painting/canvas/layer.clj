@@ -2,17 +2,18 @@
   "图层操作：纯函数、副作用函数与带撤销函数。
    基于路径管理嵌套图层组，自动同步到项目原子。"
   (:require
-   [top.kzre.krro.canvas.core.canvas.protocol :as cp]
-   [top.kzre.krro.canvas.core.layer.core :as lc]
-   [top.kzre.krro.canvas.raster.core :as rl]
-   [top.kzre.krro.core.core :as kcc]
-   [top.kzre.krro.core.frame :as frame]
-   [top.kzre.krro.core.hook :as hook]
-   [top.kzre.krro.plugin.painting.canvas.state :as state]
-   [top.kzre.krro.plugin.painting.project.canvas :as pc]
-   [top.kzre.krro.plugin.painting.project.layer-meta :as pm]
-   [top.kzre.krro.plugin.painting.project.raster-layer :as pr]
-   [top.kzre.krro.plugin.painting.spec :as spec])
+    [top.kzre.krro.canvas.core.canvas.protocol :as cp]
+    [top.kzre.krro.canvas.core.layer.core :as lc]
+    [top.kzre.krro.canvas.raster.core :as rl]
+    [top.kzre.krro.core.core :as kcc]
+    [top.kzre.krro.core.frame :as frame]
+    [top.kzre.krro.core.hook :as hook]
+    [top.kzre.krro.plugin.painting.canvas.state :as state]
+    [top.kzre.krro.plugin.painting.project.canvas :as pc]
+    [top.kzre.krro.plugin.painting.project.layer-meta :as pm]
+    [top.kzre.krro.plugin.painting.project.raster-layer :as pr]
+    [top.kzre.krro.plugin.painting.spec :as spec]
+    [top.kzre.krro.plugin.painting.stroke.stroke :as stroke])
   (:import
    (javafx.application Platform)
    (top.kzre.krro.plugin.painting.project.canvas CanvasData)))
@@ -44,6 +45,19 @@
             (when-let [rt (state/canvas-runtime canvas-id)]
               (state/layer-buffer rt))
             (cp/data (:canvas l))))))))
+
+(defn set-selected-layer-id! [canvas-id layer-id]
+  (when-let [rt (state/canvas-runtime canvas-id)]
+    (let [sa (:selected-layer-id rt)]
+      (when (not= sa layer-id)                             ;; 选中一个新图层，备份其数据
+        (let [new-rt (assoc rt :selected-layer-id layer-id)
+              layers (pc/layers-by-id! canvas-id)
+              layer (lc/find-layer layer-id layers)
+              new-rt (stroke/backup-layer! layer new-rt)]
+          (swap! state/canvas-runtimes assoc canvas-id new-rt)
+          (hook/run-hook! spec/selected-layer-changed-hook-key
+                          canvas-id
+                          layer-id))))))
 
 ;; ── 路径查询 ──────────────────────────────────────
 (defn selected-layer-path [canvas-id]
@@ -84,7 +98,7 @@
         {:keys [canvas-data layer layer-id path]} result]
     (update-project! canvas-id canvas-data)
     (pr/create-raster! layer-id canvas-id (cp/data (:canvas layer)))
-    (state/set-selected-layer-id! canvas-id layer-id)
+    (set-selected-layer-id! canvas-id layer-id)
     (refresh-canvas-frames! canvas-id)
     (hook/run-hook! spec/layer-changed-hook-key canvas-id)
     result))
@@ -108,7 +122,7 @@
       (update-project! canvas-id canvas-data)
       (pr/create-raster! layer-id canvas-id (cp/data (:canvas layer)))
       (refresh-canvas-frames! canvas-id)
-      (state/set-selected-layer-id! canvas-id layer-id)
+      (set-selected-layer-id! canvas-id layer-id)
       (hook/run-hook! spec/layer-changed-hook-key canvas-id)
       result)))
 
@@ -143,7 +157,7 @@
       (update-project! canvas-id canvas-data)
       (pr/delete-raster! layer-id)
       (refresh-canvas-frames! canvas-id)
-      (when new-selected-id (state/set-selected-layer-id! canvas-id new-selected-id))
+      (when new-selected-id (set-selected-layer-id! canvas-id new-selected-id))
       (hook/run-hook! spec/layer-changed-hook-key canvas-id)
       result)))
 
@@ -207,7 +221,7 @@
       (pr/create-raster-empty! new-layer-id canvas-id width height)
       (pm/create-layer-meta! new-layer-id canvas-id)
       (refresh-canvas-frames! canvas-id)
-      (state/set-selected-layer-id! canvas-id new-layer-id)
+      (set-selected-layer-id! canvas-id new-layer-id)
       (hook/run-hook! spec/layer-changed-hook-key canvas-id)
       result)))
 
@@ -244,42 +258,26 @@
     (hook/run-hook! spec/layer-changed-hook-key canvas-id)
     new-cd))
 
-(defn update-selected-layer! [canvas-id updater]
-  (when-let [selected-id (state/selected-layer-id canvas-id)]
-    (update-layer-by-id! canvas-id selected-id updater)))
-
-;; ── 查询与辅助 ────────────────────────────────────
-
 (defn auto-select-layer! [canvas-id]
   (let [current-id (state/selected-layer-id canvas-id)]
     (if (nil? current-id)
       (let [layers (pc/layers-by-id! canvas-id)]
         (when-let [top (last layers)]
           (let [id (:id top)]
-            (state/set-selected-layer-id! canvas-id id)
+            (set-selected-layer-id! canvas-id id)
             id)))
       current-id)))
 
-(defn get-selected-layer [f canvas-id]
-  (when-let [id (state/selected-layer-id canvas-id)]
-    (some #(when (= (:id %) id) %) (pc/layers-by-id! canvas-id))))
 
-(defn selected-layer-type [f canvas-id]
-  (when-let [layer (get-selected-layer f canvas-id)]
-    (:type layer)))
-
-(defn selected-raster-layer? [f canvas-id]
-  (= :raster (selected-layer-type f canvas-id)))
-
-(defn set-selected-raster-layer-pixels! [f canvas-id pixel-data]
-  (when-let [layer (get-selected-layer f canvas-id)]
+(defn set-selected-raster-layer-pixels! [canvas-id pixel-data]
+  (when-let [layer (state/selected-layer! canvas-id)]
     (when (= :raster (:type layer))
       (let [canvas (:canvas layer) dest (cp/data canvas)]
         (assert (= (alength dest) (alength pixel-data)) "Pixel data size mismatch")
         (System/arraycopy pixel-data 0 dest 0 (alength dest))))))
 
-(defn copy-selected-raster-layer-pixels! [f canvas-id ^floats dest]
-  (if-let [layer (get-selected-layer f canvas-id)]
+(defn copy-selected-raster-layer-pixels! [canvas-id ^floats dest]
+  (if-let [layer (state/selected-layer! canvas-id)]
     (if (= :raster (:type layer))
       (let [src (cp/data (:canvas layer))]
         (assert (= (alength dest) (alength src)) "Destination array size mismatch")
