@@ -14,7 +14,8 @@
    [top.kzre.krro.plugin.painting.project.canvas :as pc]
    [top.kzre.krro.plugin.painting.project.layer-meta :as pm]
    [top.kzre.krro.plugin.painting.project.raster-layer :as pr]
-   [top.kzre.krro.plugin.painting.spec :as spec])
+   [top.kzre.krro.plugin.painting.spec :as spec]
+   [top.kzre.krro.plugin.painting.canvas.layer :as layer])
   (:import
    (javafx.application Platform)
    (top.kzre.krro.plugin.painting.project.canvas CanvasData)))
@@ -257,6 +258,17 @@
     (refresh-canvas-frames! canvas-id)
     (hook/run-hook! spec/layer-changed-hook-key canvas-id)
     new-cd))
+
+(defn replace-layer! [canvas-id layer]
+  (let [layer-id (:id layer)
+        cd (pc/canvas-data! canvas-id)
+        layers (:layers cd)
+        path (lc/find-layer-path layer-id layers)
+        old-layer (lc/find-layer-by-path path layers)]
+    (when path
+      (if (= old-layer layer)
+        layer
+        (update-layer-at! canvas-id path (fn [_] layer))))))
 
 (defn auto-select-layer! [canvas-id]
   (let [current-id (state/selected-layer-id canvas-id)]

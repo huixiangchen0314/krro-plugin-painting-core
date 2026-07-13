@@ -1,19 +1,20 @@
 (ns top.kzre.krro.plugin.painting.canvas.core
   (:require
-   [top.kzre.krro.core.frame :as frame]
-   [top.kzre.krro.plugin.painting.canvas.backup :as backup]
-   [top.kzre.krro.plugin.painting.canvas.input :as input]
-   [top.kzre.krro.plugin.painting.canvas.layer :as layer]
-   [top.kzre.krro.plugin.painting.canvas.loop :as loop]
-   [top.kzre.krro.plugin.painting.canvas.state :as state]
-   [top.kzre.krro.plugin.painting.canvas.upload :as upload]
-   [top.kzre.krro.plugin.painting.canvas.viewport :as vp]
-   [top.kzre.krro.plugin.painting.platform.javafx.input :as jfx-input]
-   [top.kzre.krro.plugin.painting.project.canvas :as pc]
-   [top.kzre.krro.plugin.painting.spec :as spec]
-   [top.kzre.krro.plugin.painting.tool.brush :as brush-tool]
-   [top.kzre.krro.plugin.painting.tool.protocol :as tp]
-   [top.kzre.krro.ui.javafx.core :refer [make-component]])
+    [top.kzre.krro.core.frame :as frame]
+    [top.kzre.krro.plugin.painting.canvas.backup :as backup]
+    [top.kzre.krro.plugin.painting.canvas.input :as input]
+    [top.kzre.krro.plugin.painting.canvas.layer :as layer]
+    [top.kzre.krro.plugin.painting.canvas.layer-undo :as layer-undo]
+    [top.kzre.krro.plugin.painting.canvas.loop :as loop]
+    [top.kzre.krro.plugin.painting.canvas.state :as state]
+    [top.kzre.krro.plugin.painting.canvas.upload :as upload]
+    [top.kzre.krro.plugin.painting.canvas.viewport :as vp]
+    [top.kzre.krro.plugin.painting.platform.javafx.input :as jfx-input]
+    [top.kzre.krro.plugin.painting.project.canvas :as pc]
+    [top.kzre.krro.plugin.painting.spec :as spec]
+    [top.kzre.krro.plugin.painting.tool.brush :as brush-tool]
+    [top.kzre.krro.plugin.painting.tool.protocol :as tp]
+    [top.kzre.krro.ui.javafx.core :refer [make-component]])
   (:import
    (javafx.scene.canvas Canvas)))
 
@@ -21,22 +22,20 @@
   (let [runtime (state/canvas-runtime canvas-id)
         [w h]   (pc/canvas-size canvas-id)
         upload-fn (upload/make-uploader canvas)
-
-        ;; 当前工具实例（atom），默认画笔
-        tool (atom (brush-tool/make-brush))
-
+        _ (state/set-current-tool! canvas-id (brush-tool/make-brush))
         ;; 渲染函数：每帧由动画循环调用
         render-fn (fn []
-                    (when-let [current-tool @tool]
+                    (when-let [current-tool (state/current-tool canvas-id)]
                       (when-let [layer (state/selected-layer! canvas-id)]
                         (let [data (pc/canvas-data! canvas-id)
                               ctx  (tp/make-context canvas-id f data runtime)]
-                          ;; preview! 返回图层（通常不变）
-                          (tp/preview! current-tool layer ctx)))))
+                          (when-let [new-layer (tp/preview! current-tool layer ctx)]
+                            (layer/replace-layer! canvas-id new-layer)
+                            (layer/refresh-canvas-frames! canvas-id))))))
 
         ;; 输入回调：根据 apply! 返回的动作指令调度
         callback (fn [ev]
-                   (when-let [current-tool @tool]
+                   (when-let [current-tool (state/current-tool canvas-id)]
                      (when-let [layer (state/selected-layer! canvas-id)]
                        (let [data (pc/canvas-data! canvas-id)
                              viewport (vp/get-viewport f)
@@ -45,27 +44,14 @@
                              ctx  (tp/make-context canvas-id f data runtime)
                              action (tp/apply! current-tool layer ev ctx)]
                          (case action
-                           :start
-                           (do
-                             ;; 备份当前图层像素到 runtime 的 layer-buffer
-                             (backup/backup-layer! layer runtime)
-                             ;; 启动动画循环
-                             (loop/start-loop! canvas-id render-fn))
-                           :commit
-                           (do
-                             ;; 停止动画
-                             (loop/stop-loop! canvas-id)
-                             ;; 提交笔画（副作用：修改图层像素）
-                             (tp/commit! current-tool layer ctx)
-                             ;; 刷新画布显示
-                             (layer/refresh-canvas-frames! canvas-id))
-                           :continue
-                           ;; 不做额外操作，动画循环已经在运行
-                           nil
-                           :idle
-                           nil
-                           ;; 默认忽略
-                           nil)))))
+                           :start    (do (backup/backup-layer! layer runtime)
+                                         (loop/start-loop! canvas-id render-fn))
+                           :continue nil
+                           :commit   (do (loop/stop-loop! canvas-id)
+                                         (let [new-layer (tp/commit! current-tool layer ctx)]
+                                           (layer-undo/replace-layer-undo! canvas-id new-layer)
+                                           (layer/refresh-canvas-frames! canvas-id)))
+                           :idle     nil)))))
 
         ;; 创建输入源
         mouse-input (jfx-input/make-mouse-input canvas callback)]
@@ -79,7 +65,7 @@
 
     ;; 首次上传画布
     (when-let [preview (state/preview-buffer runtime)]
-      (upload-fn preview w h (:viewport runtime)))
+      (upload-fn preview w h (vp/get-viewport f)))
 
     (frame/set-param! f spec/update-fn-key upload-fn)
 

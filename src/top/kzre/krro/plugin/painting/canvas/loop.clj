@@ -14,7 +14,6 @@
                   (handle [_]
                     (try
                       (render-fn)
-                      (layer/refresh-canvas-frames! canvas-id)
                       (catch Exception e
                         (log/error e (str "Render loop error: " (.getMessage e)))))))]
       (swap! animation-timers assoc canvas-id timer)

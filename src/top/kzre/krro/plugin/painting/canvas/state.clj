@@ -5,11 +5,9 @@
     [top.kzre.krro.canvas.core.layer.core :as lc]
     [top.kzre.krro.core.frame :as frame]
     [top.kzre.krro.plugin.painting.project.canvas :as pc]
-    [top.kzre.krro.plugin.painting.canvas.viewport :as vp]
     [top.kzre.krro.plugin.painting.spec :as spec])
   (:import
     (top.kzre.krro.canvas.core Arrays)
-    (top.kzre.krro.plugin.painting.canvas.viewport ViewPort)
     (top.kzre.krro.plugin.painting.project.canvas CanvasData)))
 
 (defn frames-with-canvas-id
@@ -20,16 +18,16 @@
 (defrecord CanvasRuntime
   [^floats preview-buffer     ;; 预览缓冲区
    ^floats layer-buffer       ;; 光栅图层原始数据备份（笔画开始时拷贝）
-   ^ViewPort viewport
    selected-layer-id  ;; 当前选中的图层id
+   current-tool                                                     ;; 当前选择的工具.
    ])
 
 (defn default-state
   [buffer-size]
-  {:preview-buffer (float-array buffer-size)
-   :layer-buffer   (float-array buffer-size)
+  {:preview-buffer    (float-array buffer-size)
+   :layer-buffer      (float-array buffer-size)
    :selected-layer-id nil
-   :viewport vp/default-viewport})
+   :current-tool      nil})
 
 (defn make-state
   [width height]
@@ -46,10 +44,6 @@
   (when-let [rt (canvas-runtime canvas-id)]
     (:selected-layer-id rt)))
 
-(defn viewport [canvas-id]
-  (when-let [rt (canvas-runtime canvas-id)]
-    (:viewport rt)))
-
 (defn selected-layer! [canvas-id]
   (when-let [rt (pc/canvas-data! canvas-id)]
     (when-let [lid (selected-layer-id canvas-id)]
@@ -61,6 +55,13 @@
     (let [layers (pc/layers-by-id canvas-id)]
       (when-let [l (lc/find-layer lid layers)]
         (:type l)))))
+
+(defn current-tool [canvas-id]
+  (when-let [rt (canvas-runtime canvas-id)]
+    (:current-tool rt)))
+
+(defn set-current-tool! [canvas-id new-tool]
+  (swap! canvas-runtimes assoc-in [canvas-id :current-tool] new-tool))
 
 (defn preview-buffer [^CanvasRuntime rt] (:preview-buffer rt))
 (defn layer-buffer [^CanvasRuntime rt] (:layer-buffer rt))

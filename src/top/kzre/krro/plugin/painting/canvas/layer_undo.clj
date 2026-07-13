@@ -1,11 +1,12 @@
 (ns top.kzre.krro.plugin.painting.canvas.layer-undo
   "图层操作的撤销记录版本。封装 layer 副作用函数并记录 undo 状态。"
   (:require
-    [top.kzre.krro.canvas.core.layer.core :as layer-core]
-    [top.kzre.krro.plugin.painting.canvas.layer :as layer]
-    [top.kzre.krro.plugin.painting.canvas.state :as state]
-    [top.kzre.krro.plugin.painting.canvas.undo :as undo]
-    [top.kzre.krro.plugin.painting.project.canvas :as pc]))
+   [top.kzre.krro.canvas.core.layer.core :as layer-core]
+   [top.kzre.krro.canvas.core.layer.core :as lc]
+   [top.kzre.krro.plugin.painting.canvas.layer :as layer]
+   [top.kzre.krro.plugin.painting.canvas.state :as state]
+   [top.kzre.krro.plugin.painting.canvas.undo :as undo]
+   [top.kzre.krro.plugin.painting.project.canvas :as pc]))
 
 ;; ── 添加图层 ──────────────────────────────────────
 
@@ -52,6 +53,17 @@
     (when path
       (update-layer-at-undo! canvas-id path updater))))
 
+(defn replace-layer-undo! [canvas-id layer]
+  (let [layer-id (:id layer)
+        cd (pc/canvas-data! canvas-id)
+        layers (:layers cd)
+        path (layer-core/find-layer-path layer-id layers)
+        old-layer (lc/find-layer-by-path path layers)]
+    (when path
+      (if (= old-layer layer)
+        layer
+        (update-layer-at-undo! canvas-id path (fn [_] layer))))))
+
 (defn toggle-layer-visibility! [canvas-id layer-id]
   (letfn [(updator [layer]
             (let [visible? (:visible? layer)]
@@ -63,6 +75,7 @@
   (letfn [(updator [layer] (assoc layer :visible? visible?))]
     (when (layer/update-layer-by-id! canvas-id layer-id updator)
       (undo/record-visibility-state! canvas-id))))
+
 (defn update-selected-layer-undo! [canvas-id updater]
   (when-let [selected-id (state/selected-layer-id canvas-id)]
     (update-layer-by-id-undo! canvas-id selected-id updater)))
