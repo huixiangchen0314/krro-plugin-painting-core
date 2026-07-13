@@ -5,8 +5,9 @@
     [top.kzre.krro.canvas.core.layer.core :as layer-core]
     [top.kzre.krro.plugin.painting.canvas.layer :as layer]
     [top.kzre.krro.plugin.painting.canvas.layer-undo :as layer-undo]
-    [top.kzre.krro.plugin.painting.canvas.project :as proj]
     [top.kzre.krro.plugin.painting.canvas.state :as state]
+    [top.kzre.krro.plugin.painting.project.canvas :as pc]
+    [top.kzre.krro.plugin.painting.project.layer-meta :as pm]
     [top.kzre.krro.ui.core.spec.drag :as drag-spec]))
 
 ;; ── 内部工具：递归展平图层 ──────────────────────────
@@ -26,7 +27,7 @@
   (let [lid       (:id layer)
         name      (or (:name layer) (str lid))
         visible?  (get layer :visible? true)
-        locked?   (:locked? (proj/get-layer-meta lid))
+        locked?   (:locked? (pm/layer-meta lid))
         is-group? (= :group (:type layer))
         indent-str (apply str (repeat indent "  "))]
     [:block {:key lid                                    ;; 稳定 key 用于 diff 复用
@@ -43,7 +44,7 @@
                               ;; 动态获取路径，不依赖节点用户数据
                               (let [source-id (keyword (:data e))
                                     target-id lid
-                                    layers (proj/layers-by-id! canvas-id)
+                                    layers (pc/layers-by-id! canvas-id)
                                     source-path (layer-core/find-layer-path source-id layers)
                                     target-path (layer-core/find-layer-path target-id layers)]
                                 (when (and source-path target-path (not= source-id target-id))
@@ -52,13 +53,13 @@
      ;; 可见性复选框（仅非组图层显示）
      (when-not is-group?
        [:check-box {:checked? visible?
-                    :getter  (fn [db-map] (proj/visible-layer? canvas-id lid db-map))
-                    :setter  (fn [v] (layer-undo/set-layer-visibility! canvas-id lid v))}])
+                    :getter   (fn [db-map] (pc/visible-layer? canvas-id lid db-map))
+                    :setter   (fn [v] (layer-undo/set-layer-visibility! canvas-id lid v))}])
      ;; 图层名称（点击选中）
-     [:text {:content (str indent-str name)
-             :style (if (= lid selected-id)
-                      {:fill "yellow" :font-weight "bold"}   ;; 字符串值
-                      {:fill "lightgray"})
+     [:text {:content  (str indent-str name)
+             :style    (if (= lid selected-id)
+                         {:fill "yellow" :font-weight "bold"}   ;; 字符串值
+                         {:fill "lightgray"})
              :on-click (fn [_] (state/set-selected-layer-id! canvas-id lid))}]
      ;; 锁定图标
      (when locked?
@@ -69,7 +70,7 @@
 
 ;; ── 图层面板（容器 + 列表 + 工具栏） ────────────────
 (defn layer-panel-vnode [canvas-id f]
-  (let [layers      (proj/layers-by-id! canvas-id)
+  (let [layers      (pc/layers-by-id! canvas-id)
         selected-id (state/selected-layer-id canvas-id)
         flat        (flatten-layers layers)]
     [:block {:class "layer-browser" :direction :vertical}

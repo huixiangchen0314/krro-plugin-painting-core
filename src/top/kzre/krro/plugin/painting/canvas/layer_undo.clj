@@ -3,9 +3,9 @@
   (:require
     [top.kzre.krro.canvas.core.layer.core :as layer-core]
     [top.kzre.krro.plugin.painting.canvas.layer :as layer]
-    [top.kzre.krro.plugin.painting.canvas.project :as proj]
     [top.kzre.krro.plugin.painting.canvas.state :as state]
-    [top.kzre.krro.plugin.painting.canvas.undo :as undo]))
+    [top.kzre.krro.plugin.painting.canvas.undo :as undo]
+    [top.kzre.krro.plugin.painting.project.canvas :as pc]))
 
 ;; ── 添加图层 ──────────────────────────────────────
 
@@ -47,7 +47,7 @@
   (undo/record-state! canvas-id))
 
 (defn update-layer-by-id-undo! [canvas-id layer-id updater]
-  (let [cd (proj/canvas-data! canvas-id)
+  (let [cd (pc/canvas-data! canvas-id)
         path (layer-core/find-layer-path layer-id (:layers cd))]
     (when path
       (update-layer-at-undo! canvas-id path updater))))

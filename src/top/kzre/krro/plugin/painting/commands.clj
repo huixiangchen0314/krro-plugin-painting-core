@@ -1,14 +1,14 @@
 (ns top.kzre.krro.plugin.painting.commands
   "绘画插件的命令注册，封装图层、笔刷等操作为 Krrō 命令。"
   (:require
-    [top.kzre.krro.core.command :as cmd]
-    [top.kzre.krro.core.frame :as frame]
-    [top.kzre.krro.plugin.painting.canvas.brush :as brush]
-    [top.kzre.krro.plugin.painting.canvas.layer :as layer]          ;; 基础函数
-    [top.kzre.krro.plugin.painting.canvas.layer-undo :as layer-undo] ;; 带撤销的函数
-    [top.kzre.krro.plugin.painting.canvas.project :as canv-proj]
-    [top.kzre.krro.plugin.painting.canvas.state :as state]
-    [top.kzre.krro.plugin.painting.spec :as spec]))
+   [top.kzre.krro.core.command :as cmd]
+   [top.kzre.krro.core.frame :as frame]
+   [top.kzre.krro.plugin.painting.canvas.brush :as brush]
+   [top.kzre.krro.plugin.painting.canvas.layer :as layer] ;; 基础函数
+   [top.kzre.krro.plugin.painting.canvas.layer-undo :as layer-undo] ;; 带撤销的函数
+   [top.kzre.krro.plugin.painting.canvas.state :as state]
+   [top.kzre.krro.plugin.painting.project.canvas :as pc]
+   [top.kzre.krro.plugin.painting.spec :as spec]))
 
 (defn- current-canvas-id []
   (frame/param frame/*current-frame* spec/canvas-id-key))
@@ -44,7 +44,7 @@
   :krro.painting/select-previous-layer
   (fn [project]
     (let [canvas-id (current-canvas-id)
-          layers (canv-proj/layers-by-id! canvas-id)
+          layers (pc/layers-by-id! canvas-id)
           current-id (state/selected-layer-id canvas-id)]
       (when-let [idx (first (keep-indexed #(when (= (:id %2) current-id) %1) layers))]
         (let [new-idx (max 0 (dec idx))]
@@ -56,7 +56,7 @@
   :krro.painting/select-next-layer
   (fn [project]
     (let [canvas-id (current-canvas-id)
-          layers (canv-proj/layers-by-id! canvas-id)
+          layers (pc/layers-by-id! canvas-id)
           current-id (state/selected-layer-id canvas-id)]
       (when-let [idx (first (keep-indexed #(when (= (:id %2) current-id) %1) layers))]
         (let [new-idx (min (dec (count layers)) (inc idx))]

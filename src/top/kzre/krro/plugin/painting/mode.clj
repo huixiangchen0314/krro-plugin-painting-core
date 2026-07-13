@@ -1,20 +1,17 @@
 (ns top.kzre.krro.plugin.painting.mode
   "绘画模式定义，使用新的 define-major-mode 宏。"
   (:require
-    [top.kzre.krro.canvas.core.canvas.protocol :as cp]
-    [top.kzre.krro.canvas.core.layer.core :as layer]
     [top.kzre.krro.core.core :as core]
     [top.kzre.krro.core.frame :as frame]
     [top.kzre.krro.core.hook :as hook]
     [top.kzre.krro.core.plugin :as plugin]
     [top.kzre.krro.plugin.painting.canvas.core :as canvas]
-    [top.kzre.krro.plugin.painting.canvas.project :as proj]
     [top.kzre.krro.plugin.painting.canvas.state :as state]
+    [top.kzre.krro.plugin.painting.project.canvas :as pc]
     [top.kzre.krro.plugin.painting.spec :as spec]
     [top.kzre.krro.plugin.painting.ui.layer-browser :as lb])
   (:import
-    (java.util UUID)
-    (top.kzre.krro.canvas.core Arrays)))
+    (java.util UUID)))
 
 (defn maybe-refresh-frame-fn!
   [canvas-id f]
@@ -24,7 +21,7 @@
 (defn create-maybe-refresh-frame-fn!
   [f]
   (fn [canvas-id]
-    (proj/activate-canvas! canvas-id)
+    (pc/canvas-data! canvas-id)
     (maybe-refresh-frame-fn! canvas-id f)))
 
 (defn- watch-canvas-id [f]

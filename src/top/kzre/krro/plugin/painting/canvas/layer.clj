@@ -8,12 +8,14 @@
    [top.kzre.krro.core.core :as kcc]
    [top.kzre.krro.core.frame :as frame]
    [top.kzre.krro.core.hook :as hook]
-   [top.kzre.krro.plugin.painting.canvas.project :as proj]
    [top.kzre.krro.plugin.painting.canvas.state :as state]
+   [top.kzre.krro.plugin.painting.project.canvas :as pc]
+   [top.kzre.krro.plugin.painting.project.layer-meta :as pm]
+   [top.kzre.krro.plugin.painting.project.raster-layer :as pr]
    [top.kzre.krro.plugin.painting.spec :as spec])
   (:import
-    (javafx.application Platform)
-    (top.kzre.krro.plugin.painting.canvas.project CanvasData)))
+   (javafx.application Platform)
+   (top.kzre.krro.plugin.painting.project.canvas CanvasData)))
 
 ;; ── 工具函数 ──────────────────────────────────────
 (defn- with-layers [^CanvasData old-cd new-layers]
@@ -27,14 +29,14 @@
   [canvas-id]
   (when-let [rt (state/canvas-runtime canvas-id)]
     (let [preview (state/preview-buffer rt)
-          [w h]   (proj/canvas-size canvas-id)]
+          [w h]   (pc/canvas-size canvas-id)]
       (state/render-canvas! canvas-id preview)
       (doseq [f (state/frames-with-canvas-id canvas-id)]
         (when-let [ufn (frame/param f spec/update-fn-key)]
           (Platform/runLater #(ufn preview w h)))))))
 
 (defn raster-layer-buffer [canvas-id layer-id]
-  (when-let [cd (proj/canvas-data! canvas-id)]
+  (when-let [cd (pc/canvas-data! canvas-id)]
     (when-let [l (lc/find-layer layer-id (:layers cd))]
       (when (= :raster (:type l))
         (let [lid (state/selected-layer-id canvas-id)]
@@ -43,16 +45,10 @@
               (state/layer-buffer rt))
             (cp/data (:canvas l))))))))
 
-;(defn raster-layer-buffer [canvas-id layer-id]
-;  (when-let [cd (proj/canvas-data! canvas-id)]
-;    (when-let [l (lc/find-layer layer-id (:layers cd))]
-;      (when (= :raster (:type l))
-;        (cp/data (:canvas l))))))
-
 ;; ── 路径查询 ──────────────────────────────────────
 (defn selected-layer-path [canvas-id]
   (when-let [selected-id (state/selected-layer-id canvas-id)]
-    (lc/find-layer-path selected-id (proj/layers-by-id! canvas-id))))
+    (lc/find-layer-path selected-id (pc/layers-by-id! canvas-id))))
 
 ;; ═══════════════════════════════════════════════════════
 ;; 纯函数统一返回结构说明：
@@ -82,12 +78,12 @@
      :path        path}))
 
 (defn add-raster-layer-over-selected! [canvas-id]
-  (let [^CanvasData cd (proj/canvas-data! canvas-id)
+  (let [^CanvasData cd (pc/canvas-data! canvas-id)
         selected-id (state/selected-layer-id canvas-id)
         result (add-raster-layer-over-selected cd selected-id)   ;; 完整纯函数结果
         {:keys [canvas-data layer layer-id path]} result]
     (update-project! canvas-id canvas-data)
-    (proj/add-raster! layer-id canvas-id (cp/data (:canvas layer)))
+    (pr/create-raster! layer-id canvas-id (cp/data (:canvas layer)))
     (state/set-selected-layer-id! canvas-id layer-id)
     (refresh-canvas-frames! canvas-id)
     (hook/run-hook! spec/layer-changed-hook-key canvas-id)
@@ -105,12 +101,12 @@
      :path        path}))
 
 (defn add-layer-at! [canvas-id path layer]
-  (let [^CanvasData cd (proj/canvas-data! canvas-id)
+  (let [^CanvasData cd (pc/canvas-data! canvas-id)
         result (add-layer-at cd path layer)
         {:keys [canvas-data layer-id]} result]
     (when canvas-data
       (update-project! canvas-id canvas-data)
-      (proj/add-raster! layer-id canvas-id (cp/data (:canvas layer)))
+      (pr/create-raster! layer-id canvas-id (cp/data (:canvas layer)))
       (refresh-canvas-frames! canvas-id)
       (state/set-selected-layer-id! canvas-id layer-id)
       (hook/run-hook! spec/layer-changed-hook-key canvas-id)
@@ -139,13 +135,13 @@
      :new-selected-id new-sel}))
 
 (defn remove-layer-at! [canvas-id path]
-  (let [cd (proj/canvas-data! canvas-id)
+  (let [cd (pc/canvas-data! canvas-id)
         selected-id (state/selected-layer-id canvas-id)
         result (remove-layer-at cd selected-id path)
         {:keys [canvas-data _removed layer-id new-selected-id]} result]
     (when canvas-data
       (update-project! canvas-id canvas-data)
-      (proj/delete-raster! layer-id)
+      (pr/delete-raster! layer-id)
       (refresh-canvas-frames! canvas-id)
       (when new-selected-id (state/set-selected-layer-id! canvas-id new-selected-id))
       (hook/run-hook! spec/layer-changed-hook-key canvas-id)
@@ -168,7 +164,7 @@
     (with-layers cd final-layers)))
 
 (defn move-layer! [canvas-id old-path new-path]
-  (when-let [new-cd (move-layer (proj/canvas-data! canvas-id) old-path new-path)]
+  (when-let [new-cd (move-layer (pc/canvas-data! canvas-id) old-path new-path)]
     (update-project! canvas-id new-cd)
     (refresh-canvas-frames! canvas-id)
     (hook/run-hook! spec/layer-changed-hook-key canvas-id)
@@ -201,15 +197,15 @@
        :path        (lc/find-layer-path layer-id layers)})))
 
 (defn duplicate-layer! [canvas-id layer-id]
-  (let [^CanvasData cd (proj/canvas-data! canvas-id)
+  (let [^CanvasData cd (pc/canvas-data! canvas-id)
         width (:width cd)
         height (:height cd)
         result (duplicate-layer cd layer-id)
         {:keys [canvas-data layer layer-id new-layer-id path]} result]
     (when canvas-data
       (update-project! canvas-id canvas-data)
-      (proj/add-raster! new-layer-id canvas-id width height)
-      (proj/add-layer-meta! new-layer-id canvas-id)
+      (pr/create-raster-empty! new-layer-id canvas-id width height)
+      (pm/create-layer-meta! new-layer-id canvas-id)
       (refresh-canvas-frames! canvas-id)
       (state/set-selected-layer-id! canvas-id new-layer-id)
       (hook/run-hook! spec/layer-changed-hook-key canvas-id)
@@ -235,14 +231,14 @@
     (update-layer-at cd path updater)))
 
 (defn update-layer-at! [canvas-id path updater]
-  (when-let [new-cd (update-layer-at (proj/canvas-data! canvas-id) path updater)]
+  (when-let [new-cd (update-layer-at (pc/canvas-data! canvas-id) path updater)]
     (update-project! canvas-id new-cd)
     (refresh-canvas-frames! canvas-id)
     (hook/run-hook! spec/layer-changed-hook-key canvas-id)
     new-cd))
 
 (defn update-layer-by-id! [canvas-id layer-id updater]
-  (when-let [new-cd (update-layer-by-id (proj/canvas-data! canvas-id) layer-id updater)]
+  (when-let [new-cd (update-layer-by-id (pc/canvas-data! canvas-id) layer-id updater)]
     (update-project! canvas-id new-cd)
     (refresh-canvas-frames! canvas-id)
     (hook/run-hook! spec/layer-changed-hook-key canvas-id)
@@ -257,7 +253,7 @@
 (defn auto-select-layer! [canvas-id]
   (let [current-id (state/selected-layer-id canvas-id)]
     (if (nil? current-id)
-      (let [layers (proj/layers-by-id! canvas-id)]
+      (let [layers (pc/layers-by-id! canvas-id)]
         (when-let [top (last layers)]
           (let [id (:id top)]
             (state/set-selected-layer-id! canvas-id id)
@@ -266,7 +262,7 @@
 
 (defn get-selected-layer [f canvas-id]
   (when-let [id (state/selected-layer-id canvas-id)]
-    (some #(when (= (:id %) id) %) (proj/layers-by-id! canvas-id))))
+    (some #(when (= (:id %) id) %) (pc/layers-by-id! canvas-id))))
 
 (defn selected-layer-type [f canvas-id]
   (when-let [layer (get-selected-layer f canvas-id)]

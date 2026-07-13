@@ -1,17 +1,16 @@
 (ns top.kzre.krro.plugin.painting.canvas.state
   "运行时状态：事件、笔刷、缓冲区、累积长度。"
   (:require
-   [top.kzre.krro.canvas.core.core :as canv]
-   [top.kzre.krro.core.frame :as frame]
-   [top.kzre.krro.core.hook :as hook]
-   [top.kzre.krro.plugin.painting.canvas.project :as canv-proj]
-   [top.kzre.krro.plugin.painting.canvas.project :as proj]
-   [top.kzre.krro.plugin.painting.spec :as spec]
-   [top.kzre.krro.canvas.core.canvas.protocol :as cp]
-   [top.kzre.krro.core.message :as msg])
+    [top.kzre.krro.canvas.core.canvas.protocol :as cp]
+    [top.kzre.krro.canvas.core.core :as canv]
+    [top.kzre.krro.core.frame :as frame]
+    [top.kzre.krro.core.hook :as hook]
+    [top.kzre.krro.core.message :as msg]
+    [top.kzre.krro.plugin.painting.project.canvas :as pc]
+    [top.kzre.krro.plugin.painting.spec :as spec])
   (:import
    (top.kzre.krro.canvas.core Arrays)
-   (top.kzre.krro.plugin.painting.canvas.project CanvasData)))
+   (top.kzre.krro.plugin.painting.project.canvas CanvasData)))
 
 (defn frames-with-canvas-id
   "返回所有显示指定画布的 Frame。"
@@ -50,7 +49,7 @@
 
 (defn backup-layer-data!
   [canvas-id layer-id]
-  (when-let [l (proj/find-layer-in-canvas! canvas-id layer-id)]
+  (when-let [l (pc/find-layer-in-canvas! canvas-id layer-id)]
     (case (:type l)
       ;; 光栅图层备份像素缓冲.
       :raster (let [^CanvasRuntime rt (canvas-runtime canvas-id)
@@ -90,7 +89,7 @@
          preview (:preview-buffer rt)]
      (render-canvas! canvas-id preview)))
   ([canvas-id ^floats dest]
-   (when-let [cd (canv-proj/canvas-data! canvas-id)]
+   (when-let [cd (pc/canvas-data! canvas-id)]
      (let [layers (:layers ^CanvasData cd)
            w (.width ^CanvasData cd)
            h (.height ^CanvasData cd)]
@@ -102,7 +101,7 @@
    (ensure-runtime! canvas-id 800 600))
   ([canvas-id w h]
    (or (canvas-runtime canvas-id)
-       (let [_cd (canv-proj/ensure-canvas-data! canvas-id w h)
+       (let [_cd (pc/ensure-canvas-data! canvas-id w h)
              rt (create w h)
              preview (:preview-buffer rt)]
          (render-canvas! canvas-id preview)

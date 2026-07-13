@@ -3,22 +3,23 @@
    图层属性通过 project 的多方法 persistable-layer / restore-layer! 处理，
    像素数据使用 snapshot 模块的混合存储策略（小尺寸留内存，大尺寸写临时文件）。"
   (:require
-    [taoensso.timbre :as log]
-    [top.kzre.krro.canvas.core.canvas.protocol :as cp]
-    [top.kzre.krro.canvas.core.layer.core :as layer-core]
-    [top.kzre.krro.canvas.core.obb :as obb]
-    [top.kzre.krro.core.frame :as frame]
-    [top.kzre.krro.core.hook :as hook]
-    [top.kzre.krro.core.message :as msg]
-    [top.kzre.krro.plugin.painting.canvas.layer :as layer]
-    [top.kzre.krro.plugin.painting.canvas.project :as proj]
-    [top.kzre.krro.plugin.painting.canvas.snapshot :as snap]
-    [top.kzre.krro.plugin.painting.spec :as spec]
-    [top.kzre.krro.plugin.undo.core :as undo]
-    [top.kzre.krro.plugin.undo.protocol :as undo-p])
+   [taoensso.timbre :as log]
+   [top.kzre.krro.canvas.core.canvas.protocol :as cp]
+   [top.kzre.krro.canvas.core.layer.core :as layer-core]
+   [top.kzre.krro.canvas.core.obb :as obb]
+   [top.kzre.krro.core.frame :as frame]
+   [top.kzre.krro.core.hook :as hook]
+   [top.kzre.krro.core.message :as msg]
+   [top.kzre.krro.plugin.painting.canvas.layer :as layer]
+   [top.kzre.krro.plugin.painting.canvas.snapshot :as snap]
+   [top.kzre.krro.plugin.painting.project.canvas :as pc]
+   [top.kzre.krro.plugin.painting.project.raster-layer :as pr]
+   [top.kzre.krro.plugin.painting.spec :as spec]
+   [top.kzre.krro.plugin.undo.core :as undo]
+   [top.kzre.krro.plugin.undo.protocol :as undo-p])
   (:import
-    (java.io FileNotFoundException)
-    (top.kzre.krro.canvas.core Arrays)))
+   (java.io FileNotFoundException)
+   (top.kzre.krro.canvas.core Arrays)))
 
 
 (defonce undo-type-layer-visibility-changed ::layer-visibility-changed)
@@ -66,7 +67,7 @@
    :canvas-id     canvas-id
    :layer-id      (:id layer)
    :path          path
-   :layer   (proj/persistable-layer layer)
+   :layer   (pc/persistable-layer layer)
    :snapshot      snapshot-wrapper})
 
 (defn make-raster-layer-remove-meta [canvas-id path layer snapshot-wrapper]
@@ -75,7 +76,7 @@
    :canvas-id     canvas-id
    :layer-id      (:id layer)
    :path          path
-   :layer         (proj/persistable-layer layer)
+   :layer         (pc/persistable-layer layer)
    :snapshot      snapshot-wrapper})
 
 ;; ── 记录函数 ─────────────────────────────────
@@ -83,7 +84,7 @@
   [canvas-id layer-id old-pixels new-pixels dirty-rects]
   (log/debug "Recording raster undo state...")
   (try
-    (let [cd         (proj/canvas-data! canvas-id)
+    (let [cd         (pc/canvas-data! canvas-id)
           width      (:width cd)
           height     (:height cd)
           obb-desc   (obb/rects->obb dirty-rects)
@@ -124,7 +125,7 @@
   (let [seq-num   (:seq meta "?")
         canvas-id (:canvas-id meta)
         layer-id  (:layer-id meta)
-        cd        (proj/canvas-data! canvas-id)
+        cd        (pc/canvas-data! canvas-id)
         w         (:width cd)
         h         (:height cd)
         layer-buf (layer/raster-layer-buffer canvas-id layer-id)
@@ -161,14 +162,14 @@
 (defmethod restore-canvas-state! [:after-undo undo-type-raster-layer-add] [_ meta]
   (let [canvas-id (:canvas-id meta)
         layer-id (:layer-id meta)]
-    (proj/delete-raster! layer-id)
+    (pr/delete-raster! layer-id)
     (hook/run-hook! spec/layer-changed-hook-key canvas-id)))
 
 (defmethod restore-canvas-state! [:before-redo undo-type-raster-layer-add] [_ meta]
   (let [canvas-id (:canvas-id meta)
         layer-id (:layer-id meta)
         buffer   (snap/read-pixels! (:snapshot meta))]
-    (proj/add-raster* layer-id canvas-id buffer)))
+    (pr/create-raster* layer-id canvas-id buffer)))
 
 (defmethod restore-canvas-state! [:after-redo undo-type-raster-layer-add] [_ meta]
   (let [canvas-id  (:canvas-id meta)]
@@ -178,7 +179,7 @@
   (let [canvas-id (:canvas-id meta)
         layer-id (:layer-id meta)
         pixels   (snap/read-pixels! (:snapshot meta))]
-    (proj/add-raster* layer-id canvas-id pixels)
+    (pr/create-raster* layer-id canvas-id pixels)
     ))
 
 (defmethod restore-canvas-state! [:after-undo undo-type-raster-layer-remove] [_ meta]
@@ -188,7 +189,7 @@
 (defmethod restore-canvas-state! [:after-redo undo-type-raster-layer-remove] [_ meta]
   (let [canvas-id (:canvas-id meta)
         layer-id (:layer-id meta)]
-    (proj/delete-raster! layer-id)
+    (pr/delete-raster! layer-id)
     (refresh-canvas-and-layer! canvas-id)))
 
 (defmethod restore-canvas-state! [:after-undo undo-type-raster-stroke] [_ meta]

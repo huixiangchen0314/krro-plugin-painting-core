@@ -4,9 +4,9 @@
     [top.kzre.krro.plugin.painting.canvas.input :as input]
     [top.kzre.krro.plugin.painting.canvas.layer :as layer]
     [top.kzre.krro.plugin.painting.canvas.loop :as loop]
-    [top.kzre.krro.plugin.painting.canvas.project :as proj]
     [top.kzre.krro.plugin.painting.canvas.state :as state]
     [top.kzre.krro.plugin.painting.canvas.upload :as upload]
+    [top.kzre.krro.plugin.painting.project.canvas :as pc]
     [top.kzre.krro.plugin.painting.spec :as spec]
     [top.kzre.krro.ui.javafx.core :refer [make-component]])
   (:import
@@ -15,7 +15,7 @@
 
 (defn- start-canvas-session [^Canvas canvas canvas-id f]
   (let [runtime (state/canvas-runtime canvas-id)
-        [w h]   (proj/canvas-size canvas-id)
+        [w h]   (pc/canvas-size canvas-id)
         upload-fn (upload/make-uploader canvas)             ;; TODO无限画布.
         loop-ctrl (loop/make-loop canvas-id runtime w h  f)
         timer    (:timer loop-ctrl)
@@ -48,7 +48,7 @@
                         (start-canvas-session canvas canvas-id f)
                         ;; 更新（canvas-id 未变）：仅重新渲染当前运行时内容
                         (when-let [runtime (state/canvas-runtime canvas-id)]
-                          (let [[w h]   (proj/canvas-size canvas-id)
+                          (let [[w h]   (pc/canvas-size canvas-id)
                                 preview  (state/preview-buffer runtime)
                                 upload-fn (frame/param f ::upload-fn)]
                             (when upload-fn

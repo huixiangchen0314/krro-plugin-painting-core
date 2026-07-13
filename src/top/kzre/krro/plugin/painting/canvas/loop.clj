@@ -16,7 +16,7 @@
 
 (defn preview-stroke-events!
   "处理一帧的预览渲染."
-  [ runtime w h get-brush preview get-target-pixels]
+  [runtime w h get-brush  get-target-pixels]
   (let [new-evs (state/drain-new-events runtime)]
     (when (seq new-evs)
       (if-let [src (get-target-pixels)]
@@ -64,14 +64,13 @@
   "创建渲染循环控制器。现在需要显式传入 frame。"
   [canvas-id runtime w h frame]   ;; 增加 frame 参数
   (let [get-brush     #(or @brush/global-brush brush/default-brush)
-        preview       (state/preview-buffer runtime)
         ;; 使用 frame 获取当前选中图层的像素数据
         get-target-pixels #(when-let [l (layer/get-selected-layer frame canvas-id)]
                                 (cp/data (:canvas l)))
         timer (proxy [AnimationTimer] []
                 (handle [_]
                   (try
-                    (preview-stroke-events! runtime w h get-brush preview get-target-pixels)
+                    (preview-stroke-events! runtime w h get-brush  get-target-pixels)
                     (layer/refresh-canvas-frames! canvas-id)
                     (catch Exception e
                       (log/error e (str "Render loop error: "
