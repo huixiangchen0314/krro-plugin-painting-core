@@ -1,12 +1,15 @@
 (ns top.kzre.krro.plugin.painting.canvas.layer-undo
   "图层操作的撤销记录版本。封装 layer 副作用函数并记录 undo 状态。"
   (:require
-   [top.kzre.krro.canvas.core.layer.core :as layer-core]
-   [top.kzre.krro.canvas.core.layer.core :as lc]
-   [top.kzre.krro.plugin.painting.canvas.layer :as layer]
-   [top.kzre.krro.plugin.painting.canvas.state :as state]
-   [top.kzre.krro.plugin.painting.canvas.undo :as undo]
-   [top.kzre.krro.plugin.painting.project.canvas :as pc]))
+
+    [top.kzre.krro.canvas.core.layer.core :as lc]
+    [top.kzre.krro.core.hook :as hook]
+    [top.kzre.krro.plugin.painting.canvas.layer :as layer]
+    [top.kzre.krro.plugin.painting.canvas.replace :as replace]
+    [top.kzre.krro.plugin.painting.canvas.state :as state]
+    [top.kzre.krro.plugin.painting.canvas.undo :as undo]
+    [top.kzre.krro.plugin.painting.project.canvas :as pc]
+    [top.kzre.krro.plugin.painting.spec :as spec]))
 
 ;; ── 添加图层 ──────────────────────────────────────
 
@@ -50,7 +53,7 @@
 
 (defn update-layer-by-id-undo! [canvas-id layer-id updater]
   (let [cd (pc/canvas-data! canvas-id)
-        path (layer-core/find-layer-path layer-id (:layers cd))]
+        path (lc/find-layer-path layer-id (:layers cd))]
     (when path
       (update-layer-at-undo! canvas-id path updater))))
 
@@ -58,12 +61,16 @@
   (let [layer-id (:id layer)
         cd (pc/canvas-data! canvas-id)
         layers (:layers cd)
-        path (layer-core/find-layer-path layer-id layers)
+        path (lc/find-layer-path layer-id layers)
         old-layer (lc/find-layer-by-path path layers)]
     (when path
       (if (= old-layer layer)
-        layer
-        (update-layer-at-undo! canvas-id path (fn [_] layer))))))
+        (do                                                 ;; 引用没改变，但 UI 还是要刷新.
+          (layer/refresh-canvas-and-layer! canvas-id)
+          layer)
+        (do
+          (layer/update-layer-at! canvas-id path (fn [_] layer))
+          (replace/replace-layer! canvas-id layer))))))
 
 (defn toggle-layer-visibility! [canvas-id layer-id]
   (letfn [(updator [layer]

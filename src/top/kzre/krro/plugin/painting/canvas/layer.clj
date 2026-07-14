@@ -37,6 +37,12 @@
           (let [viewport (vp/get-viewport f)]
             (Platform/runLater #(ufn preview w h viewport))))))))
 
+(defn refresh-canvas-and-layer!
+  "刷新画布并重新渲染UI布局, 当图层发生了影响画布渲染的行动时候使用."
+  [canvas-id]
+  (layer/refresh-canvas-frames! canvas-id)
+  (hook/run-hook! spec/layer-changed-hook-key canvas-id))
+
 (defn raster-layer-buffer [canvas-id layer-id]
   (when-let [cd (pc/canvas-data! canvas-id)]
     (when-let [l (lc/find-layer layer-id (:layers cd))]
@@ -245,6 +251,8 @@
   (when-let [path (lc/find-layer-path layer-id (:layers cd))]
     (update-layer-at cd path updater)))
 
+;; 默认更新行为，触发渲染，但不维护侧表数据.
+;; 对应不会触发渲染，或者需要更新侧表数据的操作，应当独立实现.
 (defn update-layer-at! [canvas-id path updater]
   (when-let [new-cd (update-layer-at (pc/canvas-data! canvas-id) path updater)]
     (update-project! canvas-id new-cd)
@@ -259,6 +267,7 @@
     (hook/run-hook! spec/layer-changed-hook-key canvas-id)
     new-cd))
 
+;; 这里的 非回退 replace-layer! 不允许发生引用更新
 (defn replace-layer! [canvas-id layer]
   (let [layer-id (:id layer)
         cd (pc/canvas-data! canvas-id)
@@ -267,7 +276,9 @@
         old-layer (lc/find-layer-by-path path layers)]
     (when path
       (if (= old-layer layer)
-        layer
+        (do                                                 ;; 引用没改变，但 UI 还是要刷新.
+          (refresh-canvas-and-layer! canvas-id)
+          layer)
         (update-layer-at! canvas-id path (fn [_] layer))))))
 
 (defn auto-select-layer! [canvas-id]

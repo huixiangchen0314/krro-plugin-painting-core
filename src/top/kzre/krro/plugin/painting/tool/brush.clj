@@ -1,7 +1,8 @@
 (ns top.kzre.krro.plugin.painting.tool.brush
   "画笔工具：完整实现 ITool 协议，利用内部 BrushState 管理事件和笔画长度。
    apply! 返回动作指令，preview! 执行插值预览，commit! 提交最终笔画。
-   依赖全局状态中的 layer-buffer 作为备份。"
+   依赖全局状态中的 layer-buffer 作为备份。
+   正确处理图层嵌套变换：在笔画开始时缓存父级逆矩阵。"
   (:require
     [top.kzre.krro.brush.core :as brush-core]
     [top.kzre.krro.brush.taper :as taper]
@@ -11,9 +12,11 @@
     [top.kzre.krro.plugin.painting.canvas.state :as state]
     [top.kzre.krro.plugin.painting.canvas.undo :as undo]
     [top.kzre.krro.plugin.painting.tool.protocol :as tp]
-    [top.kzre.krro.plugin.undo.protocol])
+    [top.kzre.krro.plugin.undo.protocol]
+    [top.kzre.krro.canvas.core.layer.util :as layer-util])
   (:import
-    (top.kzre.krro.canvas.core Arrays)))
+    (top.kzre.krro.canvas.core Arrays)
+    (top.kzre.krro.canvas.core.layer MathUtils)))
 
 ;; ── 内部状态 ─────────────────────────────────────
 (defrecord BrushState
@@ -130,27 +133,39 @@
         (finally
           (pool/return temp))))))
 
+;; ── 坐标转换：计算总逆矩阵并缓存 ────────────────
+(defn- compute-total-inverse [layer layers layer-path]
+  (let [;; 图层自身的逆矩阵
+        inv-local (layer-util/compose-inverse-transform layer)
+        ;; 父逆矩阵（如果存在父路径）
+        inv-parent (layer-util/parent-inverse-transform layers layer-path)]
+    (if inv-parent
+      (MathUtils/multiply (float-array inv-local) (float-array inv-parent))
+      (float-array inv-local))))
+
 ;; ── 工具实现 ──────────────────────────────────────
-(defrecord BrushTool [state-atom]
+(defrecord BrushTool [state-atom parent-inv]
   tp/ITool
   (begin! [_ layer _ctx]
-    ;; TODO: UI 逻辑（光标、面板等）
+    ;; 重置父逆缓存
+    (reset! parent-inv nil)
     layer)
 
   (end! [_ layer _ctx]
-    ;; TODO: UI 清理
+    (reset! parent-inv nil)
     layer)
 
   (apply! [_ layer ev ctx]
-    (let [;; 获取图层变换，提供默认值
-          layer-x   (or (:x layer) 0.0)
-          layer-y   (or (:y layer) 0.0)
-          scale-x   (or (:scale-x layer) 1.0)
-          scale-y   (or (:scale-y layer) 1.0)
-          ;; 逆变换：画布坐标 -> 图层本地坐标
-          local-x   (/ (- (:x ev) layer-x) (max scale-x 1e-6))
-          local-y   (/ (- (:y ev) layer-y) (max scale-y 1e-6))
-          local-ev  (assoc ev :x local-x :y local-y)]
+    (let [local-ev (if-let [inv-matrix @parent-inv]
+                     (let [pt (layer-util/transform-point inv-matrix (:x ev) (:y ev))]
+                       (assoc ev :x (:x pt) :y (:y pt)))
+                     ;; 未缓存，先计算逆矩阵
+                     (let [layers (:layers (:data ctx))
+                           layer-path (layer-util/find-layer-path (:id layer) layers)
+                           total-inv (compute-total-inverse layer layers layer-path)]
+                       (reset! parent-inv total-inv)
+                       (let [pt (layer-util/transform-point total-inv (:x ev) (:y ev))]
+                         (assoc ev :x (:x pt) :y (:y pt)))))]
       (case (:type local-ev)
         :press   (do (reset! state-atom (make-state))
                      (push-event! state-atom local-ev)
@@ -185,11 +200,12 @@
               backup (state/layer-buffer (:runtime ctx))]
           (commit-stroke! dest w h brush all-evs stroke-len
                           backup (:canvas-id ctx) (:id layer))
-          ;; 提交后重置状态
-          (reset! state-atom (make-state)))))
+          ;; 提交后重置状态并清除父逆缓存
+          (reset! state-atom (make-state))
+          (reset! parent-inv nil))))
     layer))
 
 (defn make-brush
   "创建画笔工具实例。"
   []
-  (->BrushTool (atom (make-state))))
+  (->BrushTool (atom (make-state)) (atom nil)))

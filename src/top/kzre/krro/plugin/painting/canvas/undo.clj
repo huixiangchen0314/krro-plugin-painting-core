@@ -27,7 +27,7 @@
 (defonce undo-type-raster-stroke ::raster-stroke)
 (defonce undo-type-raster-layer-add ::raster-layer-add)
 (defonce undo-type-raster-layer-remove ::raster-layer-remove)
-
+(defonce undo-type-raster-layer-replace ::raster-layer-replace)
 
 ;; ── 序列号管理 ───────────────────────────────
 (def undo-metadata-seq-key ::canvas-raster-state-seq)
@@ -49,6 +49,16 @@
    :old-snapshot      old-wrapper
    :new-snapshot      new-wrapper})
 
+(defn make-raster-layer-replace-meta [canvas-id path old-layer new-layer old-wrapper new-wrapper]
+  {:type          undo-type-raster-layer-replace
+   :seq           (inc-undo-metadata-seq-key)
+   :canvas-id     canvas-id
+   :path          path
+   :old-layer     (pc/persistable-layer old-layer)
+   :new-layer     (pc/persistable-layer new-layer)
+   :old-snapshot  old-wrapper
+   :new-snapshot  new-wrapper})
+
 (defn make-layer-changed-meta [canvas-id]
   {:type              undo-type-layer-changed
    :seq               (inc-undo-metadata-seq-key)
@@ -67,7 +77,7 @@
    :canvas-id     canvas-id
    :layer-id      (:id layer)
    :path          path
-   :layer   (pc/persistable-layer layer)
+   :layer         (pc/persistable-layer layer)
    :snapshot      snapshot-wrapper})
 
 (defn make-raster-layer-remove-meta [canvas-id path layer snapshot-wrapper]
@@ -103,6 +113,18 @@
 
 (defn record-layer-render-attrs-state! [canvas-id]
   (undo/record-state! (make-layer-render-attrs-changed-meta canvas-id)))
+
+(defn record-raster-layer-replace!
+  [canvas-id path old-layer new-layer]
+  (let [old-pixels (cp/data (:canvas old-layer))
+        new-pixels (cp/data (:canvas new-layer))
+        same?      (identical? old-pixels new-pixels)
+        old-wrap   (when-not same? (snap/wrap-pixels! old-pixels))
+        new-wrap   (when-not same? (snap/wrap-pixels! new-pixels))
+        meta       (make-raster-layer-replace-meta canvas-id path old-layer new-layer old-wrap new-wrap)]
+    (undo/record-state! meta)
+    (log/info "Raster layer replace recorded [seq:" (:seq meta) "]"
+              (when same? "(pixels unchanged)"))))
 
 (defn record-raster-layer-add!
   [canvas-id path layer]
@@ -148,13 +170,6 @@
         (catch Exception e
           (log/error e "Failed to restore raster state [seq:" seq-num "]"))))))
 
-(defn refresh-canvas-and-layer!
-  "刷新画布并重新渲染UI布局, 当图层发生了影响画布渲染的行动时候使用."
-  [canvas-id]
-  (let [canvas-id canvas-id]
-    (layer/refresh-canvas-frames! canvas-id)
-    (hook/run-hook! spec/layer-changed-hook-key canvas-id)))
-
 ;; ── 多方法分派恢复 ────────────────────────────
 (defmulti restore-canvas-state!
           (fn [lifycycle meta] [lifycycle (:type meta)]))
@@ -184,13 +199,13 @@
 
 (defmethod restore-canvas-state! [:after-undo undo-type-raster-layer-remove] [_ meta]
   (let [canvas-id  (:canvas-id meta)]
-    (refresh-canvas-and-layer! canvas-id)))
+    (layer/refresh-canvas-and-layer! canvas-id)))
 
 (defmethod restore-canvas-state! [:after-redo undo-type-raster-layer-remove] [_ meta]
   (let [canvas-id (:canvas-id meta)
         layer-id (:layer-id meta)]
     (pr/delete-raster! layer-id)
-    (refresh-canvas-and-layer! canvas-id)))
+    (layer/refresh-canvas-and-layer! canvas-id)))
 
 (defmethod restore-canvas-state! [:after-undo undo-type-raster-stroke] [_ meta]
   (restore-raster-state! meta :old-snapshot))
@@ -205,10 +220,26 @@
   (hook/run-hook! spec/layer-changed-hook-key (:canvas-id metadata)))
 
 (defmethod restore-canvas-state! [:after-undo undo-type-layer-render-attrs-changed] [_ metadata]
-  (refresh-canvas-and-layer! (:canvas-id metadata)))
+  (layer/refresh-canvas-and-layer! (:canvas-id metadata)))
 
 (defmethod restore-canvas-state! [:after-redo undo-type-layer-render-attrs-changed] [_ metadata]
-  (refresh-canvas-and-layer! (:canvas-id metadata)))
+  (layer/refresh-canvas-and-layer! (:canvas-id metadata)))
+
+(defmethod restore-canvas-state! [:before-undo undo-type-raster-layer-replace] [_ meta]
+  (let [old-snap (when-let [w (:old-snapshot meta)] (snap/read-pixels! w))]
+    (when old-snap
+      (pr/create-raster* (:id (:old-layer meta)) (:canvas-id meta) old-snap))))
+
+(defmethod restore-canvas-state! [:after-undo undo-type-raster-layer-replace] [_ meta]
+  (layer/refresh-canvas-and-layer! (:canvas-id meta)))
+
+(defmethod restore-canvas-state! [:before-redo undo-type-raster-layer-replace] [_ meta]
+  (let [new-snap (when-let [w (:new-snapshot meta)] (snap/read-pixels! w))]
+    (when new-snap
+      (pr/create-raster* (:id (:new-layer meta)) (:canvas-id meta) new-snap))))
+
+(defmethod restore-canvas-state! [:after-redo undo-type-raster-layer-replace] [_ meta]
+  (layer/refresh-canvas-and-layer! (:canvas-id meta)))
 
 (defmethod restore-canvas-state! :default [_lifecycle _meta])
 

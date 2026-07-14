@@ -30,8 +30,7 @@
                         (let [data (pc/canvas-data! canvas-id)
                               ctx  (tp/make-context canvas-id f data runtime)]
                           (when-let [new-layer (tp/preview! current-tool layer ctx)]
-                            (layer/replace-layer! canvas-id new-layer)
-                            (layer/refresh-canvas-frames! canvas-id))))))
+                            (layer/replace-layer! canvas-id new-layer))))))
 
         ;; 输入回调：根据 apply! 返回的动作指令调度
         callback (fn [ev]
@@ -46,8 +45,7 @@
                            :continue nil
                            :commit   (do (loop/stop-loop! canvas-id)
                                          (when-let [new-layer (tp/commit! current-tool layer ctx)]
-                                           (layer-undo/replace-layer-undo! canvas-id new-layer)
-                                           (layer/refresh-canvas-frames! canvas-id)))
+                                           (layer-undo/replace-layer-undo! canvas-id new-layer)))
                            :idle     nil)))))
 
         ;; 创建输入源
