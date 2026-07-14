@@ -141,22 +141,25 @@
     ;; TODO: UI 清理
     layer)
 
-  (apply! [_ _layer ev _ctx]
-    (case (:type ev)
-      :press
-      (do
-        (reset! state-atom (make-state))
-        (push-event! state-atom ev)
-        :start)
-      :drag
-      (do
-        (push-event! state-atom ev)
-        :continue)
-      :release
-      (do
-        (push-event! state-atom ev)
-        :commit)
-      :idle))
+  (apply! [_ layer ev ctx]
+    (let [;; 获取图层变换，提供默认值
+          layer-x   (or (:x layer) 0.0)
+          layer-y   (or (:y layer) 0.0)
+          scale-x   (or (:scale-x layer) 1.0)
+          scale-y   (or (:scale-y layer) 1.0)
+          ;; 逆变换：画布坐标 -> 图层本地坐标
+          local-x   (/ (- (:x ev) layer-x) (max scale-x 1e-6))
+          local-y   (/ (- (:y ev) layer-y) (max scale-y 1e-6))
+          local-ev  (assoc ev :x local-x :y local-y)]
+      (case (:type local-ev)
+        :press   (do (reset! state-atom (make-state))
+                     (push-event! state-atom local-ev)
+                     :start)
+        :drag    (do (push-event! state-atom local-ev)
+                     :continue)
+        :release (do (push-event! state-atom local-ev)
+                     :commit)
+        :idle)))
 
   (preview! [_ layer ctx]
     (let [st @state-atom]

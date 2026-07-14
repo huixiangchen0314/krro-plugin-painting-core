@@ -38,9 +38,6 @@
                    (when-let [current-tool (state/current-tool canvas-id)]
                      (when-let [layer (state/selected-layer! canvas-id)]
                        (let [data (pc/canvas-data! canvas-id)
-                             viewport (vp/get-viewport f)
-                             logic-coords (vp/screen->logic viewport (:x ev) (:y ev))
-                             ev (assoc ev :x (:x logic-coords) :y (:y logic-coords))
                              ctx  (tp/make-context canvas-id f data runtime)
                              action (tp/apply! current-tool layer ev ctx)]
                          (case action
