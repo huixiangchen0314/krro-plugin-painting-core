@@ -67,10 +67,12 @@
       (if (= old-layer layer)
         (do                                                 ;; 引用没改变，但 UI 还是要刷新.
           (layer/refresh-canvas-and-layer! canvas-id)
+          ;; 记录成一般更新
+          (undo/record-layer-render-attrs-state! canvas-id)
           layer)
         (do
           (layer/update-layer-at! canvas-id path (fn [_] layer))
-          (replace/replace-layer! canvas-id layer))))))
+          (replace/replace-layer! canvas-id path old-layer layer))))))
 
 (defn toggle-layer-visibility! [canvas-id layer-id]
   (letfn [(updator [layer]

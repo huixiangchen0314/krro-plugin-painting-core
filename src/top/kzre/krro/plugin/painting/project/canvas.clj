@@ -65,11 +65,11 @@
 
 ;; 持久化多方法.
 (defmulti persistable-layer :type)
-(defmulti active-layer! (fn [layer _width _height] (:type layer)))
+(defmulti active-layer! (fn [layer canvas-id _width _height] (:type layer)))
 
 (defmethod persistable-layer :default [layer] layer)
 
-(defmethod active-layer! :default [layer _w _h] layer)
+(defmethod active-layer! :default [layer _canvas-id _w _h] layer)
 
 (def canvas-codec-plugin-def
   {:type     :krro.plugin/resource-codec
@@ -88,7 +88,7 @@
                (let [id (:id m)
                      w (:width m)
                      h (:height m)
-                     decoded-layers (mapv #(active-layer! % w h) (:layers m))]
+                     decoded-layers (mapv #(active-layer! % id w h) (:layers m))]
                  (map->CanvasData {:id id :width w :height h :layers decoded-layers})))})
 
 
