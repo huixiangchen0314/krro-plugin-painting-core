@@ -1,10 +1,9 @@
 (ns top.kzre.krro.plugin.painting.canvas.loop
   "全局动画循环管理，与具体工具解耦。"
   (:require
-    [taoensso.timbre :as log]
-    [top.kzre.krro.plugin.painting.canvas.layer :as layer])
+    [taoensso.timbre :as log])
   (:import
-    [javafx.animation AnimationTimer]))
+    (javafx.animation AnimationTimer)))
 
 (defonce animation-timers (atom {}))
 

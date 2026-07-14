@@ -45,7 +45,8 @@
 
 (defn update-layer-at-undo! [canvas-id path updater]
   (layer/update-layer-at! canvas-id path updater)
-  (undo/record-state! canvas-id))
+  ;; 默认更新认为是会影响渲染.
+  (undo/record-layer-render-attrs-state! canvas-id))
 
 (defn update-layer-by-id-undo! [canvas-id layer-id updater]
   (let [cd (pc/canvas-data! canvas-id)
@@ -69,12 +70,12 @@
             (let [visible? (:visible? layer)]
               (assoc layer :visible? (not visible?))))]
     (when (layer/update-layer-by-id! canvas-id layer-id updator)
-      (undo/record-visibility-state! canvas-id))))
+      (undo/record-layer-render-attrs-state! canvas-id))))
 
 (defn set-layer-visibility! [canvas-id layer-id visible?]
   (letfn [(updator [layer] (assoc layer :visible? visible?))]
     (when (layer/update-layer-by-id! canvas-id layer-id updator)
-      (undo/record-visibility-state! canvas-id))))
+      (undo/record-layer-render-attrs-state! canvas-id))))
 
 (defn update-selected-layer-undo! [canvas-id updater]
   (when-let [selected-id (state/selected-layer-id canvas-id)]

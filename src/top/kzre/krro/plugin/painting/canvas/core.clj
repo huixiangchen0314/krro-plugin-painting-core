@@ -48,7 +48,7 @@
                                          (loop/start-loop! canvas-id render-fn))
                            :continue nil
                            :commit   (do (loop/stop-loop! canvas-id)
-                                         (let [new-layer (tp/commit! current-tool layer ctx)]
+                                         (when-let [new-layer (tp/commit! current-tool layer ctx)]
                                            (layer-undo/replace-layer-undo! canvas-id new-layer)
                                            (layer/refresh-canvas-frames! canvas-id)))
                            :idle     nil)))))

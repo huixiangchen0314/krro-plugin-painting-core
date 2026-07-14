@@ -58,11 +58,12 @@
 (defmethod canvas/active-layer! :raster [layer width height]
   (if (:canvas layer)
     layer
-    (do
-      ;; 光栅图层数据丢失
-      (msg/error "Raster layer canvas data not found! use empty pixels...")
-      (let [pixels (:data (get-raster (:id layer)))
-            ;; 如果 data 不存在，用空数组兜底
-            canvas (raster/make-raster-canvas width height
-                                              :data (or pixels (float-array (* width height 4) 0.0)))]
-        (assoc layer :canvas canvas)))))
+    (let [pixels (:data (get-raster (:id layer)))
+          ;; 如果 data 不存在，用空数组兜底
+          canvas (raster/make-raster-canvas width height
+                                            :data (or pixels
+                                                      (do
+                                                        (msg/warn "Raster layer canvas data not found! use empty pixels...")
+                                                        (float-array (* width height 4) 0.0))))]
+
+      (assoc layer :canvas canvas))))

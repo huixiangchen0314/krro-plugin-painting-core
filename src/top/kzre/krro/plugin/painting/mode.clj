@@ -9,6 +9,7 @@
     [top.kzre.krro.plugin.painting.canvas.state :as state]
     [top.kzre.krro.plugin.painting.project.canvas :as pc]
     [top.kzre.krro.plugin.painting.spec :as spec]
+    [top.kzre.krro.plugin.painting.ui.tool-bar :as tb]
     [top.kzre.krro.plugin.painting.ui.layer-browser :as lb])
   (:import
     (java.util UUID)))
@@ -60,13 +61,15 @@
 
 (defn layout-fn [f]
   (let [canvas-id (frame/ensure-param! f spec/canvas-id-key #(keyword (str (UUID/randomUUID))))
-        _rt       (state/ensure-runtime! canvas-id 800 600)     ;; 确保运行时一定有效.
-        ]
-    [:block {:key :root                                    ;; 标注key 防止重建.
-             :direction :horizontal}
-     [:krro.painting/canvas {:key canvas-id                ;; 确保画布更新时候，重建ui和状态.
-                             :krro.painting/canvas-id canvas-id}]
-     (lb/layer-panel-vnode canvas-id f)]))
+        _rt       (state/ensure-runtime! canvas-id 800 600)]
+    [:block {:key :root :direction :vertical}
+     ;; 顶部工具选择栏
+     (tb/tool-bar-vnode canvas-id f)
+     [:block {:direction :horizontal}
+      ;; 左侧画布
+      [:krro.painting/canvas {:key canvas-id :krro.painting/canvas-id canvas-id}]
+      ;; 右侧图层面板
+      (lb/layer-panel-vnode canvas-id f)]]))
 
 (defn register!
   "注册画布标签到 JavaFX 标签系统。"

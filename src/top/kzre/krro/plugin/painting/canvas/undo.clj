@@ -22,7 +22,7 @@
    (top.kzre.krro.canvas.core Arrays)))
 
 
-(defonce undo-type-layer-visibility-changed ::layer-visibility-changed)
+(defonce undo-type-layer-render-attrs-changed ::layer-render-attrs-changed)
 (defonce undo-type-layer-changed ::layer-changed)
 (defonce undo-type-raster-stroke ::raster-stroke)
 (defonce undo-type-raster-layer-add ::raster-layer-add)
@@ -50,13 +50,13 @@
    :new-snapshot      new-wrapper})
 
 (defn make-layer-changed-meta [canvas-id]
-  {:type         undo-type-layer-changed
+  {:type              undo-type-layer-changed
    :seq               (inc-undo-metadata-seq-key)
    :canvas-id         canvas-id})
 
 ;; TODO 细化改变类型能用于后续性能优化
-(defn make-layer-visibility-changed-meta [canvas-id]
-  {:type              undo-type-layer-visibility-changed
+(defn make-layer-render-attrs-changed-meta [canvas-id]
+  {:type              undo-type-layer-render-attrs-changed
    :seq               (inc-undo-metadata-seq-key)
    :canvas-id         canvas-id})
 
@@ -101,8 +101,8 @@
 (defn record-state! [canvas-id]
   (undo/record-state! (make-layer-changed-meta canvas-id)))
 
-(defn record-visibility-state! [canvas-id]
-  (undo/record-state! (make-layer-visibility-changed-meta canvas-id)))
+(defn record-layer-render-attrs-state! [canvas-id]
+  (undo/record-state! (make-layer-render-attrs-changed-meta canvas-id)))
 
 (defn record-raster-layer-add!
   [canvas-id path layer]
@@ -204,10 +204,10 @@
 (defmethod restore-canvas-state! [:after-redo undo-type-layer-changed] [_ metadata]
   (hook/run-hook! spec/layer-changed-hook-key (:canvas-id metadata)))
 
-(defmethod restore-canvas-state! [:after-undo undo-type-layer-visibility-changed] [_ metadata]
+(defmethod restore-canvas-state! [:after-undo undo-type-layer-render-attrs-changed] [_ metadata]
   (refresh-canvas-and-layer! (:canvas-id metadata)))
 
-(defmethod restore-canvas-state! [:after-redo undo-type-layer-visibility-changed] [_ metadata]
+(defmethod restore-canvas-state! [:after-redo undo-type-layer-render-attrs-changed] [_ metadata]
   (refresh-canvas-and-layer! (:canvas-id metadata)))
 
 (defmethod restore-canvas-state! :default [_lifecycle _meta])
