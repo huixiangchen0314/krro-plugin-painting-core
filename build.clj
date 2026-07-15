@@ -1,12 +1,12 @@
 (ns build
   (:require [clojure.tools.build.api :as b]))
 
-(def lib 'top.kzre/krro-plugin-painting)
+(def lib 'top.kzre/krro-plugin-painting-core)
 (def version "0.1.0")
 (def class-dir "target/classes")
 (def basis (b/create-basis {:project "deps.edn"}))
-(def jar-file "target/krro-plugin-painting-0.1.0.jar")            ;; 硬编码，与 Makefile 一致
-(def uber-file "target/krro-plugin-painting-0.1.0-standalone.jar")
+(def jar-file "target/krro-plugin-painting-core-0.1.0.jar")            ;; 硬编码，与 Makefile 一致
+(def uber-file "target/krro-plugin-painting-core-0.1.0-standalone.jar")
 
 (defn clean [_]
       (b/delete {:path "target"}))
@@ -39,9 +39,9 @@
                     :version version
                     :basis basis
                     :src-dirs ["src"]
-                    :scm {:url "https://github.com/topkzre/krro-plugin-painting"
-                          :connection "scm:git:git://github.com/topkzre/krro-plugin-painting.git"
-                          :developerConnection "scm:git:ssh://git@github.com:topkzre/krro-plugin-painting.git"}})
+                    :scm {:url "https://github.com/topkzre/krro-plugin-painting-core"
+                          :connection "scm:git:git://github.com/topkzre/krro-plugin-painting-core.git"
+                          :developerConnection "scm:git:ssh://git@github.com:topkzre/krro-plugin-painting-core.git"}})
       (copy-clj-sources)
       (b/copy-dir {:src-dirs [ "resources"] :target-dir class-dir})
       (b/jar {:class-dir class-dir
