@@ -12,6 +12,8 @@
     [top.kzre.krro.plugin.painting.platform.javafx.input :as jfx-input]
     [top.kzre.krro.plugin.painting.project.canvas :as pc]
     [top.kzre.krro.plugin.painting.spec :as spec]
+    [top.kzre.krro.plugin.painting.project.core]
+    [top.kzre.krro.canvas.vector.core]
     [top.kzre.krro.plugin.painting.tool.brush :as brush-tool]
     [top.kzre.krro.plugin.painting.tool.protocol :as tp]
     [top.kzre.krro.ui.javafx.core :refer [make-component]])
@@ -19,7 +21,7 @@
    (javafx.scene.canvas Canvas)))
 
 (defn- start-canvas-session [^Canvas canvas canvas-id f]
-  (let [runtime (state/canvas-runtime canvas-id)
+  (let [
         [w h]   (pc/canvas-size canvas-id)
         upload-fn (upload/make-uploader canvas)
         _ (state/set-current-tool! canvas-id (brush-tool/make-brush))
@@ -27,7 +29,8 @@
         render-fn (fn []
                     (when-let [current-tool (state/current-tool canvas-id)]
                       (when-let [layer (state/selected-layer! canvas-id)]
-                        (let [data (pc/canvas-data! canvas-id)
+                        (let [runtime (state/canvas-runtime canvas-id)
+                              data (pc/canvas-data! canvas-id)
                               ctx  (tp/make-context canvas-id f data runtime)]
                           (when-let [new-layer (tp/preview! current-tool layer ctx)]
                             (layer/replace-layer! canvas-id new-layer))))))
@@ -36,12 +39,14 @@
         callback (fn [ev]
                    (when-let [current-tool (state/current-tool canvas-id)]
                      (when-let [layer (state/selected-layer! canvas-id)]
-                       (let [data (pc/canvas-data! canvas-id)
+                       (let [runtime (state/canvas-runtime canvas-id)
+                             data (pc/canvas-data! canvas-id)
                              ctx  (tp/make-context canvas-id f data runtime)
                              action (tp/apply! current-tool layer ev ctx)]
                          (case action
-                           :start    (do (backup/backup-layer! layer runtime)
-                                         (loop/start-loop! canvas-id render-fn))
+                           :start (let [new-runtime (backup/backup-layer! layer runtime)]
+                                    (swap! state/canvas-runtimes assoc canvas-id new-runtime)
+                                    (loop/start-loop! canvas-id render-fn))
                            :continue nil
                            :commit   (do (loop/stop-loop! canvas-id)
                                          (when-let [new-layer (tp/commit! current-tool layer ctx)]
@@ -59,7 +64,8 @@
     (layer/auto-select-layer! canvas-id)
 
     ;; 首次上传画布
-    (when-let [preview (state/preview-buffer runtime)]
+    (let [runtime (state/canvas-runtime canvas-id)
+          preview (state/preview-buffer runtime)]
       (upload-fn preview w h (vp/get-viewport f)))
 
     (frame/set-param! f spec/update-fn-key upload-fn)

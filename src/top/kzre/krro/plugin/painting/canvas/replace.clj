@@ -21,3 +21,8 @@
         (pr/create-raster! layer-id canvas-id new-pixels))))
   (undo/record-raster-layer-replace! canvas-id path old-layer new-layer)
   new-layer)
+
+;; 矢量图层所有数据可序列化
+(defmethod replace-layer! :vector
+  [canvas-id path old-layer new-layer]
+  new-layer)

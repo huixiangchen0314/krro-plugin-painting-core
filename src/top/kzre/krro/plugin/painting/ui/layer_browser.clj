@@ -81,7 +81,7 @@
      ;; 工具栏
      [:block {:class "layer-toolbar" :direction :horizontal}
       [:button {:class "layer-toolbar-button" :content "＋"
-                :on-click (fn [_] (layer-undo/add-raster-layer-over-selected-undo! canvas-id))}]
+                :on-click (fn [_] (layer-undo/add-vector-layer-over-selected-undo! canvas-id))}]
       [:button {:class "layer-toolbar-button" :content "×"
                 :on-click (fn [_]
                             (when-let [path (layer/selected-layer-path canvas-id)]

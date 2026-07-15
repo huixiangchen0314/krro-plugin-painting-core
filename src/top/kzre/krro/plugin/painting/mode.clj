@@ -13,6 +13,12 @@
     [top.kzre.krro.plugin.painting.ui.layer-browser :as lb])
   (:import
     (java.util UUID)))
+;; TODO 拆分成core层 和 editor 两个模块，前者定义核心数据和krro.core集成，后者集成javafx-renderer做ui.
+;; krro-plugin-painting-core
+;; krro-plugin-painting-editor-core 核心UI 描述，使用平台无关的描述spec,使用一些约定的tag，由具体平台提供.
+;; krro-plugin-painting-editor-javafx
+;; krro-plugin-painting-editor 编辑器核心集成.
+;; krro-plugin-painting- GPU 加速实现 lwjgl
 
 (defn maybe-refresh-frame-fn!
   [canvas-id f]

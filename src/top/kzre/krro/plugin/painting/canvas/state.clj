@@ -18,6 +18,7 @@
 (defrecord CanvasRuntime
   [^floats preview-buffer     ;; 预览缓冲区
    ^floats layer-buffer       ;; 光栅图层原始数据备份（笔画开始时拷贝）
+   layer-backup
    selected-layer-id  ;; 当前选中的图层id
    current-tool                                                     ;; 当前选择的工具.
    ])
@@ -27,6 +28,7 @@
   {:preview-buffer    (float-array buffer-size)
    :layer-buffer      (float-array buffer-size)
    :selected-layer-id nil
+   :layer-backup      nil
    :current-tool      nil})
 
 (defn make-state
@@ -34,6 +36,8 @@
   (let [n (* width height 4)]
     (map->CanvasRuntime
       (default-state n))))
+
+(defn layer-backup [^CanvasRuntime rt] (:layer-backup rt))
 
 (defonce canvas-runtimes (atom {}))
 

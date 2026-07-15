@@ -4,6 +4,7 @@
   (:require
    [top.kzre.krro.canvas.core.canvas.protocol :as cp]
    [top.kzre.krro.canvas.core.layer.core :as lc]
+   [top.kzre.krro.canvas.vector.core :as vc]
    [top.kzre.krro.canvas.raster.core :as rl]
    [top.kzre.krro.core.core :as kcc]
    [top.kzre.krro.core.frame :as frame]
@@ -107,6 +108,31 @@
     (pr/create-raster! layer-id canvas-id (cp/data (:canvas layer)))
     (set-selected-layer-id! canvas-id layer-id)
     (refresh-canvas-frames! canvas-id)
+    (hook/run-hook! spec/layer-changed-hook-key canvas-id)
+    result))
+
+(defn add-vector-layer-over-selected
+  "纯：在选中图层上方添加矢量图层。
+   返回 {:canvas-data, :layer, :layer-id, :path}"
+  [cd selected-id]
+  (let [new-layer (vc/make-vector-layer)
+        layers    (:layers cd)
+        path      (if selected-id (lc/find-layer-path selected-id layers) [])
+        new-layers (lc/insert-layer path new-layer layers)
+        new-cd     (layer/with-layers cd new-layers)]
+    {:canvas-data new-cd
+     :layer       new-layer
+     :layer-id    (:id new-layer)
+     :path        path}))
+
+(defn add-vector-layer-over-selected!
+  [canvas-id]
+  (let [^CanvasData cd (pc/canvas-data! canvas-id)
+        selected-id (state/selected-layer-id canvas-id)
+        result (add-vector-layer-over-selected cd selected-id)
+        {:keys [canvas-data layer layer-id path]} result]
+    (layer/update-project! canvas-id canvas-data)
+    (layer/set-selected-layer-id! canvas-id layer-id)
     (hook/run-hook! spec/layer-changed-hook-key canvas-id)
     result))
 

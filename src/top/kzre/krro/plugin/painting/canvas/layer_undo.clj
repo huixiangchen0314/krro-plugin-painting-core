@@ -3,13 +3,11 @@
   (:require
 
     [top.kzre.krro.canvas.core.layer.core :as lc]
-    [top.kzre.krro.core.hook :as hook]
     [top.kzre.krro.plugin.painting.canvas.layer :as layer]
     [top.kzre.krro.plugin.painting.canvas.replace :as replace]
     [top.kzre.krro.plugin.painting.canvas.state :as state]
     [top.kzre.krro.plugin.painting.canvas.undo :as undo]
-    [top.kzre.krro.plugin.painting.project.canvas :as pc]
-    [top.kzre.krro.plugin.painting.spec :as spec]))
+    [top.kzre.krro.plugin.painting.project.canvas :as pc]))
 
 ;; ── 添加图层 ──────────────────────────────────────
 
@@ -18,6 +16,13 @@
         {:keys [layer path]} result]
     (undo/record-raster-layer-add! canvas-id path layer)
     result))
+
+(defn add-vector-layer-over-selected-undo! [canvas-id]
+  (let [result (layer/add-vector-layer-over-selected! canvas-id)
+        ]
+    (undo/record-layer-render-attrs-state! canvas-id)
+    result))
+
 
 (defn add-layer-at-undo! [canvas-id path layer]
   (let [result (layer/add-layer-at! canvas-id path layer)

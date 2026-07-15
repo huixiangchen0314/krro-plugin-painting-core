@@ -16,3 +16,8 @@
         pixels (cp/data (:canvas layer))]
     (Arrays/copy pixels buf))
   runtime)
+
+
+(defmethod backup-layer! :vector
+  [layer ^CanvasRuntime runtime]
+  (assoc runtime :layer-backup layer))
