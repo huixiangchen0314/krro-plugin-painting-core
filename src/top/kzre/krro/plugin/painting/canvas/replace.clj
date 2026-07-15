@@ -3,7 +3,7 @@
     [top.kzre.krro.canvas.core.canvas.protocol :as cp]
     [top.kzre.krro.core.core :as kcc]
     [top.kzre.krro.plugin.painting.canvas.undo :as undo]
-    [top.kzre.krro.plugin.painting.project.raster-layer :as pr]))
+    [top.kzre.krro.plugin.painting.core.project.raster-layer :as pr]))
 
 
 (defmulti replace-layer!

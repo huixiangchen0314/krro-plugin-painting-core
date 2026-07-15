@@ -12,7 +12,7 @@
     [top.kzre.krro.plugin.painting.platform.javafx.input :as jfx-input]
     [top.kzre.krro.plugin.painting.project.canvas :as pc]
     [top.kzre.krro.plugin.painting.spec :as spec]
-    [top.kzre.krro.plugin.painting.project.core]
+    [top.kzre.krro.plugin.painting.core.project.core]
     [top.kzre.krro.canvas.vector.core]
     [top.kzre.krro.plugin.painting.tool.brush :as brush-tool]
     [top.kzre.krro.plugin.painting.tool.protocol :as tp]

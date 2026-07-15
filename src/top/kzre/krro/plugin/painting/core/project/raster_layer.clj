@@ -1,4 +1,4 @@
-(ns top.kzre.krro.plugin.painting.project.raster-layer
+(ns top.kzre.krro.plugin.painting.core.project.raster-layer
   (:require
    [top.kzre.krro.canvas.core.canvas.protocol :as cp]
    [top.kzre.krro.canvas.core.canvas.raster :as raster]
@@ -8,7 +8,7 @@
    [top.kzre.krro.core.project :as proj]
    [top.kzre.krro.core.rdb :refer [defschema]]
    [top.kzre.krro.core.resources :as ress]
-   [top.kzre.krro.plugin.painting.project.canvas :as canvas]))
+   [top.kzre.krro.plugin.painting.core.project.canvas :as canvas]))
 
 ;; 光栅数据侧表. 注册保护键，由我们自己维护.
 (proj/register-protected-key! :krro.painting/raster)

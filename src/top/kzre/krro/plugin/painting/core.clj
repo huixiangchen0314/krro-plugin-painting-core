@@ -8,7 +8,7 @@
     [top.kzre.krro.plugin.painting.canvas.undo :as undo]
     [top.kzre.krro.plugin.painting.commands]
     [top.kzre.krro.plugin.painting.mode :as mode]
-    [top.kzre.krro.plugin.painting.project.canvas :as pc]
+    [top.kzre.krro.plugin.painting.core.project.canvas :as pc]
     [top.kzre.krro.plugin.undo.core]
     [top.kzre.krro.ui.javafx.core]))
 

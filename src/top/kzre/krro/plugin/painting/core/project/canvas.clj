@@ -1,4 +1,4 @@
-(ns top.kzre.krro.plugin.painting.project.canvas
+(ns top.kzre.krro.plugin.painting.core.project.canvas
   "画布数据，负责定义总体画布结构，并提供多方法供图层拓展."
   (:require
    [top.kzre.krro.canvas.core.layer.core :as lc]

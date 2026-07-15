@@ -1,7 +1,7 @@
 (ns top.kzre.krro.plugin.painting.ui.tool-bar
   (:require
     [top.kzre.krro.plugin.painting.canvas.state :as state]
-    [top.kzre.krro.plugin.painting.project.canvas :as pc]
+    [top.kzre.krro.plugin.painting.core.project.canvas :as pc]
     [top.kzre.krro.plugin.painting.tool.protocol :as tp]
     [top.kzre.krro.plugin.painting.tool.registry :as registry])
   (:import (top.kzre.krro.plugin.painting.tool.brush BrushTool)

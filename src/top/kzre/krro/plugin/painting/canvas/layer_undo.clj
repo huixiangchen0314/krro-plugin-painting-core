@@ -7,7 +7,7 @@
     [top.kzre.krro.plugin.painting.canvas.replace :as replace]
     [top.kzre.krro.plugin.painting.canvas.state :as state]
     [top.kzre.krro.plugin.painting.canvas.undo :as undo]
-    [top.kzre.krro.plugin.painting.project.canvas :as pc]))
+    [top.kzre.krro.plugin.painting.core.project.canvas :as pc]))
 
 ;; ── 添加图层 ──────────────────────────────────────
 

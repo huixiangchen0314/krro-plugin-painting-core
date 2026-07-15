@@ -2,10 +2,10 @@
   "画布工具协议：工具通过返回值表达操作意图，调度器负责实现。
    ToolContext 仅提供环境信息，不包含备份数组。
    apply! 返回 [new-layer, action-key]。"
-  (:require [top.kzre.krro.plugin.painting.project.canvas :as pc]
+  (:require [top.kzre.krro.plugin.painting.core.project.canvas :as pc]
             [top.kzre.krro.plugin.painting.canvas.state :as state])
   (:import (top.kzre.krro.plugin.painting.canvas.state CanvasRuntime)
-           (top.kzre.krro.plugin.painting.project.canvas CanvasData)))
+           (top.kzre.krro.plugin.painting.core.project.canvas CanvasData)))
 
 (defrecord ToolContext
   [canvas-id

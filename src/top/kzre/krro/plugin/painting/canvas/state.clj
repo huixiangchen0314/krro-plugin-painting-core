@@ -4,11 +4,11 @@
     [top.kzre.krro.canvas.core.core :as canv]
     [top.kzre.krro.canvas.core.layer.core :as lc]
     [top.kzre.krro.core.frame :as frame]
-    [top.kzre.krro.plugin.painting.project.canvas :as pc]
+    [top.kzre.krro.plugin.painting.core.project.canvas :as pc]
     [top.kzre.krro.plugin.painting.spec :as spec])
   (:import
     (top.kzre.krro.canvas.core Arrays)
-    (top.kzre.krro.plugin.painting.project.canvas CanvasData)))
+    (top.kzre.krro.plugin.painting.core.project.canvas CanvasData)))
 
 (defn frames-with-canvas-id
   "返回所有显示指定画布的 Frame。"

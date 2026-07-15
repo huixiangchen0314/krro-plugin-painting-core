@@ -7,7 +7,7 @@
    [top.kzre.krro.plugin.painting.canvas.layer :as layer] ;; 基础函数
    [top.kzre.krro.plugin.painting.canvas.layer-undo :as layer-undo] ;; 带撤销的函数
    [top.kzre.krro.plugin.painting.canvas.state :as state]
-   [top.kzre.krro.plugin.painting.project.canvas :as pc]
+   [top.kzre.krro.plugin.painting.core.project.canvas :as pc]
    [top.kzre.krro.plugin.painting.spec :as spec]))
 
 (defn- current-canvas-id []

@@ -12,8 +12,8 @@
    [top.kzre.krro.core.message :as msg]
    [top.kzre.krro.plugin.painting.canvas.layer :as layer]
    [top.kzre.krro.plugin.painting.canvas.snapshot :as snap]
-   [top.kzre.krro.plugin.painting.project.canvas :as pc]
-   [top.kzre.krro.plugin.painting.project.raster-layer :as pr]
+   [top.kzre.krro.plugin.painting.core.project.canvas :as pc]
+   [top.kzre.krro.plugin.painting.core.project.raster-layer :as pr]
    [top.kzre.krro.plugin.painting.spec :as spec]
    [top.kzre.krro.plugin.undo.core :as undo]
    [top.kzre.krro.plugin.undo.protocol :as undo-p])

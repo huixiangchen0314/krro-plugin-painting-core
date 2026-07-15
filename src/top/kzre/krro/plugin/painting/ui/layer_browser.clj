@@ -6,8 +6,8 @@
     [top.kzre.krro.plugin.painting.canvas.layer :as layer]
     [top.kzre.krro.plugin.painting.canvas.layer-undo :as layer-undo]
     [top.kzre.krro.plugin.painting.canvas.state :as state]
-    [top.kzre.krro.plugin.painting.project.canvas :as pc]
-    [top.kzre.krro.plugin.painting.project.layer-meta :as pm]
+    [top.kzre.krro.plugin.painting.core.project.canvas :as pc]
+    [top.kzre.krro.plugin.painting.core.project.layer-meta :as pm]
     [top.kzre.krro.ui.core.spec.drag :as drag-spec]))
 
 ;; ── 内部工具：递归展平图层 ──────────────────────────

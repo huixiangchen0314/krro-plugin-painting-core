@@ -12,14 +12,14 @@
    [top.kzre.krro.plugin.painting.canvas.backup :as backup]
    [top.kzre.krro.plugin.painting.canvas.state :as state]
    [top.kzre.krro.plugin.painting.canvas.viewport :as vp]
-   [top.kzre.krro.plugin.painting.project.canvas :as pc]
-   [top.kzre.krro.plugin.painting.project.layer-meta :as pm]
-   [top.kzre.krro.plugin.painting.project.raster-layer :as pr]
+   [top.kzre.krro.plugin.painting.core.project.canvas :as pc]
+   [top.kzre.krro.plugin.painting.core.project.layer-meta :as pm]
+   [top.kzre.krro.plugin.painting.core.project.raster-layer :as pr]
    [top.kzre.krro.plugin.painting.spec :as spec]
    [top.kzre.krro.plugin.painting.canvas.layer :as layer])
   (:import
    (javafx.application Platform)
-   (top.kzre.krro.plugin.painting.project.canvas CanvasData)))
+   (top.kzre.krro.plugin.painting.core.project.canvas CanvasData)))
 
 ;; ── 工具函数 ──────────────────────────────────────
 (defn- with-layers [^CanvasData old-cd new-layers]

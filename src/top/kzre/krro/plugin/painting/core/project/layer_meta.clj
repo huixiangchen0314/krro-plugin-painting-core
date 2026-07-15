@@ -1,4 +1,4 @@
-(ns top.kzre.krro.plugin.painting.project.layer-meta
+(ns top.kzre.krro.plugin.painting.core.project.layer-meta
   (:require
     [top.kzre.krro.canvas.core.layer.core :as lc]
     [top.kzre.krro.core.core :as kcc]

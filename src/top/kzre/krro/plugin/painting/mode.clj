@@ -7,7 +7,7 @@
     [top.kzre.krro.core.plugin :as plugin]
     [top.kzre.krro.plugin.painting.canvas.core :as canvas]
     [top.kzre.krro.plugin.painting.canvas.state :as state]
-    [top.kzre.krro.plugin.painting.project.canvas :as pc]
+    [top.kzre.krro.plugin.painting.core.project.canvas :as pc]
     [top.kzre.krro.plugin.painting.spec :as spec]
     [top.kzre.krro.plugin.painting.ui.tool-bar :as tb]
     [top.kzre.krro.plugin.painting.ui.layer-browser :as lb])
