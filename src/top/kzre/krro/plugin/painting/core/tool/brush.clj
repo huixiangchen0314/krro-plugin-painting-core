@@ -1,21 +1,16 @@
 (ns top.kzre.krro.plugin.painting.core.tool.brush
-  "画笔工具：完整实现 ITool 协议，利用内部 BrushState 管理事件和笔画长度。
-   apply! 返回动作指令，preview! 执行插值预览，commit! 提交最终笔画。
-   依赖全局状态中的 layer-buffer 作为备份。
-   正确处理图层嵌套变换：在笔画开始时缓存父级逆矩阵。"
+  "画笔工具：完全基于 tiled-canvas。适应 brush-core 新的 [new-canvas, dirties] 返回格式。"
   (:require
     [top.kzre.krro.brush.core :as brush-core]
     [top.kzre.krro.brush.taper :as taper]
-    [top.kzre.krro.canvas.core.canvas.protocol :as cp]
-    [top.kzre.krro.canvas.core.floats-pool :as pool]
-    [top.kzre.krro.plugin.painting.core.brush.core  :as brush]
+    [top.kzre.krro.util.tiled-canvas :as tcanvas]
+    [top.kzre.krro.plugin.painting.core.brush.core :as brush]
     [top.kzre.krro.plugin.painting.core.state :as state]
     [top.kzre.krro.plugin.painting.core.ops.undo :as undo]
     [top.kzre.krro.plugin.painting.core.tool.protocol :as tp]
     [top.kzre.krro.plugin.undo.protocol]
     [top.kzre.krro.canvas.core.layer.util :as layer-util])
   (:import
-    (top.kzre.krro.canvas.core Arrays)
     (top.kzre.krro.canvas.core.layer MathUtils)))
 
 ;; ── 内部状态 ─────────────────────────────────────
@@ -102,42 +97,46 @@
                new-st)))
     @result))
 
-;; ── 预览与提交的绘制函数 ──────────────────────────
+;; ── 笔刷配置 ─────────────────────────────────────
 (defn- get-brush []
   (or @brush/global-brush brush/default-brush))
 
-(defn- draw-preview! [^floats dest w h brush events stroke-length]
+;; ── 预览绘制 ─────────────────────────────────────
+(defn- draw-preview!
+  "在画布上绘制预览笔触，返回新的画布（因为渲染可能添加新瓦片）。"
+  [canvas brush events stroke-length]
   (when (seq events)
     (let [stroke  (brush-core/events->stroke brush events
                                              (:spacing brush) (:radius brush))
           tapered (taper/taper-stroke-start stroke (:taper-start brush)
                                             :fields [:radius :opacity]
-                                            :end-dist stroke-length)]
-      (brush-core/render-stroke! dest w h tapered))))
+                                            :end-dist stroke-length)
+          [new-canvas _] (brush-core/render-stroke! canvas tapered)]
+      new-canvas)))
 
-(defn- commit-stroke! [^floats dest w h brush all-events stroke-length
-                       ^floats layer-backup canvas-id layer-id]
+;; ── 提交绘制 ─────────────────────────────────────
+(defn- commit-stroke!
+  "直接在备份画布上渲染，生成新画布；然后通过 copy-to! 合并到图层画布。
+   返回更新后的图层画布。"
+  [backup-canvas layer-canvas brush all-events stroke-length canvas-id layer-id]
   (when (seq all-events)
-    (let [buf-size (alength dest)
-          temp (pool/borrow buf-size)]
-      (try
-        (Arrays/copy layer-backup temp)
-        (let [stroke  (brush-core/events->stroke brush all-events
-                                                 (:spacing brush) (:radius brush))
-              tapered (taper/taper-stroke stroke (:taper-start brush) (:taper-end brush)
-                                          :fields [:radius :opacity]
-                                          :end-dist stroke-length)
-              dirties (brush-core/render-stroke-dirties! temp w h tapered)]
-          (undo/record-raster-stroke! canvas-id layer-id layer-backup temp dirties)
-          (Arrays/copy temp dest))
-        (finally
-          (pool/return temp))))))
+    (let [old-canvas (tcanvas/deep-copy backup-canvas)   ; 撤销快照
+          stroke       (brush-core/events->stroke brush all-events
+                                                  (:spacing brush) (:radius brush))
+          tapered      (taper/taper-stroke stroke (:taper-start brush) (:taper-end brush)
+                                           :fields [:radius :opacity]
+                                           :end-dist stroke-length)
+          [new-canvas dirties] (brush-core/render-stroke-dirties! backup-canvas tapered)]
+      ;; 更新 runtime 备份为本次绘制后的新画布
+      (state/set-layer-backup! canvas-id new-canvas)
+      ;; 记录撤销（快照为修改前的备份画布）
+      (undo/record-raster-stroke! canvas-id layer-id old-canvas new-canvas dirties)
+      ;; 将新画布内容合并到原图层画布（返回新 map，但复用 tile 数组）
+      (tcanvas/copy-to! layer-canvas new-canvas))))
 
-;; ── 坐标转换：计算总逆矩阵并缓存 ────────────────
+;; ── 坐标转换（不变） ──────────────────────────────
 (defn- compute-total-inverse [layer layers layer-path]
-  (let [;; 图层自身的逆矩阵
-        inv-local (layer-util/compose-inverse-transform layer)
-        ;; 父逆矩阵（如果存在父路径）
+  (let [inv-local (layer-util/compose-inverse-transform layer)
         inv-parent (layer-util/parent-inverse-transform layers layer-path)]
     (if inv-parent
       (MathUtils/multiply (float-array inv-local) (float-array inv-parent))
@@ -147,7 +146,6 @@
 (defrecord BrushTool [state-atom parent-inv]
   tp/ITool
   (begin! [_ layer _ctx]
-    ;; 重置父逆缓存
     (reset! parent-inv nil)
     layer)
 
@@ -159,7 +157,6 @@
     (let [local-ev (if-let [inv-matrix @parent-inv]
                      (let [pt (layer-util/transform-point inv-matrix (:x ev) (:y ev))]
                        (assoc ev :x (:x pt) :y (:y pt)))
-                     ;; 未缓存，先计算逆矩阵
                      (let [layers (:layers (:data ctx))
                            layer-path (layer-util/find-layer-path (:id layer) layers)
                            total-inv (compute-total-inverse layer layers layer-path)]
@@ -179,31 +176,30 @@
   (preview! [_ layer ctx]
     (let [st @state-atom]
       (when (seq (:new-events st))
-        (let [dest (cp/data (:canvas layer))
+        (let [canvas (:canvas layer)
               brush (get-brush)
-              w (:width (:data ctx))
-              h (:height (:data ctx))
-              [events new-st] (drain-new-events st)]
-          (draw-preview! dest w h brush events (:stroke-length new-st))
-          (reset! state-atom new-st))))
-    layer)
+              [events new-st] (drain-new-events st)
+              new-canvas (draw-preview! canvas brush events (:stroke-length new-st))]
+          (reset! state-atom new-st)
+          (assoc layer :canvas new-canvas))))
+    ;; 如果没有新事件，返回原图层
+    (if (seq (:new-events @state-atom))
+      layer
+      layer))
 
   (commit! [_ layer ctx]
     (let [st @state-atom
           all-evs (:all-events st)
           stroke-len (:stroke-length st)]
       (when (seq all-evs)
-        (let [dest (cp/data (:canvas layer))
+        (let [layer-canvas (:canvas layer)
+              backup-canvas (state/layer-backup (:runtime ctx))
               brush (get-brush)
-              w (:width (:data ctx))
-              h (:height (:data ctx))
-              backup (state/layer-buffer (:runtime ctx))]
-          (commit-stroke! dest w h brush all-evs stroke-len
-                          backup (:canvas-id ctx) (:id layer))
-          ;; 提交后重置状态并清除父逆缓存
+              updated-canvas (commit-stroke! backup-canvas layer-canvas brush all-evs stroke-len
+                                             (:canvas-id ctx) (:id layer))]
           (reset! state-atom (make-state))
-          (reset! parent-inv nil))))
-    layer))
+          (reset! parent-inv nil)
+          (assoc layer :canvas updated-canvas))))))
 
 (defn make-brush
   "创建画笔工具实例。"

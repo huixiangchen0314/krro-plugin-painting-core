@@ -4,11 +4,21 @@
      - SnapshotData（OBB 快照，含宽高）
      - 纯 float[] 像素数组（用于图层添加/移除）"
   (:require
-    [top.kzre.krro.core.custom :as custom]
-    [top.kzre.krro.canvas.core.obb :as obb])
+   [top.kzre.krro.util.tiled-canvas :as tcanvas]
+   [top.kzre.krro.canvas.core.obb :as obb]
+   [top.kzre.krro.core.custom :as custom])
   (:import
+    (java.io
+    BufferedInputStream
+    BufferedOutputStream
+    DataInputStream
+    DataOutputStream
+    File
+    FileInputStream
+    FileOutputStream)
+    (java.nio.file Files Path)
     (top.kzre.krro.canvas.core Arrays)
-    (java.io File)))
+    (top.kzre.krro.plugin.painting.core.ops TiledCanvasIOUtils)))
 
 ;; ═══════════════════════════════════════════════════════
 ;; 阈值配置
@@ -82,3 +92,70 @@
     (try
       (.delete (File. ^String  value) )
       (catch Exception _))))
+
+
+(defn- tiled-canvas-size
+  "计算 tiled-canvas 中所有瓦片数据的总字节数。"
+  [canvas]
+  (reduce-kv (fn [sum _ tile]
+               (+ sum (alength tile) 4))
+             0
+             (:tiles canvas)))
+
+
+(defn- write-tiled-canvas-to-file
+  "将 tiled-canvas 的元数据和所有瓦片写入文件。"
+  [canvas file]
+  (with-open [out (DataOutputStream.
+                    (BufferedOutputStream.
+                      (FileOutputStream. ^String file)))]
+    ;; 写入元数据
+    (.writeInt out (:min-tx canvas))
+    (.writeInt out (:max-tx canvas))
+    (.writeInt out (:min-ty canvas))
+    (.writeInt out (:max-ty canvas))
+    (.writeInt out (:tile-size canvas))
+    ;; 写入瓦片数据（全量）
+    (TiledCanvasIOUtils/writeTiles (:tiles canvas) nil out)))
+
+(defn- read-tiled-canvas-from-file
+  "从文件读取 tiled-canvas。"
+  [^String file]
+  (with-open [in (DataInputStream.
+                   (BufferedInputStream.
+                     (FileInputStream. file)))]
+    (let [min-tx    (.readInt in)
+          max-tx    (.readInt in)
+          min-ty    (.readInt in)
+          max-ty    (.readInt in)
+          tile-size (.readInt in)
+          tiles     (TiledCanvasIOUtils/readTiles in)]
+      (tcanvas/make-canvas
+        :min-tx min-tx :max-tx max-tx
+        :min-ty min-ty :max-ty max-ty
+        :tile-size tile-size
+        :tiles tiles))))
+
+(defn wrap-tiled-canvas
+  "将 tiled-canvas 封装为快照格式。
+   返回 {:type :memory/:file, :value canvas-or-path}"
+  [canvas]
+  (if (< (tiled-canvas-size canvas) (custom/get-custom ::memory-threshold))
+    {:type :memory :value canvas}
+    (let [tmp-file (File/createTempFile "krro-tile-snap-" ".dat")]
+      (write-tiled-canvas-to-file canvas tmp-file)
+      {:type :file :value (.getAbsolutePath tmp-file)})))
+
+(defn read-tiled-canvas
+  "从快照结构恢复 tiled-canvas。"
+  [{:keys [type value]}]
+  (case type
+    :memory value
+    :file (read-tiled-canvas-from-file (File. ^String value))))
+
+(defn delete-tiled-canvas-snapshot!
+  "清理文件型快照。"
+  [{:keys [type value]}]
+  (when (= type :file)
+    (try (.delete (File. ^String value))
+         (catch Exception _))))

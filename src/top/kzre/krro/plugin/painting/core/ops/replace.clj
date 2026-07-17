@@ -1,9 +1,6 @@
 (ns top.kzre.krro.plugin.painting.core.ops.replace
   (:require
-    [top.kzre.krro.canvas.core.canvas.protocol :as cp]
-    [top.kzre.krro.core.core :as kcc]
-    [top.kzre.krro.plugin.painting.core.ops.undo :as undo]
-    [top.kzre.krro.plugin.painting.core.project.raster-layer :as pr]))
+    [top.kzre.krro.plugin.painting.core.ops.undo :as undo]))
 
 
 (defmulti replace-layer!
@@ -12,13 +9,7 @@
 
 (defmethod replace-layer! :raster
   [canvas-id path old-layer new-layer]
-  (let [old-pixels (cp/data (:canvas old-layer))
-        new-pixels (cp/data (:canvas new-layer))
-        layer-id   (:id new-layer)]
-    (when (not (identical? old-pixels new-pixels))
-      (if (kcc/select-by-id :krro.painting/raster layer-id)
-        (kcc/update-by-id! :krro.painting/raster layer-id #(assoc % :data new-pixels))
-        (pr/create-raster! layer-id canvas-id new-pixels))))
+  ;; 运行时不再维护侧表，仅记录撤销；侧表在 persistable-layer! 时才会更新。
   (undo/record-raster-layer-replace! canvas-id path old-layer new-layer)
   new-layer)
 

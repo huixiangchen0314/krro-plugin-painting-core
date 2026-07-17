@@ -2,20 +2,20 @@
   "图层操作：纯函数、副作用函数与带撤销函数。
    基于路径管理嵌套图层组，自动同步到项目原子。"
   (:require
-   [top.kzre.krro.canvas.core.canvas.protocol :as cp]
+   [top.kzre.krro.util.tiled-canvas :as tcanvas]
    [top.kzre.krro.canvas.core.layer.core :as lc]
-   [top.kzre.krro.canvas.vector.core :as vc]
    [top.kzre.krro.canvas.raster.core :as rl]
+   [top.kzre.krro.canvas.vector.core :as vc]
    [top.kzre.krro.core.core :as kcc]
    [top.kzre.krro.core.frame :as frame]
    [top.kzre.krro.core.hook :as hook]
    [top.kzre.krro.plugin.painting.core.ops.backup :as backup]
-   [top.kzre.krro.plugin.painting.core.state :as state]
-   [top.kzre.krro.plugin.painting.editor.core.viewport :as vp]
    [top.kzre.krro.plugin.painting.core.project.canvas :as pc]
    [top.kzre.krro.plugin.painting.core.project.layer-meta :as pm]
    [top.kzre.krro.plugin.painting.core.project.raster-layer :as pr]
-   [top.kzre.krro.plugin.painting.core.spec :as spec])
+   [top.kzre.krro.plugin.painting.core.spec :as spec]
+   [top.kzre.krro.plugin.painting.core.state :as state]
+   [top.kzre.krro.plugin.painting.editor.core.viewport :as vp])
   (:import
    (javafx.application Platform)
    (top.kzre.krro.plugin.painting.core.project.canvas CanvasData)))
@@ -50,8 +50,8 @@
         (let [lid (state/selected-layer-id canvas-id)]
           (if (= lid layer-id)
             (when-let [rt (state/canvas-runtime canvas-id)]
-              (state/layer-buffer rt))
-            (cp/data (:canvas l))))))))
+              (state/layer-backup rt))    ;; 返回备份画布 (tcanvas map)
+            (:canvas l)))))))            ;; 返回图层画布
 
 (defn set-selected-layer-id! [canvas-id layer-id]
   (when-let [rt (state/canvas-runtime canvas-id)]
@@ -88,7 +88,7 @@
   [cd selected-id]
   (let [w   (:width cd)
         h   (:height cd)
-        new-layer (rl/make-raster-layer w h)
+        new-layer (rl/make-raster-layer)
         layers    (:layers cd)
         path      (if selected-id (lc/find-layer-path selected-id layers) [])
         new-layers (lc/insert-layer path new-layer layers)
@@ -104,7 +104,7 @@
         result (add-raster-layer-over-selected cd selected-id)   ;; 完整纯函数结果
         {:keys [canvas-data layer layer-id path]} result]
     (update-project! canvas-id canvas-data)
-    (pr/create-raster! layer-id canvas-id (cp/data (:canvas layer)))
+    (pr/create-raster! layer-id canvas-id (:canvas layer))
     (set-selected-layer-id! canvas-id layer-id)
     (refresh-canvas-frames! canvas-id)
     (hook/run-hook! spec/layer-changed-hook-key canvas-id)
@@ -152,7 +152,7 @@
         {:keys [canvas-data layer-id]} result]
     (when canvas-data
       (update-project! canvas-id canvas-data)
-      (pr/create-raster! layer-id canvas-id (cp/data (:canvas layer)))
+      (pr/create-raster! layer-id canvas-id (:canvas layer))
       (refresh-canvas-frames! canvas-id)
       (set-selected-layer-id! canvas-id layer-id)
       (hook/run-hook! spec/layer-changed-hook-key canvas-id)
@@ -219,24 +219,16 @@
 ;; ── 复制图层 ──────────────────────────────────────
 
 (defn duplicate-layer
-  "纯：复制图层。
-   返回 {:canvas-data, :layer, :layer-id, :path}"
   [cd layer-id]
   (when-let [layer (some #(when (= (:id %) layer-id) %) (:layers cd))]
-    (let [canvas      (:canvas layer)
-          w           (cp/width canvas)
-          h           (cp/height canvas)
-          new-canvas  (rl/make-raster-layer w h)
-          _           (System/arraycopy (cp/data canvas) 0
-                                        (-> new-canvas :canvas cp/data) 0
-                                        (int (* w h 4)))
-          new-id      (keyword (str (name layer-id) "-copy"))
-          new-layer   (-> layer (assoc :id new-id :canvas new-canvas) (dissoc :name))
-          layers      (:layers cd)
-          idx         (first (keep-indexed #(when (= (:id %2) layer-id) %1) layers))
-          new-layers  (if idx
-                        (vec (concat (subvec layers 0 (inc idx)) [new-layer] (subvec layers (inc idx))))
-                        (conj layers new-layer))]
+    (let [new-canvas (tcanvas/deep-copy (:canvas layer))
+          new-id     (keyword (str (name layer-id) "-copy"))
+          new-layer  (-> layer (assoc :id new-id :canvas new-canvas) (dissoc :name))
+          layers     (:layers cd)
+          idx        (first (keep-indexed #(when (= (:id %2) layer-id) %1) layers))
+          new-layers (if idx
+                       (vec (concat (subvec layers 0 (inc idx)) [new-layer] (subvec layers (inc idx))))
+                       (conj layers new-layer))]
       {:canvas-data (with-layers cd new-layers)
        :layer       new-layer
        :layer-id    new-id
@@ -250,7 +242,7 @@
         {:keys [canvas-data layer layer-id new-layer-id path]} result]
     (when canvas-data
       (update-project! canvas-id canvas-data)
-      (pr/create-raster-empty! new-layer-id canvas-id width height)
+      (pr/create-raster-empty! new-layer-id canvas-id)
       (pm/create-layer-meta! new-layer-id canvas-id)
       (refresh-canvas-frames! canvas-id)
       (set-selected-layer-id! canvas-id new-layer-id)
@@ -316,19 +308,3 @@
             id)))
       current-id)))
 
-
-(defn set-selected-raster-layer-pixels! [canvas-id pixel-data]
-  (when-let [layer (state/selected-layer! canvas-id)]
-    (when (= :raster (:type layer))
-      (let [canvas (:canvas layer) dest (cp/data canvas)]
-        (assert (= (alength dest) (alength pixel-data)) "Pixel data size mismatch")
-        (System/arraycopy pixel-data 0 dest 0 (alength dest))))))
-
-(defn copy-selected-raster-layer-pixels! [canvas-id ^floats dest]
-  (if-let [layer (state/selected-layer! canvas-id)]
-    (if (= :raster (:type layer))
-      (let [src (cp/data (:canvas layer))]
-        (assert (= (alength dest) (alength src)) "Destination array size mismatch")
-        (System/arraycopy src 0 dest 0 (alength src)) dest)
-      (throw (ex-info "Selected layer is not a raster layer" {:type (:type layer)})))
-    (throw (ex-info "No layer is currently selected" {}))))

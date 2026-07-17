@@ -1,12 +1,12 @@
 (ns top.kzre.krro.plugin.painting.core.project.canvas
   "画布数据，负责定义总体画布结构，并提供多方法供图层拓展."
   (:require
-   [top.kzre.krro.canvas.core.layer.core :as lc]
-   [top.kzre.krro.core.core :as kcc]
-   [top.kzre.krro.core.project :as proj]
-   [top.kzre.krro.core.rdb :refer [defschema]])
+    [top.kzre.krro.canvas.core.layer.core :as lc]
+    [top.kzre.krro.core.core :as kcc]
+    [top.kzre.krro.core.project :as proj]
+    [top.kzre.krro.core.rdb :refer [defschema]])
   (:import
-   [java.util UUID]))
+    (java.util UUID)))
 
 ;; 定义记录以便自定义编解码.
 (defrecord CanvasData [id width height layers])
@@ -65,11 +65,14 @@
 
 ;; 持久化多方法.
 (defmulti persistable-layer :type)
-(defmulti active-layer! (fn [layer canvas-id _width _height] (:type layer)))
+(defmulti persistable-layer! (fn [layer _canvas-id] (:type layer)))
+(defmethod persistable-layer! :default [layer] (persistable-layer! layer))
+(defmulti active-layer! (fn [layer _canvas-id] (:type layer)))
 
 (defmethod persistable-layer :default [layer] layer)
 
 (defmethod active-layer! :default [layer _canvas-id _w _h] layer)
+
 
 (def canvas-codec-plugin-def
   {:type     :krro.plugin/resource-codec
@@ -77,7 +80,7 @@
    :resource :krro.painting/canvas-data
    :pred     #(instance? CanvasData % )
    :encoder  (fn [c]
-               (let [encoded-layers (mapv persistable-layer (:layers c))]
+               (let [encoded-layers (mapv persistable-layer! (:layers c))]
                  {:krro/type :krro.painting/canvas-data
                   :id (:id c)
                   :width  (:width c)

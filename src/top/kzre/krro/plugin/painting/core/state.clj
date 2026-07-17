@@ -39,6 +39,7 @@
 
 (defn layer-backup [^CanvasRuntime rt] (:layer-backup rt))
 
+
 (defonce canvas-runtimes (atom {}))
 
 (defn canvas-runtime [canvas-id]
@@ -77,6 +78,9 @@
 (defn layer-buffer-by-id [canvas-id]
   (when-let [^CanvasRuntime rt (canvas-runtime canvas-id)]
     (:layer-buffer rt)))
+
+(defn set-layer-backup! [canvas-id new-backup]
+  (swap! canvas-runtimes assoc-in [canvas-id :layer-backup] new-backup))
 
 (declare ensure-runtime!)
 

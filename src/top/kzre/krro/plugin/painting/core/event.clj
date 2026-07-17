@@ -25,11 +25,14 @@
 ;; ═══════════════════════════════════════════════════════
 ;; Pointer 事件 (鼠标)
 ;; ═══════════════════════════════════════════════════════
-(s/def ::pointer-event-type #{:press :drag :release :click :double-click :move})
+(s/def ::pointer-event-type #{:press :drag :release :click :double-click :move :scroll})
+(s/def ::mouse-button #{:left :middle :right}) ;; 鼠标按键
+(s/def ::delta-x double?)
+(s/def ::delta-y double?)
 
 (s/def ::pointer-event
   (s/keys :req-un [::device-type ::pointer-event-type ::x ::y ::pressure ::timestamp ::pointer-id]
-          :opt-un [::modifiers]))
+          :opt-un [::modifiers ::mouse-button ::delta-x ::delta-y]))
 
 ;; ═══════════════════════════════════════════════════════
 ;; Pen 事件 (数位笔)
@@ -67,12 +70,19 @@
 (defn make-pointer-event
   "创建鼠标事件。type, x, y 为必选参数，其余为关键字可选。
    (make-pointer-event :press 100 200)
-   (make-pointer-event :drag 150 250 :timestamp custom-ts :modifiers {...})"
-  [type x y & {:keys [timestamp pointer-id modifiers pressure]
+   (make-pointer-event :drag 150 250 :timestamp custom-ts :mouse-button :right :modifiers {...})
+   (make-pointer-event :scroll 0 0 :delta-x 0.0 :delta-y -2.5)"
+  [type x y & {:keys [timestamp pointer-id modifiers pressure mouse-button delta-x delta-y]
                :or   {timestamp  (System/currentTimeMillis)
                       pointer-id 0
                       modifiers  default-modifiers
-                      pressure   (if (= type :press) 1.0 0.5)}}]
+                      pressure   (case type
+                                   :press 1.0
+                                   :scroll 0.0
+                                   0.5)
+                      mouse-button :left
+                      delta-x 0.0
+                      delta-y 0.0}}]
   {:device-type :pointer
    :type        type
    :x           (double x)
@@ -80,7 +90,11 @@
    :pressure    (double pressure)
    :timestamp   timestamp
    :pointer-id  pointer-id
-   :modifiers   modifiers})
+   :modifiers   modifiers
+   :mouse-button mouse-button
+   :delta-x (double delta-x)
+   :delta-y (double delta-y)
+   })
 
 (defn make-pen-event
   "创建标准笔事件。type, x, y, pressure, tilt-x, tilt-y, twist, near? 为必选参数。
