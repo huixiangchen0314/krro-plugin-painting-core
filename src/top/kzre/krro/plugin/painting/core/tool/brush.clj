@@ -6,7 +6,6 @@
   (:require
     [top.kzre.krro.brush.core :as brush-core]
     [top.kzre.krro.brush.rdp :as rdp]
-    [top.kzre.krro.brush.taper :as taper]
     [top.kzre.krro.canvas.core.layer.util :as layer-util]
     [top.kzre.krro.core.custom :as custom]
     [top.kzre.krro.plugin.painting.core.brush.core :as brush]
@@ -25,28 +24,21 @@
                   :group :krro.painting/edit
                   :doc "RDP 降采样距离阈值（像素）。值越小保留的细节越多，越大简化越激进。")
 
-;; ── 内部状态 ─────────────────────────────────────
+;; ── 内部状态（移除 stroke-length） ──────────────
 (defrecord BrushState
   [new-events      ;; 自上次预览以来累积的事件（预览后清空）
-   all-events      ;; 整个笔画的全部事件
-   ^double stroke-length])
+   all-events])    ;; 整个笔画的全部事件
 
 (defn make-state []
-  (->BrushState [] [] 0.0))
+  (->BrushState [] []))
 
 (defn push-event [^BrushState st event]
   (let [old-all    (:all-events st)
-        last-event (peek old-all)
         new-all    (conj old-all event)
-        new-new    (conj (:new-events st) event)
-        dist       (if last-event
-                     (Math/sqrt (+ (Math/pow (- (:x event) (:x last-event)) 2)
-                                   (Math/pow (- (:y event) (:y last-event)) 2)))
-                     0.0)]
+        new-new    (conj (:new-events st) event)]
     (assoc st
       :new-events new-new
-      :all-events new-all
-      :stroke-length (+ (:stroke-length st) dist))))
+      :all-events new-all)))
 
 (defn push-event!
   [state-atom event]
@@ -56,34 +48,24 @@
 (defn- get-brush []
   (or @brush/global-brush brush/default-brush))
 
-;; ── 预览绘制（全量事件 + RDP） ─────────────────
+;; ── 预览绘制（全量事件 + RDP，跳过平滑以提升性能） ──
 (defn- draw-preview!
-  [canvas brush all-events stroke-length epsilon]
+  [canvas brush all-events epsilon]
   (when (seq all-events)
-    (let [brush-no-smooth (assoc brush :smooth {:stabilizer :default})
-          simplified (rdp/simplify all-events epsilon
-                                   :preserve-head 50)
-          stroke     (brush-core/events->stroke brush-no-smooth simplified
-                                                (:spacing brush) (:radius brush))
-          tapered    (taper/taper-stroke-start stroke (:taper-start brush)
-                                               :fields [:radius :opacity]
-                                               :end-dist stroke-length)]
-      (brush-core/render-stroke-dirties! canvas tapered))))
+    (let [simplified (rdp/simplify all-events epsilon)
+          ;; 预览时跳过平滑
+          stroke (brush-core/events->stroke brush simplified
+                                            :skip-smooth? true)]
+      (brush-core/render-stroke-dirties! canvas stroke))))
 
-;; ── 提交绘制（全量事件 + RDP） ─────────────────
+;; ── 提交绘制（全量事件 + RDP，正常应用平滑） ─────
 (defn- commit-stroke!
   "返回 {:updated-canvas :dirties :new-backup}"
-  [backup-canvas layer-canvas brush all-events stroke-length epsilon]
+  [backup-canvas layer-canvas brush all-events epsilon]
   (when (seq all-events)
-    (let [simplified (rdp/simplify all-events epsilon
-                                   :preserve-head 50
-                                   :preserve-tail 50)
-          stroke     (brush-core/events->stroke brush simplified
-                                                (:spacing brush) (:radius brush))
-          tapered    (taper/taper-stroke stroke (:taper-start brush) (:taper-end brush)
-                                         :fields [:radius :opacity]
-                                         :end-dist stroke-length)
-          [new-canvas dirties] (brush-core/render-stroke-dirties! backup-canvas tapered)
+    (let [simplified (rdp/simplify all-events epsilon)
+          stroke     (brush-core/events->stroke brush simplified)
+          [new-canvas dirties] (brush-core/render-stroke-dirties! backup-canvas stroke)
           updated (tcanvas/copy-to! layer-canvas new-canvas)]
       {:updated-canvas updated
        :dirties        dirties
@@ -138,8 +120,7 @@
               clean-canvas (tcanvas/copy-to! canvas (:layer-backup rt))
               brush (get-brush)
               all-evs (:all-events st)
-              [new-canvas dirties] (draw-preview! clean-canvas brush all-evs (:stroke-length st) epsilon)]
-          ;; 清空增量事件，保留全量事件
+              [new-canvas dirties] (draw-preview! clean-canvas brush all-evs epsilon)]
           (swap! state-atom assoc :new-events [])
           {:layer (assoc layer :canvas new-canvas)
            :state (update rt :dirty-tiles into dirties)})
@@ -148,7 +129,6 @@
   (commit! [_ layer rt ctx]
     (let [st @state-atom
           all-evs (:all-events st)
-          stroke-len (:stroke-length st)
           epsilon (custom/get-custom :krro.painting/rdp-epsilon (:frame ctx))]
       (if (seq all-evs)
         (let [canvas-id (:canvas-id ctx)
@@ -158,7 +138,7 @@
               tmp-canvas (tcanvas/deep-copy backup-canvas)
               brush (get-brush)
               {:keys [updated-canvas dirties new-backup]}
-              (commit-stroke! backup-canvas layer-canvas brush all-evs stroke-len epsilon)
+              (commit-stroke! backup-canvas layer-canvas brush all-evs epsilon)
               new-layer (assoc layer :canvas updated-canvas)]
           (layer/replace-layer! canvas-id new-layer)
           (undo/record-raster-stroke! canvas-id layer-id tmp-canvas new-backup dirties)

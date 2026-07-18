@@ -5,15 +5,16 @@
 
 
 (defonce default-brush
-         {:dab        {:type :circle :mask-type :hard :radius 8.0}
-          :color      (RGB/rgba 0.0 0.0 1.0 1.0)
-          :dynamics   {:pressure {:radius {:curve :linear :min 5.0 :max 15.0}}}
-          :spacing    0.2
-          :radius     8.0
-          :blend-mode :normal
-          :mix-mode   :default
-          :taper-start 50    ;; 起笔渐隐像素长度
-          :taper-end   50})  ;; 收笔渐隐像素长度
+         {:dab          {:type :circle :mask-type :hard :radius 8.0}
+          :color        (RGB/rgba 0.0 0.0 1.0 1.0)
+          :dynamics     {:pressure {:radius {:curve :linear :min 5.0 :max 15.0}}}
+          :spacing      0.2
+          :radius       8.0
+          :blend-mode   :normal
+          :mix-mode     :default
+          :taper-start-px   50              ;; 起笔渐隐像素长度
+          :taper-end-px     50              ;; 收笔渐隐像素长度
+          :taper-fields     [:radius :opacity]})  ;; 影响半径和不透明度
 
 (defonce global-brush (atom default-brush))
 
