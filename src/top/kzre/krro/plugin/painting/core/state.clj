@@ -8,7 +8,8 @@
     [top.kzre.krro.plugin.painting.core.spec :as spec])
   (:import
     (top.kzre.krro.canvas.core Arrays)
-    (top.kzre.krro.plugin.painting.core.project.canvas CanvasData)))
+    (top.kzre.krro.plugin.painting.core.project.canvas CanvasData)
+    (top.kzre.krro.util TiledCanvasUtils)))
 
 (defn frames-with-canvas-id
   "返回所有显示指定画布的 Frame。"
@@ -19,17 +20,22 @@
   [^floats preview-buffer     ;; 预览缓冲区
    ^floats layer-buffer       ;; 光栅图层原始数据备份（笔画开始时拷贝）
    layer-backup
-   selected-layer-id  ;; 当前选中的图层id
+
    current-tool                                                     ;; 当前选择的工具.
+   dirty-tiles
+   tile-size
    ])
 
 (defn default-state
   [buffer-size]
   {:preview-buffer    (float-array buffer-size)
    :layer-buffer      (float-array buffer-size)
-   :selected-layer-id nil
+
    :layer-backup      nil
-   :current-tool      nil})
+   :current-tool      nil
+   :tile-size 256                                           ;;固定256
+   :dirty-tiles []
+   })
 
 (defn make-state
   [width height]
@@ -46,12 +52,11 @@
   (get @canvas-runtimes canvas-id))
 
 (defn selected-layer-id [canvas-id]
-  (when-let [rt (canvas-runtime canvas-id)]
-    (:selected-layer-id rt)))
+  (pc/selected-layer-id canvas-id))
 
 (defn selected-layer! [canvas-id]
   (when-let [rt (pc/canvas-data! canvas-id)]
-    (when-let [lid (selected-layer-id canvas-id)]
+    (when-let [lid (pc/selected-layer-id canvas-id)]
       (let [ls (:layers rt)]
         (lc/find-layer lid ls)))))
 
@@ -82,10 +87,23 @@
 (defn set-layer-backup! [canvas-id new-backup]
   (swap! canvas-runtimes assoc-in [canvas-id :layer-backup] new-backup))
 
+(defn add-dirty-tiles!
+  "将脏瓦片集合合并到全局运行时状态。"
+  [canvas-id tiles]
+  (swap! canvas-runtimes update-in [canvas-id :dirty-tiles] into tiles))
+
 (declare ensure-runtime!)
 
+(defn invalidate-canvas-dirty! [canvas-id]
+  (swap! canvas-runtimes assoc-in [canvas-id :dirty-tiles] nil))
+
 (defn render-canvas!
-  "渲染当前画布所有图层到目标数组。"
+  "渲染当前画布所有图层到目标数组。
+   dirty-tiles 语义：
+     nil        → 全图刷新（清除整个缓冲区并重绘所有图层）
+     非空集合   → 只清除脏瓦片对应区域，然后重绘所有图层（目前仍为全图层合成，后续可优化为局部合成）
+     空集合     → 无脏区域，直接返回，不做任何操作（不清除、不渲染、不修改脏标记）
+   渲染完成后将 dirty-tiles 重置为空集合（表示已同步）。"
   ([canvas-id]
    (let [rt (ensure-runtime! canvas-id)
          preview (:preview-buffer rt)]
@@ -94,9 +112,42 @@
    (when-let [cd (pc/canvas-data! canvas-id)]
      (let [layers (:layers ^CanvasData cd)
            w (:width ^CanvasData cd)
-           h (:height ^CanvasData cd)]
-       (Arrays/fill dest (float 0.0))
-       (canv/render-layers! layers dest w h)))))
+           h (:height ^CanvasData cd)
+           rt (canvas-runtime canvas-id)
+           dirty-tiles (:dirty-tiles rt)
+           tile-size (get rt :tile-size 256)]
+       (cond
+         ;; 全图刷新
+         (nil? dirty-tiles)
+         (do
+           (Arrays/fill dest (float 0.0))
+           (canv/render-layers! layers dest w h)
+           (swap! canvas-runtimes assoc-in [canvas-id :dirty-tiles] #{}))
+
+         ;; 增量更新（可能为空集合）
+         (empty? dirty-tiles)
+         nil   ;; 无脏区域，直接返回
+
+         ;; 有脏瓦片
+         :else
+         (do
+           (doseq [key dirty-tiles]
+             (let [tx (TiledCanvasUtils/unpackTx key)
+                   ty (TiledCanvasUtils/unpackTy key)
+                   start-x (max 0 (* tx tile-size))
+                   start-y (max 0 (* ty tile-size))
+                   end-x (min (+ start-x tile-size) w)
+                   end-y (min (+ start-y tile-size) h)]
+               (when (and (< start-x end-x) (< start-y end-y))
+                 (doseq [y (range start-y end-y)
+                         x (range start-x end-x)]
+                   (let [idx (* 4 (+ x (* y w)))]
+                     (aset dest idx 0.0)
+                     (aset dest (inc idx) 0.0)
+                     (aset dest (+ idx 2) 0.0)
+                     (aset dest (+ idx 3) 0.0))))))
+           (canv/render-layers! layers dest w h :dirty-tiles dirty-tiles)
+           (swap! canvas-runtimes assoc-in [canvas-id :dirty-tiles] #{})))))))
 
 (defn ensure-runtime!
   ([canvas-id]

@@ -2,30 +2,26 @@
   "图层操作：纯函数、副作用函数与带撤销函数。
    基于路径管理嵌套图层组，自动同步到项目原子。"
   (:require
-   [top.kzre.krro.util.tiled-canvas :as tcanvas]
-   [top.kzre.krro.canvas.core.layer.core :as lc]
-   [top.kzre.krro.canvas.raster.core :as rl]
-   [top.kzre.krro.canvas.vector.core :as vc]
-   [top.kzre.krro.core.core :as kcc]
-   [top.kzre.krro.core.frame :as frame]
-   [top.kzre.krro.core.hook :as hook]
-   [top.kzre.krro.plugin.painting.core.ops.backup :as backup]
-   [top.kzre.krro.plugin.painting.core.project.canvas :as pc]
-   [top.kzre.krro.plugin.painting.core.project.layer-meta :as pm]
-   [top.kzre.krro.plugin.painting.core.project.raster-layer :as pr]
-   [top.kzre.krro.plugin.painting.core.spec :as spec]
-   [top.kzre.krro.plugin.painting.core.state :as state]
-   [top.kzre.krro.plugin.painting.editor.core.viewport :as vp])
+    [top.kzre.krro.canvas.core.layer.core :as lc]
+    [top.kzre.krro.core.core :as kcc]
+    [top.kzre.krro.core.frame :as frame]
+    [top.kzre.krro.core.hook :as hook]
+    [top.kzre.krro.plugin.painting.core.ops.backup :as backup]
+    [top.kzre.krro.plugin.painting.core.project.canvas :as pc]
+    [top.kzre.krro.plugin.painting.core.spec :as spec]
+    [top.kzre.krro.plugin.painting.core.state :as state]
+    [top.kzre.krro.plugin.painting.core.viewport :as vp])
   (:import
    (javafx.application Platform)
    (top.kzre.krro.plugin.painting.core.project.canvas CanvasData)))
 
 ;; ── 工具函数 ──────────────────────────────────────
 (defn- with-layers [^CanvasData old-cd new-layers]
-  (CanvasData. (:id old-cd) (:width old-cd) (:height old-cd) (vec new-layers)))
+  (assoc old-cd :layers new-layers))
 
 (defn update-project! [canvas-id new-cd]
   (kcc/update-by-id! :krro.painting/canvas canvas-id (constantly new-cd)))
+
 
 (defn refresh-canvas-frames! [canvas-id]
   (when-let [rt (state/canvas-runtime canvas-id)]
@@ -43,97 +39,13 @@
   (refresh-canvas-frames! canvas-id)
   (hook/run-hook! spec/layer-changed-hook-key canvas-id))
 
-(defn raster-layer-buffer [canvas-id layer-id]
-  (when-let [cd (pc/canvas-data! canvas-id)]
-    (when-let [l (lc/find-layer layer-id (:layers cd))]
-      (when (= :raster (:type l))
-        (let [lid (state/selected-layer-id canvas-id)]
-          (if (= lid layer-id)
-            (when-let [rt (state/canvas-runtime canvas-id)]
-              (state/layer-backup rt))    ;; 返回备份画布 (tcanvas map)
-            (:canvas l)))))))            ;; 返回图层画布
-
 (defn set-selected-layer-id! [canvas-id layer-id]
-  (when-let [rt (state/canvas-runtime canvas-id)]
-    (let [sa (:selected-layer-id rt)]
-      (when (not= sa layer-id)                             ;; 选中一个新图层，备份其数据
-        (let [new-rt (assoc rt :selected-layer-id layer-id)
-              layers (pc/layers-by-id! canvas-id)
-              layer (lc/find-layer layer-id layers)
-              new-rt (backup/backup-layer! layer new-rt)]
-          (swap! state/canvas-runtimes assoc canvas-id new-rt)
-          (hook/run-hook! spec/selected-layer-changed-hook-key
-                          canvas-id
-                          layer-id))))))
+  (pc/set-selected-layer-id! canvas-id layer-id))
 
 ;; ── 路径查询 ──────────────────────────────────────
 (defn selected-layer-path [canvas-id]
   (when-let [selected-id (state/selected-layer-id canvas-id)]
     (lc/find-layer-path selected-id (pc/layers-by-id! canvas-id))))
-
-;; ═══════════════════════════════════════════════════════
-;; 纯函数统一返回结构说明：
-;; 所有返回的 map 键名固定如下，确保解构一致：
-;;   :canvas-data  → 新的 CanvasData 实例
-;;   :layer        → 受影响图层 map (添加/复制时存在)
-;;   :layer-id     → 受影响图层的 ID
-;;   :path         → 图层的索引路径
-;;   :removed      → 被删除的图层 map
-;;   :new-selected-id → 删除后新的选中图层 ID (可能为 nil)
-;; ═══════════════════════════════════════════════════════
-
-(defn add-raster-layer-over-selected
-  "纯：在选中图层上方添加光栅图层。
-   返回 {:canvas-data, :layer, :layer-id, :path}"
-  [cd selected-id]
-  (let [w   (:width cd)
-        h   (:height cd)
-        new-layer (rl/make-raster-layer)
-        layers    (:layers cd)
-        path      (if selected-id (lc/find-layer-path selected-id layers) [])
-        new-layers (lc/insert-layer path new-layer layers)
-        new-cd     (with-layers cd new-layers)]
-    {:canvas-data new-cd
-     :layer       new-layer
-     :layer-id    (:id new-layer)
-     :path        path}))
-
-(defn add-raster-layer-over-selected! [canvas-id]
-  (let [^CanvasData cd (pc/canvas-data! canvas-id)
-        selected-id (state/selected-layer-id canvas-id)
-        result (add-raster-layer-over-selected cd selected-id)   ;; 完整纯函数结果
-        {:keys [canvas-data layer layer-id path]} result]
-    (update-project! canvas-id canvas-data)
-    (pr/create-raster! layer-id canvas-id (:canvas layer))
-    (set-selected-layer-id! canvas-id layer-id)
-    (refresh-canvas-frames! canvas-id)
-    (hook/run-hook! spec/layer-changed-hook-key canvas-id)
-    result))
-
-(defn add-vector-layer-over-selected
-  "纯：在选中图层上方添加矢量图层。
-   返回 {:canvas-data, :layer, :layer-id, :path}"
-  [cd selected-id]
-  (let [new-layer (vc/make-vector-layer)
-        layers    (:layers cd)
-        path      (if selected-id (lc/find-layer-path selected-id layers) [])
-        new-layers (lc/insert-layer path new-layer layers)
-        new-cd     (with-layers cd new-layers)]
-    {:canvas-data new-cd
-     :layer       new-layer
-     :layer-id    (:id new-layer)
-     :path        path}))
-
-(defn add-vector-layer-over-selected!
-  [canvas-id]
-  (let [^CanvasData cd (pc/canvas-data! canvas-id)
-        selected-id (state/selected-layer-id canvas-id)
-        result (add-vector-layer-over-selected cd selected-id)
-        {:keys [canvas-data layer layer-id path]} result]
-    (update-project! canvas-id canvas-data)
-    (set-selected-layer-id! canvas-id layer-id)
-    (hook/run-hook! spec/layer-changed-hook-key canvas-id)
-    result))
 
 (defn add-layer-at
   "纯：在路径处插入图层。
@@ -145,18 +57,6 @@
      :layer       layer
      :layer-id    (:id layer)
      :path        path}))
-
-(defn add-layer-at! [canvas-id path layer]
-  (let [^CanvasData cd (pc/canvas-data! canvas-id)
-        result (add-layer-at cd path layer)
-        {:keys [canvas-data layer-id]} result]
-    (when canvas-data
-      (update-project! canvas-id canvas-data)
-      (pr/create-raster! layer-id canvas-id (:canvas layer))
-      (refresh-canvas-frames! canvas-id)
-      (set-selected-layer-id! canvas-id layer-id)
-      (hook/run-hook! spec/layer-changed-hook-key canvas-id)
-      result)))
 
 ;; ── 删除图层 ──────────────────────────────────────
 
@@ -180,18 +80,6 @@
      :layer-id    layer-id
      :new-selected-id new-sel}))
 
-(defn remove-layer-at! [canvas-id path]
-  (let [cd (pc/canvas-data! canvas-id)
-        selected-id (state/selected-layer-id canvas-id)
-        result (remove-layer-at cd selected-id path)
-        {:keys [canvas-data _removed layer-id new-selected-id]} result]
-    (when canvas-data
-      (update-project! canvas-id canvas-data)
-      (pr/delete-raster! layer-id)
-      (refresh-canvas-frames! canvas-id)
-      (when new-selected-id (set-selected-layer-id! canvas-id new-selected-id))
-      (hook/run-hook! spec/layer-changed-hook-key canvas-id)
-      result)))
 
 ;; ── 移动图层 ──────────────────────────────────────
 
@@ -211,43 +99,12 @@
 
 (defn move-layer! [canvas-id old-path new-path]
   (when-let [new-cd (move-layer (pc/canvas-data! canvas-id) old-path new-path)]
+    (state/invalidate-canvas-dirty! canvas-id)
     (update-project! canvas-id new-cd)
     (refresh-canvas-frames! canvas-id)
     (hook/run-hook! spec/layer-changed-hook-key canvas-id)
     new-cd))
 
-;; ── 复制图层 ──────────────────────────────────────
-
-(defn duplicate-layer
-  [cd layer-id]
-  (when-let [layer (some #(when (= (:id %) layer-id) %) (:layers cd))]
-    (let [new-canvas (tcanvas/deep-copy (:canvas layer))
-          new-id     (keyword (str (name layer-id) "-copy"))
-          new-layer  (-> layer (assoc :id new-id :canvas new-canvas) (dissoc :name))
-          layers     (:layers cd)
-          idx        (first (keep-indexed #(when (= (:id %2) layer-id) %1) layers))
-          new-layers (if idx
-                       (vec (concat (subvec layers 0 (inc idx)) [new-layer] (subvec layers (inc idx))))
-                       (conj layers new-layer))]
-      {:canvas-data (with-layers cd new-layers)
-       :layer       new-layer
-       :layer-id    new-id
-       :path        (lc/find-layer-path layer-id layers)})))
-
-(defn duplicate-layer! [canvas-id layer-id]
-  (let [^CanvasData cd (pc/canvas-data! canvas-id)
-        width (:width cd)
-        height (:height cd)
-        result (duplicate-layer cd layer-id)
-        {:keys [canvas-data layer layer-id new-layer-id path]} result]
-    (when canvas-data
-      (update-project! canvas-id canvas-data)
-      (pr/create-raster-empty! new-layer-id canvas-id)
-      (pm/create-layer-meta! new-layer-id canvas-id)
-      (refresh-canvas-frames! canvas-id)
-      (set-selected-layer-id! canvas-id new-layer-id)
-      (hook/run-hook! spec/layer-changed-hook-key canvas-id)
-      result)))
 
 ;; ── 更新图层 ──────────────────────────────────────
 
@@ -273,6 +130,7 @@
 (defn update-layer-at! [canvas-id path updater]
   (when-let [new-cd (update-layer-at (pc/canvas-data! canvas-id) path updater)]
     (update-project! canvas-id new-cd)
+    (state/invalidate-canvas-dirty! canvas-id)
     (refresh-canvas-frames! canvas-id)
     (hook/run-hook! spec/layer-changed-hook-key canvas-id)
     new-cd))
@@ -280,6 +138,7 @@
 (defn update-layer-by-id! [canvas-id layer-id updater]
   (when-let [new-cd (update-layer-by-id (pc/canvas-data! canvas-id) layer-id updater)]
     (update-project! canvas-id new-cd)
+    (state/invalidate-canvas-dirty! canvas-id)
     (refresh-canvas-frames! canvas-id)
     (hook/run-hook! spec/layer-changed-hook-key canvas-id)
     new-cd))
@@ -293,7 +152,7 @@
         old-layer (lc/find-layer-by-path path layers)]
     (when path
       (if (= old-layer layer)
-        (do                                                 ;; 引用没改变，但 UI 还是要刷新.
+        (do                                                 ;; 数据没改变，但 UI 还是要刷新.
           (refresh-canvas-and-layer! canvas-id)
           layer)
         (update-layer-at! canvas-id path (fn [_] layer))))))

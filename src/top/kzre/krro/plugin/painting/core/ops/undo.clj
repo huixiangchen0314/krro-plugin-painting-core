@@ -1,6 +1,7 @@
 (ns top.kzre.krro.plugin.painting.core.ops.undo
   "撤销系统：记录与恢复图层操作及光栅笔触。
-   全部光栅数据现在基于 tiled-canvas。笔触仅保存脏区域，恢复时只写回脏区域。"
+   全部光栅数据现在基于 tiled-canvas。笔触仅保存脏区域，恢复时只写回脏区域。
+   所有恢复操作均强制全图刷新。"
   (:require
     [taoensso.timbre :as log]
     [top.kzre.krro.canvas.core.layer.core :as layer-core]
@@ -14,13 +15,17 @@
     [top.kzre.krro.plugin.painting.core.spec :as spec]
     [top.kzre.krro.plugin.undo.core :as undo]
     [top.kzre.krro.plugin.undo.protocol :as undo-p]
-    [top.kzre.krro.util.tiled-canvas :as tcanvas])
+    [top.kzre.krro.util.tiled-canvas :as tcanvas]
+    [top.kzre.krro.plugin.painting.core.state :as state])
   (:import
     (top.kzre.krro.util TiledCanvasUtils)))
 
-;; ── 撤销类型定义 ──────────────────────────────────
+;; 图层渲染属性更新
 (defonce undo-type-layer-render-attrs-changed ::layer-render-attrs-changed)
-(defonce undo-type-layer-changed ::layer-changed)
+;; 图层编辑属性更新
+(defonce undo-type-layer-edit-attrs-changed ::layer-edit-attrs-changed)
+
+;; 光栅图层
 (defonce undo-type-raster-stroke ::raster-stroke)
 (defonce undo-type-raster-layer-add ::raster-layer-add)
 (defonce undo-type-raster-layer-remove ::raster-layer-remove)
@@ -37,82 +42,38 @@
     old-seq))
 
 ;; ═══════════════════════════════════════════════════════
-;; 辅助：从画布中提取脏 tile 子集，构造迷你画布
-;; ═══════════════════════════════════════════════════════
-(defn- sub-canvas-for-dirties
-  "提取 dirties 集合中的 tile，返回仅包含这些 tile 的 mini canvas map。"
-  [canvas dirties]
-  (let [tiles (select-keys (:tiles canvas) dirties)
-        tile-keys (keys tiles)
-        min-tx (if (seq tile-keys)
-                 (apply min (map #(TiledCanvasUtils/unpackTx %) tile-keys))
-                 (:min-tx canvas))
-        max-tx (if (seq tile-keys)
-                 (apply max (map #(TiledCanvasUtils/unpackTx %) tile-keys))
-                 (:max-tx canvas))
-        min-ty (if (seq tile-keys)
-                 (apply min (map #(TiledCanvasUtils/unpackTy %) tile-keys))
-                 (:min-ty canvas))
-        max-ty (if (seq tile-keys)
-                 (apply max (map #(TiledCanvasUtils/unpackTy %) tile-keys))
-                 (:max-ty canvas))]
-    {:min-tx   min-tx
-     :max-tx   max-tx
-     :min-ty   min-ty
-     :max-ty   max-ty
-     :tile-size (:tile-size canvas)
-     :tiles     tiles}))
-
-;; ═══════════════════════════════════════════════════════
 ;; 笔触元数据工厂
 ;; ═══════════════════════════════════════════════════════
 (defn make-raster-stroke-meta
-  "构造光栅笔触撤销元数据，仅包含脏 tile 的新旧快照。"
+  "构造光栅笔触撤销元数据，现保存完整画布快照（全量）。"
   [canvas-id layer-id old-canvas new-canvas dirties]
-  (let [old-sub (sub-canvas-for-dirties old-canvas dirties)
-        new-sub (sub-canvas-for-dirties new-canvas dirties)]
-    {:type          undo-type-raster-stroke
-     :seq           (inc-undo-metadata-seq-key)
-     :canvas-id     canvas-id
-     :layer-id      layer-id
-     :old-snapshot  (snap/wrap-tiled-canvas old-sub)
-     :new-snapshot  (snap/wrap-tiled-canvas new-sub)}))
+  {:type          undo-type-raster-stroke
+   :seq           (inc-undo-metadata-seq-key)
+   :canvas-id     canvas-id
+   :layer-id      layer-id
+   :old-snapshot  (snap/wrap-tiled-canvas old-canvas dirties)
+   :new-snapshot  (snap/wrap-tiled-canvas new-canvas dirties)})
 
 ;; ═══════════════════════════════════════════════════════
 ;; 笔触记录与恢复
 ;; ═══════════════════════════════════════════════════════
-(defn record-raster-stroke!
-  "记录一次光栅笔触的脏区域快照，以便撤销/重做。
-   参数：
-     canvas-id, layer-id
-     old-canvas : 绘制前的完整画布
-     new-canvas : 绘制后的完整画布
-     dirties    : 脏 tile 键集合"
-  [canvas-id layer-id old-canvas new-canvas dirties]
-  (log/debug "Recording tiled raster stroke undo...")
-  (try
-    (let [meta (make-raster-stroke-meta canvas-id layer-id old-canvas new-canvas dirties)]
-      (undo/record-state! meta)
-      (log/info "Tiled raster undo state recorded [seq:" (:seq meta) "]"))
-    (catch Exception e
-      (log/error e "Failed to record tiled raster stroke undo."))))
-
 (defn- restore-tiled-stroke!
-  "将快照中的子画布合并回当前图层画布。"
   [meta snapshot-key]
   (let [canvas-id  (:canvas-id meta)
         layer-id   (:layer-id meta)
-        wrap       (snapshot-key meta)   ;; :old-snapshot 或 :new-snapshot
-        sub-canvas (snap/read-tiled-canvas wrap)
+        wrap       (snapshot-key meta)
+        ;; 读取出的画布仅包含脏瓦片，但具有完整的 min/max 元数据
+        dirty-canvas (snap/read-tiled-canvas wrap)
         cd         (pc/canvas-data! canvas-id)
         layer      (layer-core/find-layer layer-id (:layers cd))]
     (if-not layer
       (msg/error (str "Layer not found for restore: " layer-id))
       (let [current-canvas (:canvas layer)
-            new-canvas     (tcanvas/copy-to! current-canvas sub-canvas)
+            new-canvas     (tcanvas/copy-to! current-canvas dirty-canvas)
             new-layer      (assoc layer :canvas new-canvas)
             path           (layer-core/find-layer-path layer-id (:layers cd))]
         (layer/update-layer-at! canvas-id path (fn [_] new-layer))
+        (state/invalidate-canvas-dirty! canvas-id)
         (log/debug "Tiled stroke restored from" snapshot-key)))))
 
 ;; ═══════════════════════════════════════════════════════
@@ -146,8 +107,8 @@
    :old-snapshot  old-wrapper
    :new-snapshot  new-wrapper})
 
-(defn make-layer-changed-meta [canvas-id]
-  {:type              undo-type-layer-changed
+(defn make-layer-edit-attrs-changed-meta [canvas-id]
+  {:type              undo-type-layer-edit-attrs-changed
    :seq               (inc-undo-metadata-seq-key)
    :canvas-id         canvas-id})
 
@@ -159,8 +120,8 @@
 ;; ═══════════════════════════════════════════════════════
 ;; 记录函数
 ;; ═══════════════════════════════════════════════════════
-(defn record-state! [canvas-id]
-  (undo/record-state! (make-layer-changed-meta canvas-id)))
+(defn record-layer-edit-attrs-state! [canvas-id]
+  (undo/record-state! (make-layer-edit-attrs-changed-meta canvas-id)))
 
 (defn record-layer-render-attrs-state! [canvas-id]
   (undo/record-state! (make-layer-render-attrs-changed-meta canvas-id)))
@@ -177,14 +138,21 @@
         wrap   (snap/wrap-tiled-canvas canvas)]
     (undo/record-state! (make-raster-layer-remove-meta canvas-id path removed wrap))))
 
-(defn record-raster-layer-replace!
-  [canvas-id path old-layer new-layer]
-  (let [old-canvas (:canvas old-layer)
-        new-canvas (:canvas new-layer)
-        same?      (identical? old-canvas new-canvas)
-        old-wrap   (when-not same? (snap/wrap-tiled-canvas old-canvas))
-        new-wrap   (when-not same? (snap/wrap-tiled-canvas new-canvas))]
-    (undo/record-state! (make-raster-layer-replace-meta canvas-id path old-layer new-layer old-wrap new-wrap))))
+(defn record-raster-stroke!
+  "记录一次光栅笔触的脏区域快照，以便撤销/重做。
+   参数：
+     canvas-id, layer-id
+     old-canvas : 绘制前的完整画布
+     new-canvas : 绘制后的完整画布
+     dirties    : 脏 tile 键集合"
+  [canvas-id layer-id old-canvas new-canvas dirties]
+  (log/debug "Recording tiled raster stroke undo...")
+  (try
+    (let [meta (make-raster-stroke-meta canvas-id layer-id old-canvas new-canvas dirties)]
+      (undo/record-state! meta)
+      (log/info "Tiled raster undo state recorded [seq:" (:seq meta) "]"))
+    (catch Exception e
+      (log/error e "Failed to record tiled raster stroke undo."))))
 
 ;; ═══════════════════════════════════════════════════════
 ;; 恢复多方法分派
@@ -195,42 +163,48 @@
 ;; ── 图层添加 ────────────────────────────────────
 (defmethod restore-canvas-state! [:after-undo undo-type-raster-layer-add] [_ meta]
   (pr/delete-raster! (:layer-id meta))
+  (state/invalidate-canvas-dirty! (:canvas-id meta))
   (hook/run-hook! spec/layer-changed-hook-key (:canvas-id meta)))
 
 (defmethod restore-canvas-state! [:before-redo undo-type-raster-layer-add] [_ meta]
   (let [canvas (snap/read-tiled-canvas (:snapshot meta))]
-    (pr/create-raster! (:layer-id meta) (:canvas-id meta) canvas)))
+    (pr/create-raster* (:layer-id meta) (:canvas-id meta) canvas)))
 
 (defmethod restore-canvas-state! [:after-redo undo-type-raster-layer-add] [_ meta]
+  (state/invalidate-canvas-dirty! (:canvas-id meta))
   (hook/run-hook! spec/layer-changed-hook-key (:canvas-id meta)))
 
 ;; ── 图层删除 ────────────────────────────────────
 (defmethod restore-canvas-state! [:before-undo undo-type-raster-layer-remove] [_ meta]
   (let [canvas (snap/read-tiled-canvas (:snapshot meta))]
-    (pr/create-raster! (:layer-id meta) (:canvas-id meta) canvas)))
+    (pr/create-raster* (:layer-id meta) (:canvas-id meta) canvas)))
 
 (defmethod restore-canvas-state! [:after-undo undo-type-raster-layer-remove] [_ meta]
+  (state/invalidate-canvas-dirty! (:canvas-id meta))
   (layer/refresh-canvas-and-layer! (:canvas-id meta)))
 
 (defmethod restore-canvas-state! [:after-redo undo-type-raster-layer-remove] [_ meta]
   (pr/delete-raster! (:layer-id meta))
+  (state/invalidate-canvas-dirty! (:canvas-id meta))
   (layer/refresh-canvas-and-layer! (:canvas-id meta)))
 
 ;; ── 图层替换 ────────────────────────────────────
 (defmethod restore-canvas-state! [:before-undo undo-type-raster-layer-replace] [_ meta]
   (when-let [old-wrap (:old-snapshot meta)]
     (let [canvas (snap/read-tiled-canvas old-wrap)]
-      (pr/create-raster! (:id (:old-layer meta)) (:canvas-id meta) canvas))))
+      (pr/create-raster* (:id (:old-layer meta)) (:canvas-id meta) canvas))))
 
 (defmethod restore-canvas-state! [:after-undo undo-type-raster-layer-replace] [_ meta]
+  (state/invalidate-canvas-dirty! (:canvas-id meta))
   (layer/refresh-canvas-and-layer! (:canvas-id meta)))
 
 (defmethod restore-canvas-state! [:before-redo undo-type-raster-layer-replace] [_ meta]
   (when-let [new-wrap (:new-snapshot meta)]
     (let [canvas (snap/read-tiled-canvas new-wrap)]
-      (pr/create-raster! (:id (:new-layer meta)) (:canvas-id meta) canvas))))
+      (pr/create-raster* (:id (:new-layer meta)) (:canvas-id meta) canvas))))
 
 (defmethod restore-canvas-state! [:after-redo undo-type-raster-layer-replace] [_ meta]
+  (state/invalidate-canvas-dirty! (:canvas-id meta))
   (layer/refresh-canvas-and-layer! (:canvas-id meta)))
 
 ;; ── 光栅笔触 ────────────────────────────────────
@@ -241,17 +215,25 @@
   (restore-tiled-stroke! meta :new-snapshot))
 
 ;; ── 其他图层状态变更 ────────────────────────────
-(defmethod restore-canvas-state! [:after-undo undo-type-layer-changed] [_ metadata]
-  (hook/run-hook! spec/layer-changed-hook-key (:canvas-id metadata)))
+(defmethod restore-canvas-state! [:after-undo undo-type-layer-edit-attrs-changed] [_ metadata]
+  (let [canvas-id (:canvas-id metadata)]
+    (state/invalidate-canvas-dirty! canvas-id)
+    (hook/run-hook! spec/layer-changed-hook-key canvas-id )))
 
-(defmethod restore-canvas-state! [:after-redo undo-type-layer-changed] [_ metadata]
-  (hook/run-hook! spec/layer-changed-hook-key (:canvas-id metadata)))
+(defmethod restore-canvas-state! [:after-redo undo-type-layer-edit-attrs-changed] [_ metadata]
+  (let [canvas-id (:canvas-id metadata)]
+    (state/invalidate-canvas-dirty! canvas-id)
+    (hook/run-hook! spec/layer-changed-hook-key canvas-id )))
 
 (defmethod restore-canvas-state! [:after-undo undo-type-layer-render-attrs-changed] [_ metadata]
-  (layer/refresh-canvas-and-layer! (:canvas-id metadata)))
+  (let [canvas-id (:canvas-id metadata)]
+    (state/invalidate-canvas-dirty! canvas-id)
+    (layer/refresh-canvas-and-layer! canvas-id)))
 
 (defmethod restore-canvas-state! [:after-redo undo-type-layer-render-attrs-changed] [_ metadata]
-  (layer/refresh-canvas-and-layer! (:canvas-id metadata)))
+  (let [canvas-id (:canvas-id metadata)]
+    (state/invalidate-canvas-dirty! canvas-id)
+    (layer/refresh-canvas-and-layer! canvas-id)))
 
 (defmethod restore-canvas-state! :default [_lifecycle _meta])
 

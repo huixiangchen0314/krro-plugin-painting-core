@@ -66,7 +66,7 @@
     (dissoc layer :canvas)))
 
 
-(defmethod canvas/active-layer! :raster [layer canvas-id _ _]
+(defmethod canvas/active-layer! :raster [layer _canvas-id]
   (if-let [raster-record (kcc/select-by-id :krro.painting/raster (:id layer))]
     (let [canvas (:data raster-record)]
       ;; 从侧表取出画布后立即删除记录，释放侧表内存

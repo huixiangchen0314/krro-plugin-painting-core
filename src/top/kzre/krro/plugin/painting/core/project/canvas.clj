@@ -3,13 +3,15 @@
   (:require
     [top.kzre.krro.canvas.core.layer.core :as lc]
     [top.kzre.krro.core.core :as kcc]
+    [top.kzre.krro.core.hook :as hook]
     [top.kzre.krro.core.project :as proj]
-    [top.kzre.krro.core.rdb :refer [defschema]])
+    [top.kzre.krro.core.rdb :refer [defschema]]
+    [top.kzre.krro.plugin.painting.core.spec :as spec])
   (:import
     (java.util UUID)))
 
 ;; 定义记录以便自定义编解码.
-(defrecord CanvasData [id width height layers])
+(defrecord CanvasData [id width height layers selected-layer-id])
 
 (defschema :krro.painting/canvas
                :primary-key :id
@@ -21,9 +23,10 @@
   ([w h] (let [gid (keyword (str (UUID/randomUUID)))]
            (create-canvas! gid w h)))
   ([id w h]
-   (let [cd (CanvasData. id w h [])]   ;; 活跃对象
+   (let [cd (CanvasData. id w h [] nil)]   ;; 活跃对象
      (kcc/insert! :krro.painting/canvas (assoc cd :id id))
      cd)))
+
 
 (defn delete-canvas!
   "删除画布，相关资源由 rdb 负责级联删除."
@@ -61,7 +64,22 @@
   [canvas-id]
   (proj/deactivate-resource! [:krro.painting/canvas canvas-id]))
 
+(defn selected-layer-id
+  ([canvas-id]
+   (when-let [cd (canvas-data canvas-id)]
+     (:selected-layer-id cd)))
+  ([canvas-id db-map]
+   (when-let [cd (canvas-data canvas-id db-map)]
+     (:selected-layer-id cd))))
 
+(defn set-selected-layer-id! [canvas-id layer-id]
+  (let [cd (canvas-data! canvas-id)
+        old-id (:selected-layer-id cd)]
+    (when (not= old-id layer-id)
+      ;; 更新项目数据
+      (kcc/update-by-id! :krro.painting/canvas canvas-id #(assoc % :selected-layer-id layer-id))
+      ;; 触发钩子
+      (hook/run-hook! spec/selected-layer-changed-hook-key canvas-id layer-id))))
 
 ;; 持久化多方法.
 (defmulti persistable-layer :type)
@@ -71,7 +89,7 @@
 
 (defmethod persistable-layer :default [layer] layer)
 
-(defmethod active-layer! :default [layer _canvas-id _w _h] layer)
+(defmethod active-layer! :default [layer _canvas-id] layer)
 
 
 (def canvas-codec-plugin-def
@@ -80,19 +98,22 @@
    :resource :krro.painting/canvas-data
    :pred     #(instance? CanvasData % )
    :encoder  (fn [c]
-               (let [encoded-layers (mapv persistable-layer! (:layers c))]
+               (let [id (:id c)
+                     encoded-layers (mapv #(persistable-layer! % id) (:layers c))]
                  {:krro/type :krro.painting/canvas-data
-                  :id (:id c)
+                  :id id
                   :width  (:width c)
                   :height (:height c)
-                  :layers encoded-layers}))
+                  :layers encoded-layers
+                  :selected-layer-id (:selected-layer-id c)}))
    ;; TODO 提供编码解码的环境，以便决定是 内存编码，还是虚拟代理编码.
    :decoder  (fn [m]
                (let [id (:id m)
                      w (:width m)
                      h (:height m)
-                     decoded-layers (mapv #(active-layer! % id w h) (:layers m))]
-                 (map->CanvasData {:id id :width w :height h :layers decoded-layers})))})
+                     decoded-layers (mapv #(active-layer! % id) (:layers m))]
+                 (map->CanvasData {:id id :width w :height h :layers decoded-layers
+                                   :selected-layer-id (:selected-layer-id m)})))})
 
 
 

@@ -16,7 +16,6 @@
     File
     FileInputStream
     FileOutputStream)
-    (java.nio.file Files Path)
     (top.kzre.krro.canvas.core Arrays)
     (top.kzre.krro.plugin.painting.core.ops TiledCanvasIOUtils)))
 
@@ -105,7 +104,7 @@
 
 (defn- write-tiled-canvas-to-file
   "将 tiled-canvas 的元数据和所有瓦片写入文件。"
-  [canvas file]
+  [canvas file dirty-tiles]
   (with-open [out (DataOutputStream.
                     (BufferedOutputStream.
                       (FileOutputStream. ^String file)))]
@@ -116,7 +115,7 @@
     (.writeInt out (:max-ty canvas))
     (.writeInt out (:tile-size canvas))
     ;; 写入瓦片数据（全量）
-    (TiledCanvasIOUtils/writeTiles (:tiles canvas) nil out)))
+    (TiledCanvasIOUtils/writeTiles (:tiles canvas) dirty-tiles out)))
 
 (defn- read-tiled-canvas-from-file
   "从文件读取 tiled-canvas。"
@@ -139,11 +138,11 @@
 (defn wrap-tiled-canvas
   "将 tiled-canvas 封装为快照格式。
    返回 {:type :memory/:file, :value canvas-or-path}"
-  [canvas]
+  [canvas & dirty-tiles]
   (if (< (tiled-canvas-size canvas) (custom/get-custom ::memory-threshold))
     {:type :memory :value canvas}
     (let [tmp-file (File/createTempFile "krro-tile-snap-" ".dat")]
-      (write-tiled-canvas-to-file canvas tmp-file)
+      (write-tiled-canvas-to-file canvas tmp-file dirty-tiles)
       {:type :file :value (.getAbsolutePath tmp-file)})))
 
 (defn read-tiled-canvas

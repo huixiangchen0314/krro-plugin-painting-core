@@ -1,59 +1,83 @@
 (ns top.kzre.krro.plugin.painting.core.ops.layer-undo
-  "图层操作的撤销记录版本。封装 layer 副作用函数并记录 undo 状态。"
+  "图层操作的撤销记录版本。封装为新多方法（add/delete/duplicate）的薄包装。
+   移动、更新、替换等操作仍使用 layer 命名空间的原有函数。"
   (:require
-
     [top.kzre.krro.canvas.core.layer.core :as lc]
+    [top.kzre.krro.plugin.painting.core.ops.add :as add]
+    [top.kzre.krro.plugin.painting.core.ops.delete :as delete]
+    [top.kzre.krro.plugin.painting.core.ops.duplicate :as duplicate]
     [top.kzre.krro.plugin.painting.core.ops.layer :as layer]
-    [top.kzre.krro.plugin.painting.core.ops.replace :as replace]
-    [top.kzre.krro.plugin.painting.core.state :as state]
     [top.kzre.krro.plugin.painting.core.ops.undo :as undo]
     [top.kzre.krro.plugin.painting.core.project.canvas :as pc]))
 
-;; ── 添加图层 ──────────────────────────────────────
+;; ── 辅助：计算在选中图层上方插入的路径 ──────────
+(defn- above-path
+  "返回在 selected-id 上方插入新图层时应使用的路径。"
+  [layers selected-id]
+  (if-let [raw-path (lc/find-layer-path selected-id layers)]
+    (let [parent (butlast raw-path)
+          idx (last raw-path)]
+      (conj (vec parent) (inc idx)))
+    [(count layers)]))
+
+;; ═══════════════════════════════════════════════════════
+;; 添加图层（通过新多方法，仅传递类型关键字）
+;; ═══════════════════════════════════════════════════════
 
 (defn add-raster-layer-over-selected-undo! [canvas-id]
-  (let [result (layer/add-raster-layer-over-selected! canvas-id)   ;; 副作用函数返回完整 map
-        {:keys [layer path]} result]
-    (undo/record-raster-layer-add! canvas-id path layer)
-    result))
+  (let [selected-id (pc/selected-layer-id canvas-id)       ;; 从项目数据获取
+        layers      (pc/layers-by-id! canvas-id)
+        path        (above-path layers selected-id)]
+    (add/add-layer! :raster canvas-id path )))
 
 (defn add-vector-layer-over-selected-undo! [canvas-id]
-  (let [result (layer/add-vector-layer-over-selected! canvas-id)
-        ]
-    (undo/record-layer-render-attrs-state! canvas-id)
-    result))
+  (let [selected-id (pc/selected-layer-id canvas-id)
+        layers      (pc/layers-by-id! canvas-id)
+        path        (above-path layers selected-id)]
+    (add/add-layer! :vector canvas-id path )))
 
-
-(defn add-layer-at-undo! [canvas-id path layer]
-  (let [result (layer/add-layer-at! canvas-id path layer)
-        {:keys [layer]} result]
-    (undo/record-raster-layer-add! canvas-id path layer)
-    result))
+;; ═══════════════════════════════════════════════════════
+;; 删除图层（通过新多方法）
+;; ═══════════════════════════════════════════════════════
 
 (defn remove-layer-at-undo! [canvas-id path]
-  (let [result (layer/remove-layer-at! canvas-id path)
-        {:keys [removed]} result]
-    (undo/record-raster-layer-remove! canvas-id path removed)))
+  (let [layers  (pc/layers-by-id! canvas-id)
+        removed (lc/find-layer-by-path path layers)]
+    (when removed
+      (delete/delete-layer! removed canvas-id path))))
 
-;; ── 移动图层 ──────────────────────────────────────
+(defn remove-layer-undo! [canvas-id layer-id]
+  (when-let [path (lc/find-layer-path layer-id (pc/layers-by-id! canvas-id))]
+    (remove-layer-at-undo! canvas-id path)))
+
+(defn remove-selected-layer-undo! [canvas-id]
+  (when-let [path (layer/selected-layer-path canvas-id)]
+    (remove-layer-at-undo! canvas-id path)))
+
+;; ═══════════════════════════════════════════════════════
+;; 复制图层（通过新多方法）
+;; ═══════════════════════════════════════════════════════
+
+(defn duplicate-layer-undo! [canvas-id layer-id]
+  (let [layers (pc/layers-by-id! canvas-id)
+        layer  (lc/find-layer layer-id layers)]
+    (when layer
+      (duplicate/duplicate-layer! canvas-id layer))))
+
+(defn duplicate-selected-layer-undo! [canvas-id]
+  (when-let [layer-id (pc/selected-layer-id canvas-id)]
+    (duplicate-layer-undo! canvas-id layer-id)))
+
+;; ═══════════════════════════════════════════════════════
+;; 移动、更新、可见性切换（保持不变）
+;; ═══════════════════════════════════════════════════════
 
 (defn move-layer-undo! [canvas-id old-path new-path]
   (layer/move-layer! canvas-id old-path new-path)
-  (undo/record-state! canvas-id))
-
-;; ── 复制图层 ──────────────────────────────────────
-
-(defn duplicate-layer-undo! [canvas-id layer-id]
-  (let [result (layer/duplicate-layer! canvas-id layer-id)
-        {:keys [layer path]} result]
-    (undo/record-raster-layer-add! canvas-id path layer)
-    result))
-
-;; ── 更新图层 ──────────────────────────────────────
+  (undo/record-layer-render-attrs-state! canvas-id))
 
 (defn update-layer-at-undo! [canvas-id path updater]
   (layer/update-layer-at! canvas-id path updater)
-  ;; 默认更新认为是会影响渲染.
   (undo/record-layer-render-attrs-state! canvas-id))
 
 (defn update-layer-by-id-undo! [canvas-id layer-id updater]
@@ -66,31 +90,22 @@
   (let [layer-id (:id layer)
         cd (pc/canvas-data! canvas-id)
         layers (:layers cd)
-        path (lc/find-layer-path layer-id layers)
-        old-layer (lc/find-layer-by-path path layers)]
+        path (lc/find-layer-path layer-id layers)]
     (when path
-      (if (= old-layer layer)
-        (do                                                 ;; 引用没改变，但 UI 还是要刷新.
-          (layer/refresh-canvas-and-layer! canvas-id)
-          ;; 记录成一般更新
-          (undo/record-layer-render-attrs-state! canvas-id)
-          layer)
-        (do
-          (layer/update-layer-at! canvas-id path (fn [_] layer))
-          (replace/replace-layer! canvas-id path old-layer layer))))))
+      (layer/update-layer-at! canvas-id path (fn [_] layer))
+      (undo/record-layer-render-attrs-state! canvas-id)
+      (layer/refresh-canvas-and-layer! canvas-id))))
 
 (defn toggle-layer-visibility! [canvas-id layer-id]
-  (letfn [(updator [layer]
-            (let [visible? (:visible? layer)]
-              (assoc layer :visible? (not visible?))))]
+  (letfn [(updator [l] (assoc l :visible? (not (:visible? l))))]
     (when (layer/update-layer-by-id! canvas-id layer-id updator)
       (undo/record-layer-render-attrs-state! canvas-id))))
 
 (defn set-layer-visibility! [canvas-id layer-id visible?]
-  (letfn [(updator [layer] (assoc layer :visible? visible?))]
+  (letfn [(updator [l] (assoc l :visible? visible?))]
     (when (layer/update-layer-by-id! canvas-id layer-id updator)
       (undo/record-layer-render-attrs-state! canvas-id))))
 
 (defn update-selected-layer-undo! [canvas-id updater]
-  (when-let [selected-id (state/selected-layer-id canvas-id)]
+  (when-let [selected-id (pc/selected-layer-id canvas-id)]
     (update-layer-by-id-undo! canvas-id selected-id updater)))
