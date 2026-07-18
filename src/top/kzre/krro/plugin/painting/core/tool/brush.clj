@@ -75,9 +75,10 @@
   "返回 {:updated-canvas :dirties :new-backup}"
   [backup-canvas layer-canvas brush all-events stroke-length epsilon]
   (when (seq all-events)
-    (let [
-          ;simplified (rdp/simplify all-events epsilon)
-          stroke     (brush-core/events->stroke brush all-events
+    (let [simplified (rdp/simplify all-events epsilon
+                                   :preserve-head 50
+                                   :preserve-tail 50)
+          stroke     (brush-core/events->stroke brush simplified
                                                 (:spacing brush) (:radius brush))
           tapered    (taper/taper-stroke stroke (:taper-start brush) (:taper-end brush)
                                          :fields [:radius :opacity]
