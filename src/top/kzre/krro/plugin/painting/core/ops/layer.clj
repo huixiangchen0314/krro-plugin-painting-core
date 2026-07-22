@@ -2,15 +2,15 @@
   "图层操作：纯函数、副作用函数与带撤销函数。
    基于路径管理嵌套图层组，自动同步到项目原子。"
   (:require
-    [top.kzre.krro.canvas.core.layer.core :as lc]
-    [top.kzre.krro.core.core :as kcc]
-    [top.kzre.krro.core.frame :as frame]
-    [top.kzre.krro.core.hook :as hook]
-    [top.kzre.krro.plugin.painting.core.ops.backup :as backup]
-    [top.kzre.krro.plugin.painting.core.project.canvas :as pc]
-    [top.kzre.krro.plugin.painting.core.spec :as spec]
-    [top.kzre.krro.plugin.painting.core.state :as state]
-    [top.kzre.krro.plugin.painting.core.viewport :as vp])
+   [top.kzre.krro.canvas.core.layer.core :as lc]
+   [top.kzre.krro.core.core :as kcc]
+   [top.kzre.krro.core.frame :as frame]
+   [top.kzre.krro.core.hook :as hook]
+   [top.kzre.krro.plugin.painting.core.ops.backup :as backup]
+   [top.kzre.krro.plugin.painting.core.project.canvas :as pc]
+   [top.kzre.krro.plugin.painting.core.spec :as spec]
+   [top.kzre.krro.plugin.painting.core.state :as state]
+   [top.kzre.krro.plugin.painting.core.viewport :as vp])
   (:import
    (javafx.application Platform)
    (top.kzre.krro.plugin.painting.core.project.canvas CanvasData)))
@@ -40,7 +40,21 @@
   (hook/run-hook! spec/layer-changed-hook-key canvas-id))
 
 (defn set-selected-layer-id! [canvas-id layer-id]
-  (pc/set-selected-layer-id! canvas-id layer-id))
+  (let [cd (pc/canvas-data! canvas-id)
+        old-id (:selected-layer-id cd)]
+    (when (not= old-id layer-id)
+      (let [layers (:layers cd)
+            old-layer (when old-id (lc/find-layer old-id layers))
+            new-layer (when layer-id (lc/find-layer layer-id layers))
+            runtime (state/canvas-runtime canvas-id)]
+        ;; 更新项目数据
+        (kcc/update-by-id! :krro.painting/canvas canvas-id #(assoc % :selected-layer-id layer-id))
+        ;; 备份状态更新
+        (when old-layer (backup/release-backup! old-layer runtime))
+        (when-let [new-st (backup/backup-layer! new-layer runtime)]
+          (swap! state/canvas-runtimes assoc canvas-id new-st))
+        ;; 触发钩子
+        (hook/run-hook! spec/selected-layer-changed-hook-key canvas-id layer-id)))))
 
 ;; ── 路径查询 ──────────────────────────────────────
 (defn selected-layer-path [canvas-id]
@@ -148,14 +162,10 @@
   (let [layer-id (:id layer)
         cd (pc/canvas-data! canvas-id)
         layers (:layers cd)
-        path (lc/find-layer-path layer-id layers)
-        old-layer (lc/find-layer-by-path path layers)]
+        path (lc/find-layer-path layer-id layers)]
     (when path
-      (if (= old-layer layer)
-        (do                                                 ;; 数据没改变，但 UI 还是要刷新.
-          (refresh-canvas-and-layer! canvas-id)
-          layer)
-        (update-layer-at! canvas-id path (fn [_] layer))))))
+      ;; 总是更新，因为我们允许图层中有对象存在，内部状态无法简单比较
+      (update-layer-at! canvas-id path (fn [_] layer)))))
 
 (defn auto-select-layer! [canvas-id]
   (let [current-id (state/selected-layer-id canvas-id)]

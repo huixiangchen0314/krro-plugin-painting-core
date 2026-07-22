@@ -3,12 +3,13 @@
   (:require
     [top.kzre.krro.canvas.core.layer.core :as lc]
     [top.kzre.krro.core.core :as kcc]
-    [top.kzre.krro.core.hook :as hook]
     [top.kzre.krro.core.project :as proj]
-    [top.kzre.krro.core.rdb :refer [defschema]]
-    [top.kzre.krro.plugin.painting.core.spec :as spec])
+    [top.kzre.krro.core.rdb :refer [defschema]])
   (:import
     (java.util UUID)))
+
+;; 全局瓦片大小 256x256
+(defonce global-tile-size 256 )
 
 ;; 定义记录以便自定义编解码.
 (defrecord CanvasData [id width height layers selected-layer-id])
@@ -72,19 +73,11 @@
    (when-let [cd (canvas-data canvas-id db-map)]
      (:selected-layer-id cd))))
 
-(defn set-selected-layer-id! [canvas-id layer-id]
-  (let [cd (canvas-data! canvas-id)
-        old-id (:selected-layer-id cd)]
-    (when (not= old-id layer-id)
-      ;; 更新项目数据
-      (kcc/update-by-id! :krro.painting/canvas canvas-id #(assoc % :selected-layer-id layer-id))
-      ;; 触发钩子
-      (hook/run-hook! spec/selected-layer-changed-hook-key canvas-id layer-id))))
-
 ;; 持久化多方法.
 (defmulti persistable-layer :type)
 (defmulti persistable-layer! (fn [layer _canvas-id] (:type layer)))
-(defmethod persistable-layer! :default [layer] (persistable-layer! layer))
+(defmethod persistable-layer! :default
+  [layer _canvas-id] (persistable-layer layer))
 (defmulti active-layer! (fn [layer _canvas-id] (:type layer)))
 
 (defmethod persistable-layer :default [layer] layer)

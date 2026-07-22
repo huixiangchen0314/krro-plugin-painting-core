@@ -25,6 +25,8 @@
    (->ToolContext canvas-id frame data )))
 
 (defprotocol ITool
+  (id [this] "返回工具id，比如 :bush, :vector-brush 等.")
+  (overlay [this] "返回工具当前的 overlay 描述")
   (begin! [this layer ^CanvasRuntime state ^ToolContext ctx]
     "工具激活时调用返回 {:layer layer, :state state}。")
   (end! [this layer ^CanvasRuntime state ^ToolContext ctx]
@@ -34,3 +36,9 @@
   (preview! [this layer ^CanvasRuntime state ^ToolContext ctx]
     "由动画循环调用，执行一帧预览渲染。返回 {:layer layer, :state state}")
   (commit! [this layer ^CanvasRuntime state ^ToolContext ctx]))
+
+(defmulti draw-overlay!
+          "绘制工具的 overlay 和设置其他UI 要素."
+          (fn [tool ^CanvasRuntime state ^ToolContext ctx] (id tool)))
+
+(defmethod draw-overlay! :default [_ _ _])

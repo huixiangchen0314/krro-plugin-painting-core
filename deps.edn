@@ -4,6 +4,7 @@
         top.kzre/krro-core {:mvn/version "0.1.0"}
         top.kzre/krro-ui-javafx {:mvn/version "0.1.0"}
         top.kzre/krro-brush {:mvn/version "0.1.0"}
+
         top.kzre/krro-plugin-undo {:mvn/version "0.1.0"}
 
         top.kzre/krro-canvas-core {:mvn/version "0.1.0"}

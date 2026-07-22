@@ -2,5 +2,7 @@
   (:require
    [clojure.spec.alpha :as s]))
 
-
-(s/def ::tool-action #{:idle :start :continue :commit :no-replace})
+(s/def ::tool-action #{:idle
+                       :start :continue :commit :no-replace
+                       :render
+                       })

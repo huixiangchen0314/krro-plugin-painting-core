@@ -25,7 +25,7 @@
 ;; ═══════════════════════════════════════════════════════
 ;; Pointer 事件 (鼠标)
 ;; ═══════════════════════════════════════════════════════
-(s/def ::pointer-event-type #{:press :drag :release :click :double-click :move :scroll})
+(s/def ::pointer-event-type #{:press :drag :release :click :double-click :move :scroll :over})
 (s/def ::mouse-button #{:left :middle :right}) ;; 鼠标按键
 (s/def ::delta-x double?)
 (s/def ::delta-y double?)

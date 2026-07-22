@@ -1,15 +1,15 @@
 (ns top.kzre.krro.plugin.painting.core.state
   "运行时状态：事件、笔刷、缓冲区、累积长度。"
   (:require
-    [top.kzre.krro.canvas.core.core :as canv]
-    [top.kzre.krro.canvas.core.layer.core :as lc]
-    [top.kzre.krro.core.frame :as frame]
-    [top.kzre.krro.plugin.painting.core.project.canvas :as pc]
-    [top.kzre.krro.plugin.painting.core.spec :as spec])
+   [top.kzre.krro.canvas.core.core :as canv]
+   [top.kzre.krro.canvas.core.layer.core :as lc]
+   [top.kzre.krro.core.frame :as frame]
+   [top.kzre.krro.plugin.painting.core.project.canvas :as pc]
+   [top.kzre.krro.plugin.painting.core.spec :as spec])
   (:import
-    (top.kzre.krro.canvas.core Arrays)
-    (top.kzre.krro.plugin.painting.core.project.canvas CanvasData)
-    (top.kzre.krro.util TiledCanvasUtils)))
+   [java.util Arrays]
+   (top.kzre.krro.plugin.painting.core State)
+   (top.kzre.krro.plugin.painting.core.project.canvas CanvasData)))
 
 (defn frames-with-canvas-id
   "返回所有显示指定画布的 Frame。"
@@ -18,22 +18,16 @@
 
 (defrecord CanvasRuntime
   [^floats preview-buffer     ;; 预览缓冲区
-   ^floats layer-buffer       ;; 光栅图层原始数据备份（笔画开始时拷贝）
    layer-backup
-
    current-tool                                                     ;; 当前选择的工具.
    dirty-tiles
-   tile-size
    ])
 
 (defn default-state
   [buffer-size]
   {:preview-buffer    (float-array buffer-size)
-   :layer-buffer      (float-array buffer-size)
-
    :layer-backup      nil
    :current-tool      nil
-   :tile-size 256                                           ;;固定256
    :dirty-tiles []
    })
 
@@ -115,7 +109,7 @@
            h (:height ^CanvasData cd)
            rt (canvas-runtime canvas-id)
            dirty-tiles (:dirty-tiles rt)
-           tile-size (get rt :tile-size 256)]
+           tile-size pc/global-tile-size]
        (cond
          ;; 全图刷新
          (nil? dirty-tiles)
@@ -131,22 +125,11 @@
          ;; 有脏瓦片
          :else
          (do
-           (doseq [key dirty-tiles]
-             (let [tx (TiledCanvasUtils/unpackTx key)
-                   ty (TiledCanvasUtils/unpackTy key)
-                   start-x (max 0 (* tx tile-size))
-                   start-y (max 0 (* ty tile-size))
-                   end-x (min (+ start-x tile-size) w)
-                   end-y (min (+ start-y tile-size) h)]
-               (when (and (< start-x end-x) (< start-y end-y))
-                 (doseq [y (range start-y end-y)
-                         x (range start-x end-x)]
-                   (let [idx (* 4 (+ x (* y w)))]
-                     (aset dest idx 0.0)
-                     (aset dest (inc idx) 0.0)
-                     (aset dest (+ idx 2) 0.0)
-                     (aset dest (+ idx 3) 0.0))))))
-           (canv/render-layers! layers dest w h :dirty-tiles dirty-tiles)
+           ;; 调用 Java 方法高效清空脏瓦片区域
+           (State/clearDirtyTiles dest w h dirty-tiles tile-size)
+           (canv/render-layers! layers dest w h
+                                :dirty-tiles dirty-tiles
+                                :tile-size tile-size)
            (swap! canvas-runtimes assoc-in [canvas-id :dirty-tiles] #{})))))))
 
 (defn ensure-runtime!

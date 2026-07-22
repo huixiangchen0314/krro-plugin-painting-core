@@ -19,10 +19,11 @@
 
 ;; ── 光栅图层 ──────────────────────────────────
 (defmethod add-layer! :raster [_ canvas-id path]
-  (let [new-layer (raster/make-raster-layer)
+  (let [new-layer (raster/make-raster-layer pc/global-tile-size)
         cd (pc/canvas-data! canvas-id)
         {:keys [canvas-data layer-id]} (layer/add-layer-at cd path new-layer)]
     (layer/update-project! canvas-id canvas-data)
+    ;; 侧表数据是权威的，始终维持
     (pr/create-raster! layer-id canvas-id (:canvas new-layer))
     (state/invalidate-canvas-dirty! canvas-id)
     (layer/refresh-canvas-frames! canvas-id)

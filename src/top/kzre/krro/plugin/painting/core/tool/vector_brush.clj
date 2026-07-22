@@ -3,32 +3,48 @@
    遵循 ITool 协议，提交时生成贝塞尔曲线及宽度采样，并返回新图层。"
   (:require
     [top.kzre.krro.brush.vector :as vec-brush]
+    [top.kzre.krro.canvas.core.layer.util :as layer-util]
     [top.kzre.krro.curve.bezier2d.core :as bezier]
     [top.kzre.krro.plugin.painting.core.brush.core  :as brush]
     [top.kzre.krro.plugin.painting.core.state]
-    [top.kzre.krro.plugin.painting.core.tool.protocol :as tp])
+    [top.kzre.krro.plugin.painting.core.tool.protocol :as tp]
+    [top.kzre.krro.plugin.painting.core.tool.util :as tool-util])
   (:import
     (top.kzre.colorutils.color RGB)))
 
 (defrecord VectorBrushTool [events        ;; atom: 累积的事件向量
-                            brush]        ;; 当前笔刷规格
+                            brush         ;; 当前笔刷规格
+                            parent-inv]   ;; atom: 缓存父逆矩阵
   tp/ITool
+  (id [_] :vector-brush)
+  (overlay [_] nil)
   (begin! [_ layer state ctx]
     (reset! events [])
+    (reset! parent-inv nil)
     {:layer layer :state state})
 
   (end! [_ layer state ctx]
+    (reset! events [])
+    (reset! parent-inv nil)
     {:layer layer :state state})
 
   (apply! [_ layer _state ev ctx]
-    (case (:type ev)
-      :press   (do (reset! events []) :start)
-      :drag    (do (swap! events conj ev) :continue)
-      :release (do (swap! events conj ev) :commit)
-      :idle))
+    (let [local-ev (if-let [inv-matrix @parent-inv]
+                     (let [pt (layer-util/transform-point inv-matrix (:x ev) (:y ev))]
+                       (assoc ev :x (:x pt) :y (:y pt)))
+                     (let [layers (:layers (:data ctx))
+                           layer-path (layer-util/find-layer-path (:id layer) layers)
+                           total-inv (tool-util/compute-total-inverse layer layers layer-path)]
+                       (reset! parent-inv total-inv)
+                       (let [pt (layer-util/transform-point total-inv (:x ev) (:y ev))]
+                         (assoc ev :x (:x pt) :y (:y pt)))))]
+      (case (:type local-ev)
+        :press   (do (reset! events []) :start)
+        :drag    (do (swap! events conj local-ev) :continue)
+        :release (do (swap! events conj local-ev) :commit)
+        :idle)))
 
   (preview! [_ layer state ctx]
-    ;; 待实现实时预览，目前保持原图层
     {:layer layer :state state})
 
   (commit! [_ layer state ctx]
@@ -51,11 +67,10 @@
                   new-layer (-> layer
                                 (assoc-in [:paths-map path-id] new-path)
                                 (update :path-order conj path-id))]
-              ;; 设为 nil 表示全图刷新
               {:layer new-layer
                :state (assoc state :dirty-tiles nil)})
             {:layer layer :state state}))
         {:layer layer :state state}))))
 
 (defn make-vector-brush []
-  (->VectorBrushTool (atom []) (or @brush/global-brush brush/default-brush)))
+  (->VectorBrushTool (atom []) (or @brush/global-brush brush/default-brush) (atom nil)))

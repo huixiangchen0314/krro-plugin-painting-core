@@ -7,7 +7,7 @@
 (defmethod canvas/persistable-layer :vector [layer]
   layer)
 
-(defmethod canvas/persistable-layer! :raster [layer canvas-id]
+(defmethod canvas/persistable-layer! :vector [layer _canvas-id]
   layer)
 
 (defmethod canvas/active-layer! :vector [layer _canvas-id]

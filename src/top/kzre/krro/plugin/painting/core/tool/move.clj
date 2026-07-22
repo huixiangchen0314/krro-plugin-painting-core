@@ -20,6 +20,8 @@
                      last-event     ;; atom: 最近鼠标事件 {:x :y}
                      initial-layer] ;; atom: {:x :y} 按下时图层的平移
   tp/ITool
+  (id [_] :move)
+  (overlay [_] nil)
   (begin! [_ layer state _ctx]
     (reset! initial-mouse nil)
     (reset! last-event nil)
