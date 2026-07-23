@@ -8,9 +8,12 @@
          {:dab          {:type :circle
                          :mask-type :hard
                          :radius 8.0}
+          ;; 前景色
           :color        (RGB/rgba 0.2 0.7 0.56 1.0)
+          ;; 动力学映射
           :dynamics     {:radius [{:sensor :pressure :curve :linear :min 0.5 :max 2.0 :mode :multiply}
                                   {:sensor :velocity :curve :linear :min 0.8 :max 1.2 :mode :multiply}]}
+          ;; DAB 间距
           :spacing      0.2
           :radius       3
           :blend-mode   :normal
