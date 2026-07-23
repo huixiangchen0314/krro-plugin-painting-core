@@ -4,9 +4,8 @@
   (:require
     [top.kzre.krro.core.custom :as custom])
   (:import
-    (java.io File ByteArrayInputStream ByteArrayOutputStream)
+    (java.io ByteArrayInputStream ByteArrayOutputStream File)
     (java.util Base64)
-    (top.kzre.krro.canvas.core Arrays)
     (top.kzre.krro.plugin.painting.core.ops TiledCanvasIOUtils)
     (top.kzre.krro.util.tile TiledCanvas)))
 
@@ -18,40 +17,6 @@
                   :type :integer
                   :group :krro.painting/performance
                   :doc "快照保留在内存中的最大字节数（浮点数组长度×4）。超过此值将写入临时文件。")
-
-;; ═══════════════════════════════════════════════════════
-;; 内部工具
-;; ═══════════════════════════════════════════════════════
-(defn- snapshot-size [^floats data]
-  (* (alength data) 4))
-
-;; ═══════════════════════════════════════════════════════
-;; 纯浮点像素数组封装（用于图层添加/移除）
-;; ═══════════════════════════════════════════════════════
-(defn wrap-pixels!
-  "pixels 为 float 数组。返回 {:type :memory/:file, :value <array-or-path>}"
-  [^floats pixels]
-  (if (< (snapshot-size pixels)
-         (custom/get-custom ::memory-threshold))
-    {:type :memory
-     :value pixels}
-    {:type :file
-     :value (Arrays/writeTemp pixels)}))
-
-(defn read-pixels!
-  "从封装结构中读取 float 数组。"
-  [{:keys [type value]}]
-  (case type
-    :memory value
-    :file   (Arrays/readTemp ^String value)))
-
-(defn delete-pixels!
-  "若像素数组存在于临时文件，则删除。"
-  [{:keys [type value]}]
-  (when (= type :file)
-    (try
-      (.delete (File. ^String value))
-      (catch Exception _))))
 
 ;; ═══════════════════════════════════════════════════════
 ;; TiledCanvas 快照支持（内存/文件，支持脏瓦片，内存快照可序列化）
