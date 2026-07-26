@@ -12,19 +12,142 @@
 (defonce global-tile-size 256 )
 
 ;; 定义记录以便自定义编解码.
-(defrecord CanvasData [id width height layers selected-layer-id])
+(defrecord CanvasData [id width height layers current-layer-id])
 
 (defschema :krro.painting/canvas
                :primary-key :id
                :not-null [:id :width :height :layers]
                :defaults {:layers []})
 
+(defn make-test-one-vanish-point-perspective-layer []
+  (let [layer-id (keyword (str "layer-" (UUID/randomUUID)))]
+    {:id           layer-id
+     :type         :perspective
+     :name         "Test One-Point Perspective"
+     :opacity      1.0
+     :blend-mode   :normal
+     :visible     true
+     :transform    [1 0 0 1 0 0]
+     :antialiased  true
+     :camera {:position [500.0 500.0 500.0]
+              :target   [500.0 500.0   0.0]
+              :up       [  0.0   0.0   1.0]
+              :fov      45.0
+              :near     1.0}
+     :lines []
+     :grids []
+     :elements [{:type :one-point-perspective
+                 :vp   [400.0 300.0]
+                 :radial-lines 12}]}))
+
+(defn make-test-two-vanish-point-perspective-layer []
+  (let [layer-id (keyword (str "layer-" (UUID/randomUUID)))]
+    {:id           layer-id
+     :type         :perspective
+     :name         "Test Two-Point Perspective"
+     :opacity      1.0
+     :blend-mode   :normal
+     :visible     true
+     :transform    [1 0 0 1 0 0]
+     :antialiased  true
+     :camera {:position [500.0 500.0 500.0]
+              :target   [500.0 500.0   0.0]
+              :up       [  0.0   1.0    0.0]
+              :fov      45.0
+              :near     1.0}
+     :lines []
+     :grids []
+     :elements [
+                ;; 地面透视辅助
+                ;{:type :two-point-perspective
+                ; :vp0                 [200.0 200.0]   ;; 左灭点（视平线上）
+                ; :vp1                 [800.0 300.0]   ;; 右灭点（视平线上）
+                ; :corner              [500.0 500.0]   ;; 墙角点（画面下方）
+                ; :lines               12              ;; 每个灭点 12 条射线（均匀分布在 180° 内）
+                ; :include-horizon     true                  ;; 包括地平面
+                ; :show-opposite-half  false           ;; 只画角点方向半平面（标准两点透视）
+                ; :average-distance   true
+                ; :average-depth       true
+                ; :distance           -60.0}
+                ;
+                ;;; 墙面透视辅助
+                ;{:type :two-point-perspective
+                ; :vp0                 [200.0 200.0]   ;; 左灭点（视平线上）
+                ; :vp1                 [800.0 300.0]   ;; 右灭点（视平线上）
+                ; :corner              [500.0 500.0]   ;; 墙角点（画面下方）
+                ; :lines               24              ;; 每个灭点 12 条射线（均匀分布在 180° 内）
+                ; :include-horizon     true                  ;; 包括地平面
+                ; :show-opposite-half  false           ;; 只画角点方向半平面（标准两点透视）
+                ; :average-distance    true
+                ; :average-depth       false
+                ; :distance           -60.0}
+                ;
+                ;{:type :two-point-perspective
+                ; :vp0    [200.0 200.0]   ;; 左灭点
+                ; :vp1    [800.0 300.0]   ;; 右灭点
+                ; :corner [500.0 500.0]   ;; 墙角点
+                ; :lines  24
+                ; :include-horizon     true
+                ; :show-opposite-half  false
+                ; :average-depth-full  true
+                ; :mp-distance         300.0   ;; 测量点到另一灭点的像素距离
+                ; :depth-step-full      40.0}  ;; 垂直参考线刻度间距
+
+                ;{:type :three-point-perspective
+                ; :vp0    [200.0 300.0]   ;; 左灭点（视平线上）
+                ; :vp1    [800.0 300.0]   ;; 右灭点（视平线上）
+                ; :vp2    [500.0 800.0]   ;; 高度灭点（画面下方，形成仰视）
+                ; :corner [500.0 400.0]   ;; 角点（三个面的交汇点，位于灭点三角形内部）
+                ; :lines               18
+                ; :show-opposite-half  false
+                ; :include-horizon     true}
+
+                ;; 三点透视等距垂直模式测试数据
+                ;{:type :three-point-perspective
+                ; :vp0    [200.0 300.0]   ;; 左灭点（视平线左侧）
+                ; :vp1    [800.0 300.0]   ;; 右灭点（视平线右侧）
+                ; :vp2    [500.0 800.0]   ;; 高度灭点（画面下方，形成仰视）
+                ; :corner [500.0 450.0]   ;; 角点（三个面的交汇点，位于灭点三角形内部偏上）
+                ; :lines               18
+                ; :show-opposite-half  false
+                ; :include-horizon     true
+                ; :average-distance    true       ;; 启用等距垂直模式
+                ; :distance           -60.0       ;; 负值使射线指向角点上方，模拟墙面竖向分割
+                ; :reference-vp-index   2}        ;; 以高度灭点（vp2）作为垂直参考轴
+
+                ;; 简化等深三点透视测试数据 (倒数分割法)
+                ;{:type :three-point-perspective
+                ; :vp0                [200.0 300.0]   ;; 左灭点
+                ; :vp1                [800.0 300.0]   ;; 右灭点
+                ; :vp2                [500.0 800.0]   ;; 高度灭点（仰视）
+                ; :corner             [500.0 450.0]   ;; 角点
+                ; :lines               12
+                ; :show-opposite-half  false
+                ; :include-horizon     true
+                ; :simplified-depth    true          ;; 启用简化等深
+                ; :base-depth          1.0
+                ; :depth-step          1.0
+                ; :reference-vp-index  2}           ;; 以高度灭点作为深度参考
+
+                {:type :three-point-perspective
+                 :vp0               [200.0 600.0]
+                 :vp1               [800.0 500.0]
+                 :vp2               [500.0 200.0]
+                 :corner            [500.0 450.0]
+                 :lines              12
+                 :show-opposite-half false
+                 :include-horizon    true
+                 :measured-depth     true
+                 :mp-distance        300.0
+                 :depth-step         40.0}
+                  ]}))
+
 (defn create-canvas!
-  "创建画布并保存到项目原子中."
-  ([w h] (let [gid (keyword (str (UUID/randomUUID)))]
-           (create-canvas! gid w h)))
+  "创建画布并保存到项目原子中，同时插入一个测试透视图层。"
+  ([w h] (create-canvas! (keyword (str (UUID/randomUUID))) w h))
   ([id w h]
-   (let [cd (CanvasData. id w h [] nil)]   ;; 活跃对象
+   (let [test-persp (make-test-two-vanish-point-perspective-layer)
+         cd (CanvasData. id w h [test-persp] nil)]   ;; 将测试图层放入 layers 向量
      (kcc/insert! :krro.painting/canvas (assoc cd :id id))
      cd)))
 
@@ -65,13 +188,13 @@
   [canvas-id]
   (proj/deactivate-resource! [:krro.painting/canvas canvas-id]))
 
-(defn selected-layer-id
+(defn current-layer-id
   ([canvas-id]
    (when-let [cd (canvas-data canvas-id)]
-     (:selected-layer-id cd)))
+     (:current-layer-id cd)))
   ([canvas-id db-map]
    (when-let [cd (canvas-data canvas-id db-map)]
-     (:selected-layer-id cd))))
+     (:current-layer-id cd))))
 
 ;; 持久化多方法.
 (defmulti persistable-layer :type)
@@ -98,7 +221,7 @@
                   :width  (:width c)
                   :height (:height c)
                   :layers encoded-layers
-                  :selected-layer-id (:selected-layer-id c)}))
+                  :current-layer-id (:current-layer-id c)}))
    ;; TODO 提供编码解码的环境，以便决定是 内存编码，还是虚拟代理编码.
    :decoder  (fn [m]
                (let [id (:id m)
@@ -106,7 +229,7 @@
                      h (:height m)
                      decoded-layers (mapv #(active-layer! % id) (:layers m))]
                  (map->CanvasData {:id id :width w :height h :layers decoded-layers
-                                   :selected-layer-id (:selected-layer-id m)})))})
+                                   :current-layer-id (:current-layer-id m)})))})
 
 
 

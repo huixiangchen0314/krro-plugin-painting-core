@@ -1,10 +1,9 @@
 (ns top.kzre.krro.plugin.painting.core.tool.move
   "移动工具：拖拽修改当前图层的平移属性 (x, y)。"
   (:require [top.kzre.krro.core.custom :as custom]
+            [top.kzre.krro.plugin.painting.core.ops.backup :as backup]
             [top.kzre.krro.plugin.painting.core.state]
-            [top.kzre.krro.plugin.painting.core.tool.protocol :as tp]
-            [top.kzre.krro.plugin.painting.core.ops.layer :as layer]
-            [top.kzre.krro.plugin.painting.core.ops.backup :as backup]))
+            [top.kzre.krro.plugin.painting.core.tool.protocol :as tp]))
 
 (custom/defcustom :krro.painting/move-tool-speed
                   1.0
@@ -66,7 +65,7 @@
       (reset! initial-mouse nil)
       (reset! last-event nil)
       (reset! initial-layer nil)
-      ;; 确保提交后也触发全图刷新（若 preview 未设置 nil，则此处设置）
+      (backup/release-backup! layer state)
       {:layer layer
        :state (backup/backup-layer! layer state)})))
 

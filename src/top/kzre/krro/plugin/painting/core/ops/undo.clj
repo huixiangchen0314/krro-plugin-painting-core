@@ -13,14 +13,15 @@
     [top.kzre.krro.plugin.painting.core.project.canvas :as pc]
     [top.kzre.krro.plugin.painting.core.project.raster-layer :as pr]
     [top.kzre.krro.plugin.painting.core.spec :as spec]
+    [top.kzre.krro.plugin.painting.core.state :as state]
     [top.kzre.krro.plugin.undo.core :as undo]
-    [top.kzre.krro.plugin.undo.protocol :as undo-p]
-    [top.kzre.krro.plugin.painting.core.state :as state])
+    [top.kzre.krro.plugin.undo.protocol :as undo-p])
   (:import
-    (java.util.function Consumer)
-    (top.kzre.krro.util.tile TiledCanvas)
-    (java.util HashMap)))
+    (java.util Collection)
+    (top.kzre.krro.util.tile TiledCanvas)))
 
+;; 图层数据提交
+(defonce undo-type-layer-commit ::layer-commit)
 ;; 图层渲染属性更新
 (defonce undo-type-layer-render-attrs-changed ::layer-render-attrs-changed)
 ;; 图层编辑属性更新
@@ -71,7 +72,7 @@
     (if-not layer
       (msg/error (str "Layer not found for restore: " layer-id))
       (let [^TiledCanvas current-canvas (:canvas layer)]
-        (.deleteTiles current-canvas dirties)
+        (.deleteTiles current-canvas ^Collection dirties)
         (.mergeCanvas current-canvas dirty-canvas)
         ;; 关键：标记画布脏并强制刷新 UI
         (state/invalidate-canvas-dirty! canvas-id)
@@ -82,6 +83,15 @@
 ;; ═══════════════════════════════════════════════════════
 ;; 图层添加/移除元数据工厂
 ;; ═══════════════════════════════════════════════════════
+
+(defn make-layer-commit-meta [canvas-id old-layer-backup new-layer-backup]
+  {:type undo-type-layer-commit
+   :seq (inc-undo-metadata-seq-key)
+   :canvas-id canvas-id
+   :old-layer-backup old-layer-backup
+   :new-layer-backup new-layer-backup
+   })
+
 (defn make-raster-layer-add-meta [canvas-id path layer snapshot-wrapper]
   {:type          undo-type-raster-layer-add
    :seq           (inc-undo-metadata-seq-key)
@@ -109,6 +119,7 @@
   {:type              undo-type-layer-render-attrs-changed
    :seq               (inc-undo-metadata-seq-key)
    :canvas-id         canvas-id})
+
 
 ;; ═══════════════════════════════════════════════════════
 ;; 记录函数
@@ -140,6 +151,13 @@
       (log/info "Tiled raster undo state recorded [seq:" (:seq meta) "]"))
     (catch Exception e
       (log/error e "Failed to record tiled raster stroke undo."))))
+
+
+(defn record-layer-commit! [canvas-id old-state new-state]
+  (let [old-layer-backup (:layer-backup old-state)
+        new-layer-backup (:layer-backup new-state)
+        metadata (make-layer-commit-meta canvas-id old-layer-backup new-layer-backup)]
+    (undo/record-state! metadata)))
 
 ;; ═══════════════════════════════════════════════════════
 ;; 恢复多方法分派
@@ -204,6 +222,22 @@
 
 (defmethod restore-canvas-state! [:after-redo undo-type-layer-render-attrs-changed] [_ metadata]
   (let [canvas-id (:canvas-id metadata)]
+    (state/invalidate-canvas-dirty! canvas-id)
+    (layer/refresh-canvas-and-layer! canvas-id)))
+
+(defmethod restore-canvas-state! [:after-undo undo-type-layer-commit] [_ metadata]
+  (let [canvas-id (:canvas-id metadata)
+        new-layer-backup (:old-layer-backup metadata)
+        rt (state/canvas-runtime canvas-id)]
+    (swap! state/canvas-runtimes assoc canvas-id (assoc rt :layer-backup new-layer-backup))
+    (state/invalidate-canvas-dirty! canvas-id)
+    (layer/refresh-canvas-and-layer! canvas-id)))
+
+(defmethod restore-canvas-state! [:after-redo undo-type-layer-commit] [_ metadata]
+  (let [canvas-id (:canvas-id metadata)
+        new-layer-backup (:new-layer-backup metadata)
+        rt (state/canvas-runtime canvas-id)]
+    (swap! state/canvas-runtimes assoc canvas-id (assoc rt :layer-backup new-layer-backup))
     (state/invalidate-canvas-dirty! canvas-id)
     (layer/refresh-canvas-and-layer! canvas-id)))
 

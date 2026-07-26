@@ -1,5 +1,6 @@
 (ns top.kzre.krro.plugin.painting.core.core
   (:require [top.kzre.krro.core.plugin :as plugin]
+            [top.kzre.krro.plugin.painting.core.project.core]
             [top.kzre.krro.plugin.painting.core.ops.undo :as undo]
             [top.kzre.krro.plugin.painting.core.project.canvas :as pc]
             [top.kzre.krro.plugin.painting.core.project.raster-layer :as pr]))

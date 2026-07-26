@@ -17,13 +17,13 @@
 ;; ── 光栅图层 ──────────────────────────────────
 (defmethod delete-layer! :raster [removed canvas-id path]
   (let [cd (pc/canvas-data! canvas-id)
-        selected-id (pc/selected-layer-id canvas-id)       ;; 从项目数据获取选中ID
+        selected-id (pc/current-layer-id canvas-id)       ;; 从项目数据获取选中ID
         {:keys [canvas-data _removed layer-id new-selected-id]} (layer/remove-layer-at cd selected-id path)]
     (layer/update-project! canvas-id canvas-data)
     (pr/delete-raster! layer-id)
     (state/invalidate-canvas-dirty! canvas-id)
     (layer/refresh-canvas-frames! canvas-id)
-    (when new-selected-id (layer/set-selected-layer-id! canvas-id new-selected-id))
+    (when new-selected-id (layer/set-current-layer-id! canvas-id new-selected-id))
     (undo/record-raster-layer-remove! canvas-id path removed)
     (hook/run-hook! spec/layer-changed-hook-key canvas-id)
     {:removed removed :layer-id layer-id :new-selected-id new-selected-id}))
@@ -31,12 +31,12 @@
 ;; ── 矢量图层 ──────────────────────────────────
 (defmethod delete-layer! :vector [removed canvas-id path]
   (let [cd (pc/canvas-data! canvas-id)
-        selected-id (pc/selected-layer-id canvas-id)
+        selected-id (pc/current-layer-id canvas-id)
         {:keys [canvas-data _removed layer-id new-selected-id]} (layer/remove-layer-at cd selected-id path)]
     (layer/update-project! canvas-id canvas-data)
     (state/invalidate-canvas-dirty! canvas-id)
     (layer/refresh-canvas-frames! canvas-id)
-    (when new-selected-id (layer/set-selected-layer-id! canvas-id new-selected-id))
+    (when new-selected-id (layer/set-current-layer-id! canvas-id new-selected-id))
     (undo/record-layer-render-attrs-state! canvas-id)
     (hook/run-hook! spec/layer-changed-hook-key canvas-id)
     {:removed removed :layer-id layer-id :new-selected-id new-selected-id}))

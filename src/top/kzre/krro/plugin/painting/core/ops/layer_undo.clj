@@ -8,7 +8,8 @@
     [top.kzre.krro.plugin.painting.core.ops.duplicate :as duplicate]
     [top.kzre.krro.plugin.painting.core.ops.layer :as layer]
     [top.kzre.krro.plugin.painting.core.ops.undo :as undo]
-    [top.kzre.krro.plugin.painting.core.project.canvas :as pc]))
+    [top.kzre.krro.plugin.painting.core.project.canvas :as pc]
+    [top.kzre.krro.plugin.painting.core.state :as state]))
 
 ;; ── 辅助：计算在选中图层上方插入的路径 ──────────
 (defn- above-path
@@ -25,13 +26,13 @@
 ;; ═══════════════════════════════════════════════════════
 
 (defn add-raster-layer-over-selected-undo! [canvas-id]
-  (let [selected-id (pc/selected-layer-id canvas-id)       ;; 从项目数据获取
+  (let [selected-id (pc/current-layer-id canvas-id)       ;; 从项目数据获取
         layers      (pc/layers-by-id! canvas-id)
         path        (above-path layers selected-id)]
     (add/add-layer! :raster canvas-id path )))
 
 (defn add-vector-layer-over-selected-undo! [canvas-id]
-  (let [selected-id (pc/selected-layer-id canvas-id)
+  (let [selected-id (pc/current-layer-id canvas-id)
         layers      (pc/layers-by-id! canvas-id)
         path        (above-path layers selected-id)]
     (add/add-layer! :vector canvas-id path )))
@@ -51,7 +52,7 @@
     (remove-layer-at-undo! canvas-id path)))
 
 (defn remove-selected-layer-undo! [canvas-id]
-  (when-let [path (layer/selected-layer-path canvas-id)]
+  (when-let [path (layer/current-layer-path canvas-id)]
     (remove-layer-at-undo! canvas-id path)))
 
 ;; ═══════════════════════════════════════════════════════
@@ -65,7 +66,7 @@
       (duplicate/duplicate-layer! canvas-id layer))))
 
 (defn duplicate-selected-layer-undo! [canvas-id]
-  (when-let [layer-id (pc/selected-layer-id canvas-id)]
+  (when-let [layer-id (pc/current-layer-id canvas-id)]
     (duplicate-layer-undo! canvas-id layer-id)))
 
 ;; ═══════════════════════════════════════════════════════
@@ -86,14 +87,15 @@
     (when path
       (update-layer-at-undo! canvas-id path updater))))
 
-(defn replace-layer-undo! [canvas-id layer]
+(defn commit-layer-undo! [canvas-id layer old-state new-state]
   (let [layer-id (:id layer)
         cd (pc/canvas-data! canvas-id)
         layers (:layers cd)
         path (lc/find-layer-path layer-id layers)]
     (when path
       (layer/update-layer-at! canvas-id path (fn [_] layer))
-      (undo/record-layer-render-attrs-state! canvas-id)
+      (undo/record-layer-commit! canvas-id old-state new-state)
+      (swap! state/canvas-runtimes assoc canvas-id new-state)
       (layer/refresh-canvas-and-layer! canvas-id))))
 
 (defn toggle-layer-visibility! [canvas-id layer-id]
@@ -107,5 +109,5 @@
       (undo/record-layer-render-attrs-state! canvas-id))))
 
 (defn update-selected-layer-undo! [canvas-id updater]
-  (when-let [selected-id (pc/selected-layer-id canvas-id)]
+  (when-let [selected-id (pc/current-layer-id canvas-id)]
     (update-layer-by-id-undo! canvas-id selected-id updater)))

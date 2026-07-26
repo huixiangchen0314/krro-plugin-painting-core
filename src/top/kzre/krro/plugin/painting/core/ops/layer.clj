@@ -25,7 +25,7 @@
 
 (defn refresh-canvas-frames! [canvas-id]
   (when-let [rt (state/canvas-runtime canvas-id)]
-    (let [preview (state/preview-buffer rt)
+    (let [preview (state/preview-canvas rt)
           [w h]   (pc/canvas-size canvas-id)]
       (state/render-canvas! canvas-id preview)
       (doseq [f (state/frames-with-canvas-id canvas-id)]
@@ -39,16 +39,16 @@
   (refresh-canvas-frames! canvas-id)
   (hook/run-hook! spec/layer-changed-hook-key canvas-id))
 
-(defn set-selected-layer-id! [canvas-id layer-id]
+(defn set-current-layer-id! [canvas-id layer-id]
   (let [cd (pc/canvas-data! canvas-id)
-        old-id (:selected-layer-id cd)]
+        old-id (:current-layer-id cd)]
     (when (not= old-id layer-id)
       (let [layers (:layers cd)
             old-layer (when old-id (lc/find-layer old-id layers))
             new-layer (when layer-id (lc/find-layer layer-id layers))
             runtime (state/canvas-runtime canvas-id)]
         ;; 更新项目数据
-        (kcc/update-by-id! :krro.painting/canvas canvas-id #(assoc % :selected-layer-id layer-id))
+        (kcc/update-by-id! :krro.painting/canvas canvas-id #(assoc % :current-layer-id layer-id))
         ;; 备份状态更新
         (when old-layer (backup/release-backup! old-layer runtime))
         (when-let [new-st (backup/backup-layer! new-layer runtime)]
@@ -57,8 +57,8 @@
         (hook/run-hook! spec/selected-layer-changed-hook-key canvas-id layer-id)))))
 
 ;; ── 路径查询 ──────────────────────────────────────
-(defn selected-layer-path [canvas-id]
-  (when-let [selected-id (state/selected-layer-id canvas-id)]
+(defn current-layer-path [canvas-id]
+  (when-let [selected-id (state/current-layer-id canvas-id)]
     (lc/find-layer-path selected-id (pc/layers-by-id! canvas-id))))
 
 (defn add-layer-at
@@ -168,12 +168,12 @@
       (update-layer-at! canvas-id path (fn [_] layer)))))
 
 (defn auto-select-layer! [canvas-id]
-  (let [current-id (state/selected-layer-id canvas-id)]
+  (let [current-id (state/current-layer-id canvas-id)]
     (if (nil? current-id)
       (let [layers (pc/layers-by-id! canvas-id)]
         (when-let [top (last layers)]
           (let [id (:id top)]
-            (set-selected-layer-id! canvas-id id)
+            (set-current-layer-id! canvas-id id)
             id)))
       current-id)))
 

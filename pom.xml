@@ -119,6 +119,11 @@
         </dependency>
         <dependency>
             <groupId>top.kzre</groupId>
+            <artifactId>krro-canvas-perspective</artifactId>
+            <version>0.1.0</version>
+        </dependency>
+        <dependency>
+            <groupId>top.kzre</groupId>
             <artifactId>krro-brush</artifactId>
             <version>0.1.0</version>
         </dependency>
