@@ -115,7 +115,7 @@
     (state/invalidate-canvas-dirty! canvas-id)
     (update-project! canvas-id new-cd)
     ;; 图层更新必须手动触发
-    ;(refresh-canvas-frames! canvas-id)
+    (refresh-canvas-frames! canvas-id)
     ;; diff 通知直接hook
     (hook/run-hook! spec/layer-changed-hook-key canvas-id)
     new-cd))

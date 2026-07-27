@@ -89,12 +89,12 @@
       (swap! state/canvas-runtimes assoc canvas-id new-state))))
 
 (defn toggle-layer-visibility! [canvas-id layer-id]
-  (letfn [(updator [l] (assoc l :visible? (not (:visible? l))))]
+  (letfn [(updator [l] (assoc l :visible (not (:visible l))))]
     (when (layer/update-layer-by-id! canvas-id layer-id updator)
       (undo/record-layer-render-attrs-state! canvas-id))))
 
 (defn set-layer-visibility! [canvas-id layer-id visible?]
-  (letfn [(updator [l] (assoc l :visible? visible?))]
+  (letfn [(updator [l] (assoc l :visible visible?))]
     (when (layer/update-layer-by-id! canvas-id layer-id updator)
       (undo/record-layer-render-attrs-state! canvas-id))))
 
