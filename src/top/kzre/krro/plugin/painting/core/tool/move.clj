@@ -60,12 +60,12 @@
         {:layer layer :state state})
       {:layer layer :state state}))
 
-  (commit! [this layer state ctx]
-    (let [{:keys [layer state]} (tp/preview! this layer state ctx)]  ;; 复用 preview! 的结果
+  (commit! [this current-layer current-state ctx]
+    (let [{:keys [layer state]} (tp/preview! this current-layer current-state ctx)]  ;; 复用 preview! 的结果
       (reset! initial-mouse nil)
       (reset! last-event nil)
       (reset! initial-layer nil)
-      (backup/release-backup! layer state)
+      (backup/release-backup! state)
       {:layer layer
        :state (backup/backup-layer! layer state)})))
 

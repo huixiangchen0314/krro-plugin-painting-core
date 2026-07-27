@@ -82,12 +82,12 @@
           {:layer layer :state rt}))
       {:layer layer :state rt}))
 
-  (commit! [_ layer rt ctx]
+  (commit! [_ layer state ctx]
     (if-let [^DynamicsStroke dyn @dynamics-atom]
       (let [param-vec (.getParamsVector dyn)]
         (if (> (count param-vec) 1)
           (if-let [result (vec-brush/render-vector-stroke param-vec)]
-            (let [backup-layer (:layer-backup rt)
+            (let [backup-layer (:layer-backup state)
                   path-id  (keyword (str "path-" (System/currentTimeMillis)))
                   new-layer (add-path-to-layer backup-layer result path-id)]
               ;; 完成一笔，重置链
@@ -95,12 +95,12 @@
               (reset! dynamics-atom nil)
               (reset! parent-inv nil)
               {:layer new-layer
-               :state (-> rt
+               :state (-> state
                           (assoc :layer-backup new-layer)
                           (assoc :dirty-tiles nil))})
-            {:layer layer :state rt})
-          {:layer layer :state rt}))
-      {:layer layer :state rt})))
+            {:layer layer :state state})
+          {:layer layer :state state}))
+      {:layer layer :state state})))
 
 (defn make-vector-brush []
   (->VectorBrushTool (atom nil) (atom nil)

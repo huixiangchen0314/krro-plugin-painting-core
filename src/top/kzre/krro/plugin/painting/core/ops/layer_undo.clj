@@ -1,6 +1,6 @@
 (ns top.kzre.krro.plugin.painting.core.ops.layer-undo
-  "图层操作的撤销记录版本。封装为新多方法（add/delete/duplicate）的薄包装。
-   移动、更新、替换等操作仍使用 layer 命名空间的原有函数。"
+  "图层操作. 基本上都是通过路径操作, 提供根据 id 查找路径的 Api，内部不对这个进行封装.
+  编辑器自己做controller 的封装."
   (:require
     [top.kzre.krro.canvas.core.layer.core :as lc]
     [top.kzre.krro.plugin.painting.core.ops.add :as add]
@@ -21,9 +21,6 @@
       (conj (vec parent) (inc idx)))
     [(count layers)]))
 
-;; ═══════════════════════════════════════════════════════
-;; 添加图层（通过新多方法，仅传递类型关键字）
-;; ═══════════════════════════════════════════════════════
 
 (defn add-raster-layer-over-selected-undo! [canvas-id]
   (let [selected-id (pc/current-layer-id canvas-id)       ;; 从项目数据获取
@@ -37,9 +34,7 @@
         path        (above-path layers selected-id)]
     (add/add-layer! :vector canvas-id path )))
 
-;; ═══════════════════════════════════════════════════════
-;; 删除图层（通过新多方法）
-;; ═══════════════════════════════════════════════════════
+
 
 (defn remove-layer-at-undo! [canvas-id path]
   (let [layers  (pc/layers-by-id! canvas-id)
@@ -55,9 +50,7 @@
   (when-let [path (layer/current-layer-path canvas-id)]
     (remove-layer-at-undo! canvas-id path)))
 
-;; ═══════════════════════════════════════════════════════
-;; 复制图层（通过新多方法）
-;; ═══════════════════════════════════════════════════════
+
 
 (defn duplicate-layer-undo! [canvas-id layer-id]
   (let [layers (pc/layers-by-id! canvas-id)
@@ -69,9 +62,7 @@
   (when-let [layer-id (pc/current-layer-id canvas-id)]
     (duplicate-layer-undo! canvas-id layer-id)))
 
-;; ═══════════════════════════════════════════════════════
-;; 移动、更新、可见性切换（保持不变）
-;; ═══════════════════════════════════════════════════════
+
 
 (defn move-layer-undo! [canvas-id old-path new-path]
   (layer/move-layer! canvas-id old-path new-path)
@@ -95,8 +86,7 @@
     (when path
       (layer/update-layer-at! canvas-id path (fn [_] layer))
       (undo/record-layer-commit! canvas-id old-state new-state)
-      (swap! state/canvas-runtimes assoc canvas-id new-state)
-      (layer/refresh-canvas-and-layer! canvas-id))))
+      (swap! state/canvas-runtimes assoc canvas-id new-state))))
 
 (defn toggle-layer-visibility! [canvas-id layer-id]
   (letfn [(updator [l] (assoc l :visible? (not (:visible? l))))]

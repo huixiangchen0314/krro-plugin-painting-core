@@ -29,7 +29,7 @@
    :id       :krro.painting/tiled-canvas-codec
    :resource :krro.painting/tiled-canvas
    :pred     #(instance? TiledCanvas %)
-   :encoder  (fn [^TiledCanvas c]
+   :encoder  (fn [^TiledCanvas c _ctx]
                (let [tile-size     (.getTileSize c)
                      default-pixel (.getDefaultPixel c)   ;; float[] 对象，由资源系统自动编码
                      tiles-atom    (atom {})]

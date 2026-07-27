@@ -5,7 +5,9 @@
     [top.kzre.krro.canvas.core.layer.core :as lc]
     [top.kzre.krro.core.frame :as frame]
     [top.kzre.krro.plugin.painting.core.project.canvas :as pc]
-    [top.kzre.krro.plugin.painting.core.spec :as spec])
+    [top.kzre.krro.plugin.painting.core.spec :as spec]
+    [top.kzre.krro.core.ui.protocol :as ui]
+    [top.kzre.krro.core.core :as kcc])
   (:import
     (java.util Collection)
     (top.kzre.krro.plugin.painting.core.project.canvas CanvasData)
@@ -15,6 +17,10 @@
   "返回所有显示指定画布的 Frame。"
   [canvas-id]
   (frame/frames-with-param spec/canvas-id-key canvas-id))
+
+(defn rerender-frame-with-canvas-id! [canvas-id]
+  (doseq [f (frames-with-canvas-id canvas-id)]
+    (kcc/rerender! f)))
 
 (defrecord CanvasRuntime
   [^TiledCanvas preview-canvas                              ;; 预览画布

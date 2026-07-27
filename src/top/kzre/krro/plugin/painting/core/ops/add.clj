@@ -11,6 +11,8 @@
     [top.kzre.krro.plugin.painting.core.spec :as spec]
     [top.kzre.krro.plugin.painting.core.state :as state]))
 
+;; 插入，删除，更新，移动
+
 ;; 分派键：第一个参数 layer-type
 (defmulti add-layer!
           "添加图层到画布。layer-type → {:layer :layer-id :path}

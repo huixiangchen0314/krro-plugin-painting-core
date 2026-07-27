@@ -9,9 +9,9 @@
           (fn [layer ^CanvasRuntime _runtime] (:type layer)))
 
 (defmulti release-backup!
-          (fn [layer ^CanvasRuntime _runtime] (:type layer)))
+          (fn [^CanvasRuntime state] (:type (:layer-backup state))))
 
-(defmethod release-backup! :default [_layer ^CanvasRuntime _runtime])
+(defmethod release-backup! :default [^CanvasRuntime state] state)
 
 
 ;; 默认图层为edn，直接备份
@@ -29,7 +29,7 @@
                                                 (.shareFrom canvas))))))
 
 (defmethod release-backup! :raster
-  [_ ^CanvasRuntime runtime]
+  [^CanvasRuntime runtime]
   ;; 从运行时中取出备份，清空备份画布并移除引用
   (when-let [backup (:layer-backup runtime)]
     (when-let [backup-canvas (:canvas backup)]

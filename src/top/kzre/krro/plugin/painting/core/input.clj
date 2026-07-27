@@ -3,6 +3,7 @@
    每个输入源提供 (start! canvas-node runtime-state) 函数，
    返回清理函数 (stop!) 用于解绑。")
 
+;; TODO 输出不属于核心层，移动出去, 或直接移除.
 (defprotocol IInputSource
   (start! [this]
     "启动输入源，开始向 callback 发送标准化事件。

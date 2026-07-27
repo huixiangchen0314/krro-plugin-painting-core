@@ -213,7 +213,7 @@
    :id       :krro.painting/canvas-codec
    :resource :krro.painting/canvas-data
    :pred     #(instance? CanvasData % )
-   :encoder  (fn [c]
+   :encoder  (fn [c _ctx]
                (let [id (:id c)
                      encoded-layers (mapv #(persistable-layer! % id) (:layers c))]
                  {:krro/type :krro.painting/canvas-data
@@ -222,7 +222,7 @@
                   :height (:height c)
                   :layers encoded-layers
                   :current-layer-id (:current-layer-id c)}))
-   ;; TODO 提供编码解码的环境，以便决定是 内存编码，还是虚拟代理编码.
+   ;; 解码时候自己负责恢复句柄
    :decoder  (fn [m]
                (let [id (:id m)
                      w (:width m)

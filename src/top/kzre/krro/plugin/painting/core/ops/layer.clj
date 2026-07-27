@@ -22,7 +22,7 @@
 (defn update-project! [canvas-id new-cd]
   (kcc/update-by-id! :krro.painting/canvas canvas-id (constantly new-cd)))
 
-
+;; TODO 移除JFX 依赖, 用 hook 移动出去
 (defn refresh-canvas-frames! [canvas-id]
   (when-let [rt (state/canvas-runtime canvas-id)]
     (let [preview (state/preview-canvas rt)
@@ -44,13 +44,12 @@
         old-id (:current-layer-id cd)]
     (when (not= old-id layer-id)
       (let [layers (:layers cd)
-            old-layer (when old-id (lc/find-layer old-id layers))
             new-layer (when layer-id (lc/find-layer layer-id layers))
             runtime (state/canvas-runtime canvas-id)]
         ;; 更新项目数据
         (kcc/update-by-id! :krro.painting/canvas canvas-id #(assoc % :current-layer-id layer-id))
         ;; 备份状态更新
-        (when old-layer (backup/release-backup! old-layer runtime))
+        (backup/release-backup! runtime)
         (when-let [new-st (backup/backup-layer! new-layer runtime)]
           (swap! state/canvas-runtimes assoc canvas-id new-st))
         ;; 触发钩子
@@ -115,7 +114,9 @@
   (when-let [new-cd (move-layer (pc/canvas-data! canvas-id) old-path new-path)]
     (state/invalidate-canvas-dirty! canvas-id)
     (update-project! canvas-id new-cd)
-    (refresh-canvas-frames! canvas-id)
+    ;; 图层更新必须手动触发
+    ;(refresh-canvas-frames! canvas-id)
+    ;; diff 通知直接hook
     (hook/run-hook! spec/layer-changed-hook-key canvas-id)
     new-cd))
 
