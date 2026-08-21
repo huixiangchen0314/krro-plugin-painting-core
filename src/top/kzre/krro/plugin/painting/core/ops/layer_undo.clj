@@ -9,7 +9,8 @@
     [top.kzre.krro.plugin.painting.core.ops.layer :as layer]
     [top.kzre.krro.plugin.painting.core.ops.undo :as undo]
     [top.kzre.krro.plugin.painting.core.project.canvas :as pc]
-    [top.kzre.krro.plugin.painting.core.state :as state]))
+    [top.kzre.krro.plugin.painting.core.state :as state]
+    [top.kzre.krro.plugin.painting.core.ops.backup :as backup]))
 
 ;; ── 辅助：计算在选中图层上方插入的路径 ──────────
 (defn- above-path
@@ -86,6 +87,7 @@
     (when path
       (layer/update-layer-at! canvas-id path (fn [_] layer))
       (undo/record-layer-commit! canvas-id old-state new-state)
+      (backup/release-backup! old-state)
       (swap! state/canvas-runtimes assoc canvas-id new-state))))
 
 (defn toggle-layer-visibility! [canvas-id layer-id]

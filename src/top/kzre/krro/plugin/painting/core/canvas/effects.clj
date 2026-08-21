@@ -14,13 +14,12 @@
   (fn [_app-id message]
     (log/info message)))
 
-;; 切换当前图层：释放旧备份 + 备份新图层
+
 (rf/reg-fx
   :krro.painting :switch-layer-backup-fx
   (fn [_app-id record-id new-layer-id]
     (when-let [state (state/canvas-runtime record-id)]
-      ;; 释放当前图层备份（依据 runtime 中已有的 :layer-backup）
-      ;; 无需更新 state, 仅清理副作用
+      ;; 无需更新 state, 仅释放图层数据
       (backup/release-backup! state)
       ;; 备份新图层（必须基于最新的 runtime 状态）
       (when new-layer-id
@@ -29,7 +28,7 @@
             (when-let [new-st (backup/backup-layer! new-layer current)]
               (swap! state/canvas-runtimes assoc record-id new-st))))))))
 
-;; 更新运行时中的选中状态（仅影响 selected-layer-id / selected-layer-ids）
+
 (rf/reg-fx
   :krro.painting :set-selected-layer-fx
   (fn [_app-id record-id layer-id]

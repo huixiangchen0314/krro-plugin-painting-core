@@ -1,7 +1,7 @@
 (ns top.kzre.krro.plugin.painting.core.tool.util
   "画笔工具通用辅助函数。"
   (:require [top.kzre.krro.canvas.core.layer.util :as layer-util])
-  (:import (top.kzre.krro.canvas.core.layer MathUtils)))
+  (:import (top.kzre.krro.util.math KMath)))
 
 (defn compute-total-inverse
   "计算图层 local 到 world 的总逆矩阵（可用于世界坐标 → 图层局部坐标）。
@@ -10,7 +10,7 @@
   (let [inv-local (layer-util/compose-inverse-transform layer)
         inv-parent (layer-util/parent-inverse-transform layers layer-path)]
     (if inv-parent
-      (MathUtils/multiply (float-array inv-local) (float-array inv-parent))
+      (KMath/mat2dMul (float-array inv-local) (float-array inv-parent))
       (float-array inv-local))))
 
 (defn transform-event
@@ -24,17 +24,19 @@
    返回 map：
      {:event       - 标准化后的局部事件 map
       :parent-inv - 当前使用的逆矩阵，供调用方缓存}"
-  [ev layer canvas-data & {:keys [parent-inv]}]
+  [ev layer canvas-data & {:keys [parent-inv transform-inv]}]
   (let [sensors {:pressure  (get ev :pressure 0.5)
                  :tilt-x    (get ev :tilt-x 0)
                  :tilt-y    (get ev :tilt-y 0)
                  :rotation  (get ev :rotation 0)
                  :timestamp (get ev :timestamp (System/currentTimeMillis))
                  :type      (:type ev)}
-        inv (or parent-inv
+        inv (or (or transform-inv parent-inv)
                 (let [layers     (:layers canvas-data)
                       layer-path (layer-util/find-layer-path (:id layer) layers)]
                   (compute-total-inverse layer layers layer-path)))
         pt  (layer-util/transform-point inv (:x ev) (:y ev))]
     {:event      (merge sensors {:x (:x pt), :y (:y pt)})
-     :parent-inv inv}))
+     :parent-inv inv
+     :transform-inv inv}))
+

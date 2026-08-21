@@ -10,11 +10,11 @@
                :primary-key :id
                :not-null [:id :canvas-id
                           :name
-                          :locked? :alpha-locked?
+                          :locked :alpha-locked
                           ;; 拓展数据，不要求非空
-                          ;; :expanded?
+                          ;; :expanded
                           ]
-               :defaults {:locked? false :alpha-locked? false
+               :defaults {:locked false :alpha-locked false
                           }
                :foreign-keys [{:column :canvas-id
                                :references {:table :krro.painting/canvas
@@ -38,28 +38,28 @@
   ([layer-id db-map]                                              ;; 从指定map查询数据，用于双向绑定检查更新
    (get-in db-map [:krro.painting/layer-meta layer-id])))
 
-(defn set-layer-locked! [layer-id locked?]
+(defn set-layer-locked! [layer-id locked]
   (kcc/update-by-id! :krro.painting/layer-meta layer-id
-                     #(assoc % :locked? locked?)))
+                     #(assoc % :locked locked)))
 
-(defn set-layer-alpha-locked! [layer-id alpha-locked?]
+(defn set-layer-alpha-locked! [layer-id alpha-locked]
   (kcc/update-by-id! :krro.painting/layer-meta layer-id
-                     #(assoc % :alpha-locked? alpha-locked?)))
+                     #(assoc % :alpha-locked alpha-locked)))
 
 (defn set-layer-name! [layer-id layer-name]
   (kcc/update-by-id! :krro.painting/layer-meta layer-id
                      #(assoc % :name layer-name)))
 
-(defn set-layer-group-expanded! [layer-id expanded?]
+(defn set-layer-group-expanded! [layer-id expanded]
   (kcc/update-by-id! :krro.painting/layer-meta layer-id
-                     #(assoc % :expanded? expanded?)))
+                     #(assoc % :expanded expanded)))
 (defn layer-locked? [layer-id]
   (when-let [m (layer-meta layer-id)]
-    (:locked? m)))
+    (:locked m)))
 
 (defn layer-alpha-locked? [layer-id]
   (when-let [m (layer-meta layer-id)]
-    (:alpha-locked? m)))
+    (:alpha-locked m)))
 
 (defn layer-name [layer-id]
   (when-let [m (layer-meta layer-id)]
@@ -67,4 +67,4 @@
 
 (defn layer-group-expanded? [layer-id]
   (when-let [m (layer-meta layer-id)]
-    (:expanded? m)))
+    (:expanded m)))

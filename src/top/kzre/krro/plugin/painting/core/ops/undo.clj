@@ -1,7 +1,5 @@
 (ns top.kzre.krro.plugin.painting.core.ops.undo
-  "撤销系统：记录与恢复图层操作及光栅笔触。
-   全部光栅数据现在基于 TiledCanvas。笔触仅保存脏区域，恢复时只写回脏区域。
-   所有恢复操作均强制全图刷新。"
+  "做与 undo 的桥接，核心逻辑移动到 reframe."
   (:require
     [taoensso.timbre :as log]
     [top.kzre.krro.canvas.core.layer.core :as layer-core]
@@ -19,7 +17,7 @@
   (:import
     (java.util Collection)
     (top.kzre.krro.util.tile TiledCanvas)))
-
+;; TODO fix: undo 笔触时候没有恢复图层备份
 ;; 图层数据提交
 (defonce undo-type-layer-commit ::layer-commit)
 ;; 图层渲染属性更新
@@ -77,6 +75,7 @@
         ;; 关键：标记画布脏并强制刷新 UI
         (state/invalidate-canvas-dirty! canvas-id)
         (layer/refresh-canvas-and-layer! canvas-id)
+        ;; TODO 更新图层备份
         (log/debug "Tiled stroke restored from" snapshot-key)))
     (.clear dirty-canvas)))
 

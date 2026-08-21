@@ -3,14 +3,14 @@
   (:require
     [top.kzre.krro.canvas.core.core :as canv]
     [top.kzre.krro.canvas.core.layer.core :as lc]
+    [top.kzre.krro.core.core :as kcc]
     [top.kzre.krro.core.frame :as frame]
     [top.kzre.krro.plugin.painting.core.project.canvas :as pc]
-    [top.kzre.krro.plugin.painting.core.spec :as spec]
-    [top.kzre.krro.core.ui.protocol :as ui]
-    [top.kzre.krro.core.core :as kcc])
+    [top.kzre.krro.plugin.painting.core.spec :as spec])
   (:import
     (java.util Collection)
     (top.kzre.krro.plugin.painting.core.project.canvas CanvasData)
+    (top.kzre.krro.plugin.painting.core.tool Util)
     (top.kzre.krro.util.tile TiledCanvas)))
 
 (defn frames-with-canvas-id
@@ -21,7 +21,7 @@
 (defn rerender-frame-with-canvas-id! [canvas-id]
   (doseq [f (frames-with-canvas-id canvas-id)]
     (kcc/rerender! f)))
-
+;; TODO 渲染缓存
 (defrecord CanvasRuntime
   [^TiledCanvas preview-canvas                              ;; 预览画布
   ^boolean current-layer-dirty                              ;; 当前图层是否是脏的
@@ -111,6 +111,7 @@
      (let [layers (:layers ^CanvasData cd)
            w (:width ^CanvasData cd)
            h (:height ^CanvasData cd)
+           tile-size (.getTileSize dest)
            rt (canvas-runtime canvas-id)
            dirty-tiles (:dirty-tiles rt)]
        (cond
@@ -131,7 +132,7 @@
            ;; 利用 TiledCanvas 的 deleteTiles 高效清除脏瓦片区域
            (.deleteTiles dest ^Collection dirty-tiles)
            (canv/render-layers! layers dest w h
-                                :dirty-tiles dirty-tiles
+                                :dirty-tiles (Util/clipTiles dirty-tiles tile-size w h)
                                 :tile-size pc/global-tile-size)
            (swap! canvas-runtimes assoc-in [canvas-id :dirty-tiles] #{})))))))
 

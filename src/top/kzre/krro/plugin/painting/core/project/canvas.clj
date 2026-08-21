@@ -143,7 +143,7 @@
                   ]}))
 
 (defn create-canvas!
-  "创建画布并保存到项目原子中，同时插入一个测试透视图层。"
+  "创建空白画布"
   ([w h] (create-canvas! (keyword (str (UUID/randomUUID))) w h))
   ([id w h]
    (let [test-persp (make-test-two-vanish-point-perspective-layer)
@@ -156,6 +156,11 @@
   "删除画布，相关资源由 rdb 负责级联删除."
   [id]
   (kcc/delete-by-id! :krro.painting/canvas id))
+
+(defn save-canvas-data!
+  "创建或更新画布数据"
+  [canvas-id cd]
+  (kcc/update-by-id! :krro.painting/canvas canvas-id (constantly cd)))
 
 (defn canvas-data
   "查询画布数据，当查询的是非代理数据或确认数据已经激活使用允许使用."
@@ -181,7 +186,6 @@
   [canvas-id]
   (when-let [cd (canvas-data! canvas-id)]
     [(:width cd) (:height cd)]))
-
 
 (defn deactivate-canvas!
   "将 CanvasData 编码回代理 map, 日后拓展虚拟代理时候可以把画布数据保存到外部."

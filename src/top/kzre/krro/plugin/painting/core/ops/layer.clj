@@ -65,7 +65,7 @@
    返回 {:canvas-data, :layer, :layer-id, :path}"
   [cd path layer]
   (let [new-layers (lc/insert-layer path layer (:layers cd))
-        new-cd     (with-layers cd new-layers)]
+        new-cd     (assoc cd :layers new-layers)]
     {:canvas-data new-cd
      :layer       layer
      :layer-id    (:id layer)

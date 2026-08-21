@@ -14,15 +14,12 @@
    [top.kzre.krro.plugin.painting.core.tool.util :as tool-util]
    [top.kzre.krro.plugin.undo.protocol])
   (:import
-   (top.kzre.krro.brush
-    DefaultStroke
-    DynamicsMapper
-    DynamicsStroke
-    ReducedStroke
-    SmoothStroke
-    SpacingFunction
-    Stroke)
-   (top.kzre.krro.util.tile TiledCanvas)))
+    (top.kzre.krro.brush
+      DynamicsStroke
+      Stroke)
+    (top.kzre.krro.plugin.painting.core.tool Util)
+    (top.kzre.krro.util.math KMath)
+    (top.kzre.krro.util.tile TiledCanvas)))
 
 ;; ── 自定义配置 ──────────────────────────────────
 (custom/defcustom :krro.painting/brush-max-preview-events
@@ -35,35 +32,77 @@
 (defn- get-brush []
   (or @brush/global-brush brush/default-brush))
 
-(defn- create-stroke-chain [brush-spec]
-  (let [raw    (DefaultStroke/create)
-        smooth (if-let [alpha (:smooth brush-spec)]
-                 (SmoothStroke/cable raw (float alpha))
-                 raw)
-        reduced (if-let [threshold (:reduce brush-spec)]
-                  (ReducedStroke/fromStroke smooth (float threshold))
-                  smooth)
-        dyn     (DynamicsStroke. reduced (DynamicsMapper/instance) brush-spec)
-        spacing-fn (reify SpacingFunction
-                     (getStep [_ prev current]
-                       (let [prev-params (.getParams dyn prev)
-                             radius      (float (get prev-params :radius 10.0))
-                             spacing     (float (get brush-spec :spacing 0.2))]
-                         (* 2.0 radius spacing))))
-        resampled (SmoothStroke/resample dyn spacing-fn)]
-    [resampled dyn]))
+(defrecord BrushToolState [^Stroke stroke
+                           ^DynamicsStroke dynamics
+                           parent-inv
+                           current-pos
+                           world-transform
+                           ]
+ )
 
-;; ═══════════════════════════════════════════════════════
-;; 工具实现（符合新协议）
-;; ═══════════════════════════════════════════════════════
+(defn init-state [& {:keys [pointer-pos]}]
+  (map->BrushToolState
+    {:stroke nil      ; Stroke 对象
+     :dynamics nil    ; DynamicsStroke 对象
+     :parent-inv nil  ; 当前坐标变换矩阵
+     :world-transform nil
+     :pointer-pos pointer-pos ; 当前指针位置
+     }))
+
+
+;; ── 事件处理纯函数 ──────────────────────────
+(defn- handle-event
+  "纯函数：给定当前工具状态和事件上下文，返回 [新状态, 操作结果标记]。"
+  [^BrushToolState state layer ev ctx]
+  (let [event-type (:type ev)
+        pointer-pos {:x (:x ev)
+                     :y (:y ev)}
+        transform-dirty? (= :press event-type)
+        old-transform-inv (when-not transform-dirty? (:parent-inv state))
+        ;; 坐标变换
+        {:keys [event transform-inv]}
+        (tool-util/transform-event ev layer (:data ctx) :transform-inv old-transform-inv)
+        pevent (stroke/->pointer-event event)
+        ;; 按下时创建新的 stroke 和 dynamics，否则延续现有
+        [stroke dynamics]
+        (if (= :press (:type event))
+          (let [{:keys [stroke dynamics]} (stroke/default-stroke (get-brush))]
+            [stroke dynamics])
+          [(:stroke state) (:dynamics state)])
+        _ (when (and stroke (#{:press :drag :release} (:type event)))
+            (.push ^Stroke stroke pevent))
+        result (case (:type event)
+                 :press   :start
+                 :drag    :continue
+                 :release :no-replace
+                 :move    :update
+                 :hover   :update)]
+    [(assoc state
+       :stroke stroke
+       :dynamics dynamics
+       :parent-inv transform-inv
+       :world-transform (if transform-dirty?
+                          (or (when transform-inv (KMath/mat2dInv transform-inv))
+                              (KMath/mat2dIdentity))
+                          (:world-transform state))
+       :pointer-pos pointer-pos)
+     result]))
+
+
 (defrecord BrushTool [stroke-atom    ;; atom: 当前笔触链（最终为 DynamicsStroke）
                       dynamics-atom
                       parent-inv
                       current-pos
-                      ]
+                      state-atom]
   tp/ITool
   (id [_] :brush)
-  (overlay [_] {:type :circle, :radius 10})
+  (overlay [_]
+    (let [state @state-atom
+          pointer-pos (:pointer-pos state)]
+      {:type :circle
+       :radius 10
+       :x (:x pointer-pos 0)
+       :y (:y pointer-pos 0)}))
 
   (begin! [_ layer rt _ctx]
     (reset! parent-inv nil)
@@ -74,48 +113,37 @@
     {:layer layer :state rt})
 
   (apply! [_ layer _rt ev ctx]
-    (reset! current-pos {:x (:x ev) :y (:y ev)})
-    ;; 坐标变换（局部变量 local-ev 构建逻辑保持不变）
-    ;; ─── 画笔工具 apply! 片段 ───
-    (let [{:keys [event parent-inv-new]} (tool-util/transform-event ev layer (:data ctx) :parent-inv @parent-inv)]
-      (reset! parent-inv parent-inv-new)
-      (let [pevent (stroke/->pointer-event event)]
-        (when (= :press (:type event))
-          (let [{:keys [stroke dynamics]} (stroke/default-stroke (get-brush))]
-            (reset! stroke-atom stroke)
-            (reset! dynamics-atom dynamics)))
-        (when (#{:press :drag :release} (:type event))
-          (.push ^Stroke @stroke-atom pevent))
-        (case (:type event)
-          :press   :start
-          :drag    :continue
-          :release :no-replace
-          :move    :update
-          :hover   :update))))
+    (let [[new-state result] (handle-event @state-atom layer ev ctx)]
+      (reset! state-atom new-state)
+      result))
 
   (preview! [_ layer rt ctx]
-    (when-let [^DynamicsStroke dyn @dynamics-atom]
-      (let [max-events (custom/get-custom :krro.painting/brush-max-preview-events (:frame ctx))]
-        (if (> (.size dyn) 0)
-          (let [params-vec  (.getParamsVector dyn)
-                tail-params (if (> (count params-vec) max-events)
-                              (subvec params-vec (- (count params-vec) max-events))
-                              params-vec)
-                brush-spec  (get-brush)
-                [new-canvas dirties] (brush-core/render-stroke-dirties!
-                                       (:canvas layer)
-                                       {:brush brush-spec :params tail-params})]
-            {:layer (assoc layer :canvas new-canvas)
-             :state (assoc rt :dirty-tiles (into (or (:dirty-tiles rt) #{}) dirties))})
-          {:layer layer :state rt}))))
+    (let [{:keys [dynamics world-transform]} @state-atom]
+      (if (and dynamics (> (.size ^DynamicsStroke dynamics) 0))
+        (let [max-events (custom/get-custom :krro.painting/brush-max-preview-events (:frame ctx))
+              params-vec (.getParamsVector ^DynamicsStroke dynamics)
+              tail-params (if (> (count params-vec) max-events)
+                            (subvec params-vec (- (count params-vec) max-events))
+                            params-vec)
+              brush-spec (get-brush)
+              canvas  (:canvas layer)
+              tile-size (.getTileSize canvas)
+              [new-canvas dirties] (brush-core/render-stroke-dirties!
+                                     canvas
+                                     {:brush brush-spec :params tail-params})
+              world-dirties (set (Util/transformTiles dirties tile-size world-transform))]
+          {:layer (assoc layer :canvas new-canvas)
+           :state (assoc rt :dirty-tiles (into (or (:dirty-tiles rt) #{}) world-dirties))})
+        {:layer layer :state rt})))
 
   (commit! [_ layer rt ctx]
-    (when-let [^DynamicsStroke dyn @dynamics-atom]
-      (if (> (.size dyn) 0)
-        (let [params-vec   (.getParamsVector dyn)
-              brush-spec   (get-brush)
-              stroke-data  {:brush brush-spec :params params-vec}
+    (let [{:keys [dynamics world-transform]} @state-atom]
+      (if (and dynamics (> (.size ^DynamicsStroke dynamics) 0))
+        (let [params-vec (.getParamsVector ^DynamicsStroke dynamics)
+              brush-spec (get-brush)
+              stroke-data {:brush brush-spec :params params-vec}
               layer-canvas (:canvas layer)
+              tile-size (.getTileSize layer-canvas)
               backup-canvas (:canvas (:layer-backup rt))
               ^TiledCanvas tmp-canvas
               (doto (TiledCanvas. (.getTileSize backup-canvas)
@@ -124,19 +152,22 @@
               [new-canvas dirties] (brush-core/render-stroke-dirties!
                                      backup-canvas stroke-data)
               updated-canvas (.mergeCanvas layer-canvas new-canvas)
-              merged-dirties (into (or (:dirty-tiles rt) #{}) dirties)
+              world-dirties (set (Util/transformTiles dirties tile-size world-transform))
+              new-layer-backup (assoc layer :canvas new-canvas)
               new-layer (assoc layer :canvas updated-canvas)]
           (layer/replace-layer! (:canvas-id ctx) new-layer)
           (undo/record-raster-stroke! (:canvas-id ctx) (:id layer)
                                       tmp-canvas updated-canvas dirties)
           (.clear tmp-canvas)
-          (reset! stroke-atom nil)
-          (reset! dynamics-atom nil)
+          ;; 笔画提交后，清空 stroke 和 dynamics 字段
+          (swap! state-atom assoc :stroke nil :dynamics nil)
           {:layer new-layer
            :state (assoc rt
-                    :layer-backup {:type :raster :canvas new-canvas}
-                    :dirty-tiles merged-dirties)})
-        {:layer layer :state rt}))))
+                    :layer-backup new-layer-backup
+                    :dirty-tiles (into (or (:dirty-tiles rt) #{}) world-dirties))})
+        (do
+          (swap! state-atom assoc :stroke nil :dynamics nil)
+          {:layer layer :state rt})))))
 
 (defn make-brush []
-  (->BrushTool (atom nil) (atom nil) (atom nil) (atom nil)))
+  (->BrushTool (atom nil) (atom nil) (atom nil) (atom nil) (atom (init-state))))

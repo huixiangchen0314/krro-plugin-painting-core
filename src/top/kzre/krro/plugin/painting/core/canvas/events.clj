@@ -10,7 +10,7 @@
       {:record record
        :fx [[:log-info (str "Current layers of " record-id ": " layers)]]})))
 
-
+;; 单选
 (rf/reg-event-fx
   :krro.painting :select-layer
   (fn [cofx [_ record-id layer-id]]
@@ -20,12 +20,14 @@
         {:record (assoc-in (:record cofx) [:canvas-data :current-layer-id] layer-id)
          :fx [[:switch-layer-backup-fx record-id layer-id]  ;; 备份切换
               [:set-selected-layer-fx record-id layer-id]   ;; 运行时选中
-              [:render-canvas-fx record-id]                 ;; 核心重绘
-              [:rerender-canvas-frame-fx record-id]]}))))   ;; UI 刷新
+              [:render-canvas-fx record-id]                 ;; 画布重绘
+              [:rerender-canvas-frame-fx record-id]         ;; UI 刷新
+              ]}))))
 
-
+;; 多选
 (rf/reg-event-fx
   :krro.painting :multi-select-layer
   (fn [cofx [_ record-id layer-id]]
     {:record (:record cofx)
-     :fx [[:select-multi-layer-fx record-id layer-id]]}))
+     :fx [[:select-multi-layer-fx record-id layer-id]
+          [:rerender-canvas-frame-fx record-id]]}))

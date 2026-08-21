@@ -65,7 +65,6 @@
       (reset! initial-mouse nil)
       (reset! last-event nil)
       (reset! initial-layer nil)
-      (backup/release-backup! state)
       {:layer layer
        :state (backup/backup-layer! layer state)})))
 

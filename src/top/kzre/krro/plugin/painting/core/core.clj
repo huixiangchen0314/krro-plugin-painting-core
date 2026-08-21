@@ -3,6 +3,7 @@
             [top.kzre.krro.plugin.painting.core.project.core]
             [top.kzre.krro.plugin.painting.core.ops.undo :as undo]
             [top.kzre.krro.plugin.painting.core.canvas.core]
+            [top.kzre.krro.plugin.painting.core.layer.core]
             [top.kzre.krro.plugin.painting.core.project.canvas :as pc]
             [top.kzre.krro.plugin.painting.core.project.raster-layer :as pr]))
 
