@@ -22,3 +22,33 @@
   new-raster-layer-command
   :description "创建空白光栅图层"
   :interactive true)
+
+(defn new-vector-layer-command
+  "从当前 frame 获取 canvas-id，并切换当前图层为 layer-id。"
+  [_]
+  (if-let [f (win/active-frame)]
+    (if-let [canvas-id (frame/param f spec/canvas-id-key)]
+      (rf/dispatch :krro.painting [:new-vector-layer canvas-id])
+      (msg/warn "No canvas-id found in current frame"))
+    (msg/warn "No current frame active")))
+
+(cmd/reg-command
+  :krro.painting/new-vector-layer
+  new-vector-layer-command
+  :description "创建空白矢量图层"
+  :interactive true)
+
+(defn new-perspective-layer-command
+  "从当前 frame 获取 canvas-id，并切换当前图层为 layer-id。"
+  [_]
+  (if-let [f (win/active-frame)]
+    (if-let [canvas-id (frame/param f spec/canvas-id-key)]
+      (rf/dispatch :krro.painting [:new-perspective-layer canvas-id])
+      (msg/warn "No canvas-id found in current frame"))
+    (msg/warn "No current frame active")))
+
+(cmd/reg-command
+  :krro.painting/new-perspective-layer
+  new-perspective-layer-command
+  :description "创建空白透视图层"
+  :interactive true)

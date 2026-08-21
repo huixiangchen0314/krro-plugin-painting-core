@@ -40,7 +40,7 @@
     (state/invalidate-canvas-dirty! canvas-id)
     (layer/refresh-canvas-frames! canvas-id)
     (layer/set-current-layer-id! canvas-id new-id)
-    (undo/record-raster-layer-add! canvas-id insert-path new-layer)
+    (undo/record-raster-layer-added! canvas-id insert-path new-layer)
     (hook/run-hook! spec/layer-changed-hook-key canvas-id)
     {:layer new-layer :new-layer-id new-id :path insert-path}))
 
@@ -63,6 +63,6 @@
     (state/invalidate-canvas-dirty! canvas-id)
     (layer/refresh-canvas-frames! canvas-id)
     (layer/set-current-layer-id! canvas-id new-id)
-    (undo/record-raster-layer-add! canvas-id insert-path new-layer)
+    (undo/record-raster-layer-added! canvas-id insert-path new-layer)
     (hook/run-hook! spec/layer-changed-hook-key canvas-id)
     {:layer new-layer :new-layer-id new-id :path insert-path}))

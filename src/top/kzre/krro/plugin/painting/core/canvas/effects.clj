@@ -6,7 +6,6 @@
             [top.kzre.krro.core.reframe :as rf]
             [top.kzre.krro.plugin.painting.core.ops.backup :as backup]
             [top.kzre.krro.plugin.painting.core.project.canvas :as pc]
-            [top.kzre.krro.plugin.painting.core.spec :as spec]
             [top.kzre.krro.plugin.painting.core.state :as state]))
 
 (rf/reg-fx
@@ -56,3 +55,9 @@
       (swap! state/canvas-runtimes update-in [record-id :selected-layer-ids]
              (fn [ids]
                (vec (distinct (conj (or ids []) layer-id))))))))
+
+
+(rf/reg-fx
+  :krro.painting :add-dirty-tiles
+  (fn [_ canvas-id tiles]
+    (state/add-dirty-tiles! canvas-id tiles)))

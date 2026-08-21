@@ -3,9 +3,11 @@
   (:require
     [taoensso.timbre :as log]
     [top.kzre.krro.canvas.core.layer.core :as layer-core]
+    [top.kzre.krro.canvas.core.layer.util :as lu]
     [top.kzre.krro.core.frame :as frame]
     [top.kzre.krro.core.hook :as hook]
     [top.kzre.krro.core.message :as msg]
+    [top.kzre.krro.core.reframe :as rf]
     [top.kzre.krro.plugin.painting.core.ops.layer :as layer]
     [top.kzre.krro.plugin.painting.core.ops.snapshot :as snap]
     [top.kzre.krro.plugin.painting.core.project.canvas :as pc]
@@ -16,6 +18,7 @@
     [top.kzre.krro.plugin.undo.protocol :as undo-p])
   (:import
     (java.util Collection)
+    (top.kzre.krro.canvas.core.layer LayerUtils)
     (top.kzre.krro.util.tile TiledCanvas)))
 ;; TODO fix: undo 笔触时候没有恢复图层备份
 ;; 图层数据提交
@@ -91,15 +94,6 @@
    :new-layer-backup new-layer-backup
    })
 
-(defn make-raster-layer-add-meta [canvas-id path layer snapshot-wrapper]
-  {:type          undo-type-raster-layer-add
-   :seq           (inc-undo-metadata-seq-key)
-   :canvas-id     canvas-id
-   :layer-id      (:id layer)
-   :path          path
-   :layer         (pc/persistable-layer layer)
-   :snapshot      snapshot-wrapper})
-
 (defn make-raster-layer-remove-meta [canvas-id path layer snapshot-wrapper]
   {:type          undo-type-raster-layer-remove
    :seq           (inc-undo-metadata-seq-key)
@@ -129,11 +123,24 @@
 (defn record-layer-render-attrs-state! [canvas-id]
   (undo/record-state! (make-layer-render-attrs-changed-meta canvas-id)))
 
-(defn record-raster-layer-add!
+(defn record-raster-layer-added!
   [canvas-id path layer]
   (let [^TiledCanvas canvas (:canvas layer)
-        wrap   (snap/wrap-tiled-canvas canvas)]
-    (undo/record-state! (make-raster-layer-add-meta canvas-id path layer wrap))))
+        tile-size (.getTileSize canvas)
+        tiles (.getTiles canvas)
+        wrapped   (snap/wrap-tiled-canvas canvas)
+        layers (pc/layers-by-id canvas-id)
+        layer-transform (lu/layer-transform path layers)
+        dirty-tiles (set (LayerUtils/transformTiles tiles tile-size layer-transform))]
+    (undo/record-state!
+      {:type          undo-type-raster-layer-add
+       :seq           (inc-undo-metadata-seq-key)
+       :canvas-id     canvas-id
+       :layer-id      (:id layer)
+       :path          path
+       :dirty-tiles   dirty-tiles
+       :layer         (pc/persistable-layer layer)
+       :snapshot      wrapped})))
 
 (defn record-raster-layer-remove!
   [canvas-id path removed]
@@ -165,20 +172,21 @@
           (fn [lifecycle meta] [lifecycle (:type meta)]))
 
 ;; ── 图层添加 ────────────────────────────────────
-(defmethod restore-canvas-state! [:after-undo undo-type-raster-layer-add] [_ meta]
-  (pr/delete-raster! (:layer-id meta))
-  (let [canvas-id (:canvas-id meta)]
-    (state/invalidate-canvas-dirty! canvas-id)
-    (layer/refresh-canvas-and-layer! canvas-id)))
+(defmethod restore-canvas-state! [:after-undo undo-type-raster-layer-add]
+  [_ {:keys [canvas-id layer-id dirty-tiles]}]
+  (rf/dispatch :krro.painting
+               [:after-undo-add-raster-layer canvas-id layer-id dirty-tiles]))
 
-(defmethod restore-canvas-state! [:before-redo undo-type-raster-layer-add] [_ meta]
-  (let [canvas (snap/read-tiled-canvas (:snapshot meta))]
-    (pr/create-raster* (:layer-id meta) (:canvas-id meta) canvas)))
+(defmethod restore-canvas-state! [:before-redo undo-type-raster-layer-add]
+  [_ {:keys [canvas-id layer-id snapshot]}]
+  (let [canvas (snap/read-tiled-canvas snapshot)]
+    (rf/dispatch :krro.painting
+                 [:before-redo-add-raster-layer layer-id canvas-id canvas])))
 
-(defmethod restore-canvas-state! [:after-redo undo-type-raster-layer-add] [_ meta]
-  (let [canvas-id (:canvas-id meta)]
-    (state/invalidate-canvas-dirty! canvas-id)
-    (layer/refresh-canvas-and-layer! canvas-id)))
+(defmethod restore-canvas-state! [:after-redo undo-type-raster-layer-add]
+  [_ {:keys [canvas-id dirty-tiles]}]
+  (rf/dispatch :krro.painting
+               [:after-redo-add-raster-layer canvas-id dirty-tiles]))
 
 ;; ── 图层删除 ────────────────────────────────────
 (defmethod restore-canvas-state! [:before-undo undo-type-raster-layer-remove] [_ meta]

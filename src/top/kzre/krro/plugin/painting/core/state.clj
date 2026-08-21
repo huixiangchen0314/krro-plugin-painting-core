@@ -11,7 +11,7 @@
     (java.util Collection)
     (top.kzre.krro.plugin.painting.core.project.canvas CanvasData)
     (top.kzre.krro.plugin.painting.core.tool Util)
-    (top.kzre.krro.util.tile TiledCanvas)))
+    (top.kzre.krro.util.tile CanvasUtils TiledCanvas)))
 
 (defn frames-with-canvas-id
   "返回所有显示指定画布的 Frame。"
@@ -132,7 +132,7 @@
            ;; 利用 TiledCanvas 的 deleteTiles 高效清除脏瓦片区域
            (.deleteTiles dest ^Collection dirty-tiles)
            (canv/render-layers! layers dest w h
-                                :dirty-tiles (Util/clipTiles dirty-tiles tile-size w h)
+                                :dirty-tiles (CanvasUtils/clipTiles dirty-tiles tile-size w h)
                                 :tile-size pc/global-tile-size)
            (swap! canvas-runtimes assoc-in [canvas-id :dirty-tiles] #{})))))))
 

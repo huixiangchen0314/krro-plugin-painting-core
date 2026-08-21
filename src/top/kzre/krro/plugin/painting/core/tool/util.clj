@@ -3,11 +3,12 @@
   (:require [top.kzre.krro.canvas.core.layer.util :as layer-util])
   (:import (top.kzre.krro.util.math KMath)))
 
-(defn compute-total-inverse
+(defn layer-transform-inverse
   "计算图层 local 到 world 的总逆矩阵（可用于世界坐标 → 图层局部坐标）。
    返回 float[6] 仿射矩阵 [a b c d tx ty]。"
-  [layer layers layer-path]
-  (let [inv-local (layer-util/compose-inverse-transform layer)
+  [layer layers]
+  (let [layer-path (layer-util/find-layer-path (:id layer) layers)
+        inv-local (layer-util/compose-inverse-transform layer)
         inv-parent (layer-util/parent-inverse-transform layers layer-path)]
     (if inv-parent
       (KMath/mat2dMul (float-array inv-local) (float-array inv-parent))
@@ -31,10 +32,10 @@
                  :rotation  (get ev :rotation 0)
                  :timestamp (get ev :timestamp (System/currentTimeMillis))
                  :type      (:type ev)}
-        inv (or (or transform-inv parent-inv)
-                (let [layers     (:layers canvas-data)
-                      layer-path (layer-util/find-layer-path (:id layer) layers)]
-                  (compute-total-inverse layer layers layer-path)))
+        inv (or transform-inv
+                parent-inv
+                (let [layers     (:layers canvas-data)]
+                  (layer-transform-inverse layer layers)))
         pt  (layer-util/transform-point inv (:x ev) (:y ev))]
     {:event      (merge sensors {:x (:x pt), :y (:y pt)})
      :parent-inv inv

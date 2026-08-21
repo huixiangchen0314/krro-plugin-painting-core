@@ -17,6 +17,7 @@
     (top.kzre.krro.brush
       DynamicsStroke
       Stroke)
+    (top.kzre.krro.canvas.core.layer LayerUtils)
     (top.kzre.krro.plugin.painting.core.tool Util)
     (top.kzre.krro.util.math KMath)
     (top.kzre.krro.util.tile TiledCanvas)))
@@ -131,7 +132,7 @@
               [new-canvas dirties] (brush-core/render-stroke-dirties!
                                      canvas
                                      {:brush brush-spec :params tail-params})
-              world-dirties (set (Util/transformTiles dirties tile-size world-transform))]
+              world-dirties (set (LayerUtils/transformTiles dirties tile-size world-transform))]
           {:layer (assoc layer :canvas new-canvas)
            :state (assoc rt :dirty-tiles (into (or (:dirty-tiles rt) #{}) world-dirties))})
         {:layer layer :state rt})))

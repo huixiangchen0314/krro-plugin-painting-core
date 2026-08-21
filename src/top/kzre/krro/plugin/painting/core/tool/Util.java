@@ -10,55 +10,6 @@ import java.util.Set;
 public final class Util {
     private Util() {}
 
-    /**
-     * 仅保留与给定矩形区域相交的瓦片。
-     *
-     * @param tiles    原始瓦片键集合
-     * @param tileSize 瓦片边长（像素）
-     * @param x        裁剪区域左上角 x 坐标（含）
-     * @param y        裁剪区域左上角 y 坐标（含）
-     * @param width    裁剪区域宽度
-     * @param height   裁剪区域高度
-     * @return 裁剪后的瓦片集合
-     */
-    public static Set<Long> clipTiles(Set<Long> tiles, int tileSize,
-                                      float x, float y, float width, float height) {
-        if(tiles == null){
-            return  null;
-        }
-        if (tiles.isEmpty()) {
-            return new HashSet<>();
-        }
-        float clipLeft = x;
-        float clipRight = x + width;
-        float clipTop = y;          // 假设 y 轴向下
-        float clipBottom = y + height;
-
-        Set<Long> result = new HashSet<>();
-        for (Long key : tiles) {
-            int tx = TiledCanvas.unpackTx(key);
-            int ty = TiledCanvas.unpackTy(key);
-            float tileLeft = (float) tx * tileSize;
-            float tileRight = tileLeft + tileSize;
-            float tileTop = (float) ty * tileSize;
-            float tileBottom = tileTop + tileSize;
-
-            // 检查矩形是否有交集（不包含仅边界相切的情况）
-            if (tileLeft < clipRight && tileRight > clipLeft &&
-                    tileTop < clipBottom && tileBottom > clipTop) {
-                result.add(key);
-            }
-        }
-        return result;
-    }
-
-    /**
-     * 仅保留与 (0,0) 为起点、宽高为 width×height 的矩形相交的瓦片。
-     */
-    public static Set<Long> clipTiles(Set<Long> tiles, int tileSize,
-                                      float width, float height) {
-        return clipTiles(tiles, tileSize, 0f, 0f, width, height);
-    }
 
     public static Set<Long> transformTiles(
             Set<Long> localDirtyTiles,

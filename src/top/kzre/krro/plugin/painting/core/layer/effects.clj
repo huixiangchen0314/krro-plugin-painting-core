@@ -25,9 +25,30 @@
       (pr/create-raster! layer-id canvas-id canvas))))
 
 (rf/reg-fx
+  :krro.painting :delete-raster-data-fx
+  (fn [_ layer-id]
+    (pr/delete-raster! layer-id)))
+
+(rf/reg-fx
+  :krro.painting :unchecked-create-raster-data
+  (fn [_ layer-id canvas-id canvas]
+    (pr/create-raster* layer-id canvas-id canvas)))
+
+(rf/reg-fx
   :krro.painting :record-raster-layer-added
   (fn [_ canvas-id layer-id]
     (let [layers (pc/layers-by-id! canvas-id)
           path (lc/find-layer-path layer-id layers)
           layer (lc/find-layer-by-path path layers)]
-      (undo/record-raster-layer-add! canvas-id path layer))))
+      (undo/record-raster-layer-added! canvas-id path layer))))
+
+(rf/reg-fx
+  :krro.painting :record-canvas
+  (fn [_ canvas-id]
+    (undo/record-layer-edit-attrs-state! canvas-id)))
+
+(rf/reg-fx
+  :krro.painting :record-canvas-rendered
+  (fn [_ canvas-id]
+    (undo/record-layer-render-attrs-state! canvas-id)))
+

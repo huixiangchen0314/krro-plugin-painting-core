@@ -30,7 +30,7 @@
     (state/invalidate-canvas-dirty! canvas-id)
     (layer/refresh-canvas-frames! canvas-id)
     (layer/set-current-layer-id! canvas-id layer-id)
-    (undo/record-raster-layer-add! canvas-id path new-layer)
+    (undo/record-raster-layer-added! canvas-id path new-layer)
     (hook/run-hook! spec/layer-changed-hook-key canvas-id)
     {:layer new-layer :layer-id layer-id :path path}))
 
