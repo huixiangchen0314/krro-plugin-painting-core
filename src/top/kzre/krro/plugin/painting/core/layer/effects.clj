@@ -1,21 +1,11 @@
 (ns top.kzre.krro.plugin.painting.core.layer.effects
   "副作用注册"
   (:require
-    [top.kzre.krro.canvas.core.layer.core :as lc]
-    [top.kzre.krro.core.reframe :as rf]
-    [top.kzre.krro.plugin.painting.core.layer.util :as util]
-    [top.kzre.krro.plugin.painting.core.undo.core :as undo]
-    [top.kzre.krro.plugin.painting.core.project.canvas :as pc]
-    [top.kzre.krro.plugin.painting.core.project.raster-layer :as pr]))
-
-
-(rf/reg-fx
-  :krro.painting :insert-layer-fx
-  (fn [_ canvas-id path layer]
-    (let [cd (pc/canvas-data! canvas-id)
-          new-cd (util/insert-layer-at cd path layer)]
-      (pc/save-canvas-data! canvas-id new-cd))))
-
+   [top.kzre.krro.canvas.core.layer.core :as lc]
+   [top.kzre.krro.core.reframe :as rf]
+   [top.kzre.krro.plugin.painting.core.project.canvas :as pc]
+   [top.kzre.krro.plugin.painting.core.project.raster-layer :as pr]
+   [top.kzre.krro.plugin.painting.core.undo.core :as undo]))
 
 (rf/reg-fx
   :krro.painting :save-raster-data-fx

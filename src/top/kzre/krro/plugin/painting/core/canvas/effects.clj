@@ -1,12 +1,21 @@
 (ns top.kzre.krro.plugin.painting.core.canvas.effects
   "画布相关的副作用处理器"
-  (:require [taoensso.timbre :as log]
-            [top.kzre.krro.canvas.core.layer.core :as lc]
-            [top.kzre.krro.core.hook :as hook]
-            [top.kzre.krro.core.reframe :as rf]
-            [top.kzre.krro.plugin.painting.core.ops.backup :as backup]
-            [top.kzre.krro.plugin.painting.core.project.canvas :as pc]
-            [top.kzre.krro.plugin.painting.core.state :as state]))
+  (:require
+   [clojure.core.async :as async]
+   [taoensso.timbre :as log]
+   [top.kzre.krro.canvas.core.layer.core :as lc]
+   [top.kzre.krro.core.reframe :as rf]
+   [top.kzre.krro.plugin.painting.core.layer.clone :as clone]
+   [top.kzre.krro.plugin.painting.core.layer.destroy :as destroy]
+   [top.kzre.krro.plugin.painting.core.layer.dispose :as dispose]
+   [top.kzre.krro.plugin.painting.core.ops.backup :as backup]
+   [top.kzre.krro.plugin.painting.core.project.canvas :as pc]
+   [top.kzre.krro.plugin.painting.core.project.raster-layer :as pr]
+   [top.kzre.krro.plugin.painting.core.render :as render]
+   [top.kzre.krro.plugin.painting.core.state :as state]
+   [top.kzre.krro.plugin.painting.core.store :as store]))
+
+
 
 (rf/reg-fx
   :krro.painting :log-info
@@ -29,35 +38,34 @@
 
 
 (rf/reg-fx
-  :krro.painting :set-selected-layer
-  (fn [_app-id record-id layer-id]
-    (swap! state/canvas-runtimes assoc-in [record-id :selected-layer-id] layer-id)
-    (swap! state/canvas-runtimes assoc-in [record-id :selected-layer-ids] [layer-id])))
+  :krro.painting :render-canvas
+  (fn [_ record-id dirty-tiles]
+    {:pre [(not (nil? dirty-tiles))]}
+    (let [cd (pc/canvas-data! record-id)
+          state (state/canvas-runtime record-id)
+          ch (render/get-render-chan record-id)]
+      (when-not (empty? dirty-tiles)
+        (async/put! ch {:canvas-id record-id
+                        :layers (mapv clone/clone-layer (:layers cd))
+                        :width (:width cd)
+                        :height (:height cd)
+                        :dirty-tiles dirty-tiles
+                        :canvas (:preview-canvas state)})))))
+
 
 (rf/reg-fx
-  :krro.painting :render-canvas-fx
-  (fn [_app-id record-id]
-    ;; 1. 更新预览画布的像素数据（纯数据操作，无 UI 依赖）
-    (state/render-canvas! record-id)
-    ;; 2. 通过 hook 通知外部：预览画布已刷新，各视图可自行更新
-    (hook/run-hook! :krro.painting/after-render-canvas-hook record-id)))
+  store/app-id :close-canvas
+  (fn [_ record-id]
+    ;; 释放画布数据
+    (let [cd (pc/canvas-data! record-id)
+          layers (:layers cd)]
+      (doseq [l layers]
+        (destroy/destroy-layer l)))
+    ;; 关闭画布渲染通道
+    (render/close-render-chan record-id)))
+
 
 (rf/reg-fx
   :krro.painting :rerender-canvas-frame-fx
-  (fn [_app-id record-id]
+  (fn [_ record-id]
     (state/rerender-frame-with-canvas-id! record-id)))
-
-(rf/reg-fx
-  :krro.painting :select-multi-layer-fx
-  (fn [_app-id record-id layer-id]
-    (when (state/canvas-runtime record-id)
-      (swap! state/canvas-runtimes assoc-in [record-id :selected-layer-id] layer-id)
-      (swap! state/canvas-runtimes update-in [record-id :selected-layer-ids]
-             (fn [ids]
-               (vec (distinct (conj (or ids []) layer-id))))))))
-
-
-(rf/reg-fx
-  :krro.painting :add-dirty-tiles
-  (fn [_ canvas-id tiles]
-    (state/add-dirty-tiles! canvas-id tiles)))

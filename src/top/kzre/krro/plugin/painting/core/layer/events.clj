@@ -1,76 +1,94 @@
 (ns top.kzre.krro.plugin.painting.core.layer.events
   "事件注册（业务逻辑）"
   (:require
-   [top.kzre.krro.canvas.core.layer.util :as lu]
-   [top.kzre.krro.canvas.perspective.core :as perspective]
-   [top.kzre.krro.canvas.raster.core :as raster]
-   [top.kzre.krro.canvas.vector.core :as vector]
-   [top.kzre.krro.core.reframe :as rf]
-   [top.kzre.krro.plugin.painting.core.project.canvas :as pc]
-   [top.kzre.krro.plugin.painting.core.state :as state]))
+    [top.kzre.krro.canvas.core.layer.util :as lu]
+    [top.kzre.krro.canvas.perspective.core :as perspective]
+    [top.kzre.krro.canvas.raster.core :as raster]
+    [top.kzre.krro.canvas.vector.core :as vector]
+    [top.kzre.krro.core.reframe :as rf]
+    [top.kzre.krro.plugin.painting.core.canvas.events :as events]
+    [top.kzre.krro.plugin.painting.core.layer.util :as util]
+    [top.kzre.krro.plugin.painting.core.project.canvas :as pc]
+    [top.kzre.krro.plugin.painting.core.state :as state]
+    [top.kzre.krro.plugin.painting.core.store :as store]))
+
+(defn insert-layer-at
+  "在 record 的 canvas-data 中按指定路径插入图层。
+   返回更新后的 record。"
+  [record path layer]
+  (update record :canvas-data util/insert-layer-at path layer))
+
+(defn add-dirty-tiles
+  "向 record 的 canvas-state 中追加脏 tile 集合（去重）。"
+  [record tiles]
+  (update-in record [:canvas-state :dirty-tiles] (fn [existing] (into (or existing #{}) tiles))))
 
 ;; 新建空白光栅图层
 (rf/reg-event-fx
   :krro.painting :new-raster-layer
-  (fn [cofx [_ record-id]]                         ;; 解构事件向量
-    (let [selected-id (pc/current-layer-id record-id)       ;; 从项目数据获取
-          layers      (pc/layers-by-id! record-id)
-          path        (lu/above-layer-path selected-id layers)
+  (fn [cofx [_ record-id]]
+    (let [record (:record cofx)
+          canvas-data (:canvas-data record)
+          selected-id (get-in record [:canvas-data :current-layer-id])
+          layers (get canvas-data :layers)
+          path (lu/above-layer-path selected-id layers)
           new-layer (raster/make-raster-layer pc/global-tile-size)
           layer-id (:id new-layer)]
-      {:record (assoc-in (:record cofx) [:canvas-data :current-layer-id] layer-id)
-       :fx
-       [[:insert-layer-fx record-id path new-layer]             ;; 插入新图层
-        [:save-raster-data-fx record-id layer-id]              ;; 创建光栅数据侧表
-        [:switch-layer-backup-fx record-id layer-id]            ;; 备份图层数据
-        [:set-selected-layer record-id layer-id]             ;; 选中新图层
-        [:record-raster-layer-added record-id layer-id]  ;; 新增光栅图层 undo 状态记录
-        [:rerender-canvas-frame-fx record-id]           ;; UI 刷新
-        [:log-info (str "new-raster-layer " record-id ": " layers)]]})))
+      {:record
+       (-> record
+           (insert-layer-at path new-layer)
+           (events/set-current-layer layer-id)
+           (events/set-selected-layer layer-id)
+           (events/switch-layer-backup layer-id))
+       :fx [[:save-raster-data-fx record-id layer-id]        ;; 创建光栅数据（I/O）
+            [:record-raster-layer-added record-id layer-id]  ;; undo/redo 记录
+            [:rerender-canvas-frame-fx record-id]            ;; UI 刷新
+            ]})))
 
-;; 新建空白矢量图层
 (rf/reg-event-fx
   :krro.painting :new-vector-layer
-  (fn [cofx [_ record-id]]                         ;; 解构事件向量
-    (let [selected-id (pc/current-layer-id record-id)       ;; 从项目数据获取
-          layers      (pc/layers-by-id! record-id)
+  (fn [cofx [_ record-id]]
+    (let [record (:record cofx)
+          selected-id (get-in record [:canvas-data :current-layer-id])
+          layers      (get-in record [:canvas-data :layers])
           path        (lu/above-layer-path selected-id layers)
           new-layer   (vector/make-vector-layer)
           layer-id (:id new-layer)]
-      {:record (assoc-in (:record cofx) [:canvas-data :current-layer-id] layer-id)
+      {:record
+       (-> record
+           (insert-layer-at path new-layer)
+           (events/set-current-layer layer-id)
+           (events/set-selected-layer layer-id)
+           (events/switch-layer-backup layer-id))
        :fx
-       [[:insert-layer-fx record-id path new-layer]
-        [:switch-layer-backup-fx record-id layer-id]
-        [:set-selected-layer record-id layer-id]
-        [:record-canvas-edited record-id]
-        [:rerender-canvas-frame-fx record-id]
-        [:log-info (str "new-vector-layer " record-id ": " layers)]]})))
+       [[:record-canvas-edited record-id]
+        [:rerender-canvas-frame-fx record-id]]})))
 
 (rf/reg-event-fx
   :krro.painting :new-perspective-layer
-  (fn [cofx [_ record-id]]                         ;; 解构事件向量
-    (let [selected-id (pc/current-layer-id record-id)       ;; 从项目数据获取
-          layers      (pc/layers-by-id! record-id)
-          path        (lu/above-layer-path selected-id layers)
-          new-layer   (perspective/make-perspective-layer)
-          layer-id (:id new-layer)]
-      {:record (assoc-in (:record cofx) [:canvas-data :current-layer-id] layer-id)
-       :fx
-       [[:insert-layer-fx record-id path new-layer]
-        [:switch-layer-backup-fx record-id layer-id]
-        [:set-selected-layer record-id layer-id]
-        [:record-canvas-edited record-id]
-        [:rerender-canvas-frame-fx record-id]
-        [:log-info (str "new-vector-layer " record-id ": " layers)]]})))
+  (fn [cofx [_ record-id]]
+    (let [record (:record cofx)
+          canvas-data (:canvas-data record)
+          selected-id (get-in record [:canvas-data :current-layer-id])
+          layers (get canvas-data :layers)
+          path (lu/above-layer-path selected-id layers)
+          new-layer (perspective/make-perspective-layer)
+          layer-id (:id new-layer)
+          new-record (-> record
+                         (insert-layer-at path new-layer)
+                         (events/set-current-layer layer-id)
+                         (events/set-selected-layer layer-id)
+                         (events/switch-layer-backup layer-id))]
+      {:record new-record
+       :fx [[:record-perspective-layer-added record-id layer-id]  ;; undo 记录
+            [:rerender-canvas-frame-fx record-id]]})))        ;; UI 刷新
 
 (rf/reg-event-fx
-  :krro.painting :after-undo-add-raster-layer
+  store/app-id :after-undo-add-raster-layer
   (fn [_ [_ record-id layer-id dirty-tiles]]
-    {:fx [[:delete-raster-data-fx layer-id]
-          [:add-dirty-tiles record-id dirty-tiles]
-          [:render-canvas-fx record-id]
-          [:rerender-canvas-frame-fx record-id]
-          ]}))
+    {:fx [[:delete-raster-data-fx layer-id]       ;; 删除光栅数据（I/O）
+          [:render-canvas record-id dirty-tiles]           ;; 重绘画布
+          [:rerender-canvas-frame-fx record-id]]}))  ;; 刷新 UI
 
 (rf/reg-event-fx
   :krro.painting :before-redo-add-raster-layer
@@ -80,10 +98,8 @@
 (rf/reg-event-fx
   :krro.painting :after-redo-add-raster-layer
   (fn [_ [_ record-id dirty-tiles]]
-    {:fx [[:add-dirty-tiles record-id dirty-tiles]
-          [:render-canvas-fx record-id]
-          [:rerender-canvas-frame-fx record-id]
-          ]}))
+    {:fx [[:render-canvas record-id dirty-tiles]
+          [:rerender-canvas-frame-fx record-id]]}))
 
 
 ;; 移除被选中的图层
@@ -94,13 +110,11 @@
           id (:selected-layer-id st)
           ids (:selected-layer-ids st)
           cd (-> cofx :record :canvas-data)
-          layer-id nil]
+          layer-id nil
+          dirty-tiles #{}]
       {:record (assoc-in (:record cofx) [:canvas-data :current-layer-id] layer-id)
-       :fx [
-            ;; 清理数据的fx
-            [:switch-layer-backup-fx record-id layer-id]  ;; 备份切换
-            [:set-selected-layer record-id layer-id]   ;; 运行时选中
-            [:render-canvas-fx record-id]                 ;; 画布重绘
+       :fx [[:set-selected-layer record-id layer-id]   ;; 运行时选中
+            [:render-canvas record-id dirty-tiles]                 ;; 画布重绘
             [:rerender-canvas-frame-fx record-id]         ;; UI 刷新
             ]})))
 

@@ -1,5 +1,7 @@
 {:paths ["src" "resources"]
  :deps {org.clojure/clojure {:mvn/version "1.11.1"}
+        ;org.clojure/core.async {:mvn/version "1.10.874-alpha3"}
+
 
         top.kzre/krro-core {:mvn/version "0.1.0"}
         top.kzre/krro-ui-javafx {:mvn/version "0.1.0"}

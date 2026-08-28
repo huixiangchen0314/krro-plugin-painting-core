@@ -19,6 +19,7 @@
     (top.kzre.krro.canvas.core.layer LayerUtils)
     (top.kzre.krro.util.tile TiledCanvas)))
 ;; TODO fix: undo 笔触时候没有恢复图层备份
+(defonce undo-type-key ::type)
 ;; 图层数据提交
 (defonce undo-type-layer-commit ::layer-commit)
 ;; 图层渲染属性更新
@@ -47,7 +48,7 @@
 (defn make-raster-stroke-meta
   "构造光栅笔触撤销元数据，现保存完整画布快照（全量）。"
   [canvas-id layer-id ^TiledCanvas old-canvas ^TiledCanvas new-canvas dirties]
-  {:type          undo-type-raster-stroke
+  {undo-type-key          undo-type-raster-stroke
    :seq           (inc-undo-metadata-seq-key)
    :canvas-id     canvas-id
    :layer-id      layer-id
@@ -85,7 +86,7 @@
 ;; ═══════════════════════════════════════════════════════
 
 (defn make-layer-commit-meta [canvas-id old-layer-backup new-layer-backup]
-  {:type undo-type-layer-commit
+  {undo-type-key undo-type-layer-commit
    :seq (inc-undo-metadata-seq-key)
    :canvas-id canvas-id
    :old-layer-backup old-layer-backup
@@ -93,7 +94,7 @@
    })
 
 (defn make-raster-layer-remove-meta [canvas-id path layer snapshot-wrapper]
-  {:type          undo-type-raster-layer-remove
+  {undo-type-key          undo-type-raster-layer-remove
    :seq           (inc-undo-metadata-seq-key)
    :canvas-id     canvas-id
    :layer-id      (:id layer)
@@ -102,12 +103,12 @@
    :snapshot      snapshot-wrapper})
 
 (defn make-layer-edit-attrs-changed-meta [canvas-id]
-  {:type              undo-type-layer-edit-attrs-changed
+  {undo-type-key              undo-type-layer-edit-attrs-changed
    :seq               (inc-undo-metadata-seq-key)
    :canvas-id         canvas-id})
 
 (defn make-layer-render-attrs-changed-meta [canvas-id]
-  {:type              undo-type-layer-render-attrs-changed
+  {undo-type-key              undo-type-layer-render-attrs-changed
    :seq               (inc-undo-metadata-seq-key)
    :canvas-id         canvas-id})
 
@@ -117,7 +118,7 @@
 ;; ═══════════════════════════════════════════════════════
 (defn record-layer-edit-attrs-state! [canvas-id]
   (undo/record-state!
-    {:type              undo-type-layer-edit-attrs-changed
+    {undo-type-key              undo-type-layer-edit-attrs-changed
      :seq               (inc-undo-metadata-seq-key)
      :canvas-id         canvas-id}))
 
@@ -134,7 +135,7 @@
         layer-transform (lu/layer-transform path layers)
         dirty-tiles (set (LayerUtils/transformTiles tiles tile-size layer-transform))]
     (undo/record-state!
-      {:type          undo-type-raster-layer-add
+      {undo-type-key          undo-type-raster-layer-add
        :seq           (inc-undo-metadata-seq-key)
        :canvas-id     canvas-id
        :layer-id      (:id layer)
@@ -170,7 +171,7 @@
 ;; 恢复多方法分派
 ;; ═══════════════════════════════════════════════════════
 (defmulti restore-canvas-state!
-          (fn [lifecycle meta] [lifecycle (:type meta)]))
+          (fn [lifecycle meta] [lifecycle (undo-type-key meta)]))
 
 ;; ── 图层删除 ────────────────────────────────────
 (defmethod restore-canvas-state! [:before-undo undo-type-raster-layer-remove] [_ meta]
@@ -220,14 +221,14 @@
   (fn [event]
     (let [node (:old-node event)
           meta (when node (undo-p/metadata node))]
-      (when meta
+      (when (undo-type-key meta)
         (restore-canvas-state! lifecycle meta)))))
 
 (defn- make-redo-handler [lifecycle]
   (fn [event]
     (let [node (:new-node event)
           meta (when node (undo-p/metadata node))]
-      (when meta
+      (when (undo-type-key meta)
         (restore-canvas-state! lifecycle meta)))))
 
 (defn init-undo-hooks! []

@@ -4,26 +4,25 @@
     [taoensso.timbre :as log]
     [top.kzre.krro.core.core :as kcc]
     [top.kzre.krro.core.reframe :as rf]
-    [top.kzre.krro.plugin.painting.core.project.canvas :as pc]))
+    [top.kzre.krro.plugin.painting.core.project.canvas :as pc]
+    [top.kzre.krro.plugin.painting.core.state :as state]))
 
 
 ;; 固定 app-id，所有画布共享同一个应用实例（事件/订阅定义隔离于该 app-id）
 (defonce app-id :krro.painting)
 
-
 ;; 记录每个画布 store 的注销函数，key 为 canvas-id
 (defonce ^:private store-registry (atom {}))
-;; 每个画布的状态.
-(defonce ^:private canvas-states (atom {}))
+
 
 (defn make-record [canvas-id]
-  (merge
-    {:canvas-id   canvas-id
-     :canvas-data (pc/canvas-data! canvas-id)}
-     (get canvas-states canvas-id {})))
+  {:canvas-id   canvas-id
+   :canvas-data (pc/canvas-data! canvas-id)
+   :canvas-state (state/canvas-runtime canvas-id)})
 
-(defn update-record! [{:keys [canvas-id canvas-data]}]
-  (kcc/update-by-id! :krro.painting/canvas canvas-id (constantly canvas-data)))
+(defn update-record! [{:keys [canvas-id canvas-data canvas-state]}]
+  (when canvas-data (kcc/update-by-id! :krro.painting/canvas canvas-id (constantly canvas-data)))
+  (when canvas-state (swap! state/canvas-runtimes assoc canvas-id canvas-state)))
 
 (defn reg-canvas-store
   "为指定 canvas-id 注册 reframe store（作为一个独立 record）。

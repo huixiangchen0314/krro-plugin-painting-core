@@ -9,7 +9,9 @@
     [top.kzre.krro.plugin.painting.core.spec :as spec])
   (:import
     (java.util Collection)
+    (top.kzre.krro.brush Stroke)
     (top.kzre.krro.plugin.painting.core.project.canvas CanvasData)
+    (top.kzre.krro.util.math KMath)
     (top.kzre.krro.util.tile CanvasUtils TiledCanvas)))
 
 (defn frames-with-canvas-id
@@ -25,24 +27,40 @@
 ;; TODO 渲染缓存
 (defrecord CanvasState
   [^TiledCanvas preview-canvas                              ;; 预览画布
-  ^boolean current-layer-dirty                              ;; 当前图层是否是脏的
    selected-layer-id                                        ;; 当前选中图层id
    selected-layer-ids                                       ;; 当前选中的所有图层id.
    layer-backup                                             ;; 图层备份数据
    current-tool                                             ;; 当前选择工具
-   dirty-tiles])                                            ;; 画布脏tile
+   dirty-tiles                                              ;; 画布脏tile
+   ^Stroke stroke                                           ;; 当前笔刷笔触
+   layer-transform                                          ;; 当前图层正变换仿射矩阵
+   layer-transform-inv                                      ;; 当前图层逆变换仿射矩阵
+   cursor-position                                          ;; 最新光标位置
+   rendering?                                               ;; 是否正在执行渲染
+   pending-render?                                          ;; 是否有等待中的渲染请求
+   uploading?                                               ;; 是否正在上传画布
+   pending-upload?                                          ;; 是否有等待中的上传请求
+   ])
 
 (defn make-state []
   (map->CanvasState {:preview-canvas   (TiledCanvas. pc/global-tile-size )
-                       :current-layer-dirty       false
-                       :selected-layer-id         nil
-                       :selected-layer-ids        nil
-                       :layer-backup     nil
-                       :current-tool     nil
-                       :dirty-tiles      #{}
-                       }))
+                     :selected-layer-id nil
+                     :selected-layer-ids nil
+                     :layer-backup     nil
+                     :current-tool     nil
+                     :dirty-tiles      #{}
+                     :stroke nil
+                     :layer-transform (KMath/mat2dIdentity)
+                     :layer-transform-inv (KMath/mat2dIdentity)
+                     :cursor-position {:x 0 :y 0}
+                     :rendering?     false          ;; 是否正在执行渲染
+                     :pending-render? false         ;; 是否有等待中的渲染请求
+                     :uploading? false
+                     :pending-upload? false
+                     }))
 
 (defn layer-backup [^CanvasState rt] (:layer-backup rt))
+
 
 
 (defonce canvas-runtimes (atom {}))
@@ -65,7 +83,7 @@
   "获取干净的当前图层.当前图层是脏的时候，返回备份图层，否则返回项目图层数据"
   [canvas-id]
   (when-let [rt (canvas-runtime canvas-id)]
-    (if (:current-layer-dirty rt)
+    (if (seq  (:dirty-tiles rt))
      (:layer-backup rt)
      (current-layer! canvas-id))))
 

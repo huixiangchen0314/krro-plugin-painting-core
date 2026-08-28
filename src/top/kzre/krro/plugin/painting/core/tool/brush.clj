@@ -114,7 +114,7 @@
               brush-spec (get-brush)
               canvas  (:canvas layer)
               tile-size (.getTileSize canvas)
-              [new-canvas dirties] (brush-core/render-stroke-dirties!
+              [new-canvas dirties] (brush-core/render-stroke!
                                      canvas
                                      {:brush brush-spec :params params-vec})
               world-dirties (set (LayerUtils/transformTiles dirties tile-size world-transform))]
