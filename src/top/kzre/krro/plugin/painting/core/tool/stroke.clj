@@ -6,9 +6,8 @@
   (:require
     [top.kzre.krro.plugin.painting.core.brush.core :as brush])
   (:import
-    (top.kzre.krro.brush DefaultStroke SmoothStroke ReducedStroke
-                         DynamicsStroke DynamicsMapper Stroke
-                         SpacingFunction PointerEvent PointerEvent$EventType)))
+    (top.kzre.krro.brush AbstractStroke DefaultStroke PointerEvent PointerEvent$EventType ReducedStroke
+                         SmoothStroke SpacingFunction)))
 
 (defn ->pointer-event
   "将本地事件 map 转换为 PointerEvent。
@@ -30,31 +29,28 @@
                PointerEvent$EventType/MOVE))
       (.build)))
 
-(defn default-stroke
+(defn make-stroke
   "根据笔刷规格构建完整的 Stroke 装饰器链。
    返回 map：
      :stroke   - 最外层的 ResampleStroke，用于提取等距采样点。
-     :dynamics - DynamicsStroke，用于获取每个事件的动力学参数。
    笔刷规格可选键：
      :smooth  - 平滑因子 (0.0 ~ 1.0)，不提供则不平滑。
      :reduce  - 降采样阈值（像素），不提供则不降采样。
      :spacing - 间距系数（相对于半径），默认 0.2。"
   ([]
-   (default-stroke @brush/global-brush))
+   (make-stroke @brush/global-brush))
   ([brush-spec]
-   (let [raw       (DefaultStroke/create)
-         smooth    (if-let [alpha (:smooth brush-spec)]
+   (let [raw   (if-let [threshold (:reduce brush-spec)]
+                     (ReducedStroke/newInstance (float threshold) brush-spec)
+                     (DefaultStroke/create brush-spec))
+         ^AbstractStroke smooth (if-let [alpha (:smooth brush-spec)]
                      (SmoothStroke/cable raw (float alpha))
                      raw)
-         reduced   (if-let [threshold (:reduce brush-spec)]
-                     (ReducedStroke/fromStroke smooth (float threshold))
-                     smooth)
-         dyn       (DynamicsStroke. reduced (DynamicsMapper/instance) brush-spec)
          spacing-fn (reify SpacingFunction
                       (getStep [_ prev _current]
-                        (let [prev-params (.getParams dyn prev)
-                              radius      (float (get prev-params :radius 10.0))
+                        (let [e (.getStrokeEvent smooth prev)
+                              radius      (float (get e :radius 10.0))
                               spacing     (float (get brush-spec :spacing 0.2))]
                           (* 2.0 radius spacing))))
-         resampled (SmoothStroke/resample dyn spacing-fn)]
-     {:stroke resampled, :dynamics dyn})))
+         resampled (SmoothStroke/resample smooth spacing-fn)]
+     resampled)))

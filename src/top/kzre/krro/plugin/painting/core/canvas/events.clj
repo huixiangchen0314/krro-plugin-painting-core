@@ -19,7 +19,7 @@
         {:record (:record cofx)}
         {:record (assoc-in (:record cofx) [:canvas-data :current-layer-id] layer-id)
          :fx [[:switch-layer-backup-fx record-id layer-id]  ;; 备份切换
-              [:set-selected-layer-fx record-id layer-id]   ;; 运行时选中
+              [:set-selected-layer record-id layer-id]   ;; 运行时选中
               [:render-canvas-fx record-id]                 ;; 画布重绘
               [:rerender-canvas-frame-fx record-id]         ;; UI 刷新
               ]}))))

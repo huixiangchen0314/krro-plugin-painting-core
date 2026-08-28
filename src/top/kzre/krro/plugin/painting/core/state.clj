@@ -10,7 +10,6 @@
   (:import
     (java.util Collection)
     (top.kzre.krro.plugin.painting.core.project.canvas CanvasData)
-    (top.kzre.krro.plugin.painting.core.tool Util)
     (top.kzre.krro.util.tile CanvasUtils TiledCanvas)))
 
 (defn frames-with-canvas-id
@@ -21,8 +20,10 @@
 (defn rerender-frame-with-canvas-id! [canvas-id]
   (doseq [f (frames-with-canvas-id canvas-id)]
     (kcc/rerender! f)))
+
+;; TODO 把tool重构成proj
 ;; TODO 渲染缓存
-(defrecord CanvasRuntime
+(defrecord CanvasState
   [^TiledCanvas preview-canvas                              ;; 预览画布
   ^boolean current-layer-dirty                              ;; 当前图层是否是脏的
    selected-layer-id                                        ;; 当前选中图层id
@@ -32,7 +33,7 @@
    dirty-tiles])                                            ;; 画布脏tile
 
 (defn make-state []
-  (map->CanvasRuntime {:preview-canvas   (TiledCanvas. pc/global-tile-size )
+  (map->CanvasState {:preview-canvas   (TiledCanvas. pc/global-tile-size )
                        :current-layer-dirty       false
                        :selected-layer-id         nil
                        :selected-layer-ids        nil
@@ -41,7 +42,7 @@
                        :dirty-tiles      #{}
                        }))
 
-(defn layer-backup [^CanvasRuntime rt] (:layer-backup rt))
+(defn layer-backup [^CanvasState rt] (:layer-backup rt))
 
 
 (defonce canvas-runtimes (atom {}))
@@ -75,11 +76,11 @@
 (defn set-current-tool! [canvas-id new-tool]
   (swap! canvas-runtimes assoc-in [canvas-id :current-tool] new-tool))
 
-(defn preview-canvas [^CanvasRuntime rt]
+(defn preview-canvas [^CanvasState rt]
   (:preview-canvas rt))
 
 (defn preview-canvas-by-id [canvas-id]
-  (when-let [^CanvasRuntime rt (canvas-runtime canvas-id)]
+  (when-let [^CanvasState rt (canvas-runtime canvas-id)]
     (:preview-canvas rt)))
 
 (defn set-layer-backup! [canvas-id new-backup]

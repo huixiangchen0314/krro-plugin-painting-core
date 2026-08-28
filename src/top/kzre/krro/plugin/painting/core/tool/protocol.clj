@@ -4,7 +4,7 @@
    apply! 返回 [new-layer, action-key]。"
   (:require [top.kzre.krro.plugin.painting.core.project.canvas :as pc]
             [top.kzre.krro.plugin.painting.core.state])
-  (:import (top.kzre.krro.plugin.painting.core.state CanvasRuntime)
+  (:import (top.kzre.krro.plugin.painting.core.state CanvasState)
            (top.kzre.krro.plugin.painting.core.project.canvas CanvasData)))
 
 (defrecord ToolContext
@@ -27,18 +27,18 @@
 (defprotocol ITool
   (id [this] "返回工具id，比如 :bush, :vector-brush 等.")
   (overlay [this] "返回工具当前的 overlay 描述")
-  (begin! [this layer ^CanvasRuntime state ^ToolContext ctx]
+  (begin! [this layer ^CanvasState state ^ToolContext ctx]
     "工具激活时调用返回 {:layer layer, :state state}。")
-  (end! [this layer ^CanvasRuntime state ^ToolContext ctx]
+  (end! [this layer ^CanvasState state ^ToolContext ctx]
     "工具停用时调用。返回 {:layer layer, :state state}")
-  (apply! [this layer ^CanvasRuntime state event ^ToolContext ctx]
+  (apply! [this layer ^CanvasState state event ^ToolContext ctx]
     "处理单个指针事件。返回 tool-action")
-  (preview! [this layer ^CanvasRuntime state ^ToolContext ctx]
+  (preview! [this layer ^CanvasState state ^ToolContext ctx]
     "由动画循环调用，执行一帧预览渲染。返回 {:layer layer, :state state}")
-  (commit! [this layer ^CanvasRuntime state ^ToolContext ctx]))
+  (commit! [this layer ^CanvasState state ^ToolContext ctx]))
 
 (defmulti draw-overlay!
           "绘制工具的 overlay 和设置其他UI 要素."
-          (fn [tool ^CanvasRuntime state ^ToolContext ctx] (id tool)))
+          (fn [tool ^CanvasState state ^ToolContext ctx] (id tool)))
 
 (defmethod draw-overlay! :default [_ _ _])

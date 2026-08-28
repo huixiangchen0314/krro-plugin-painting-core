@@ -3,37 +3,13 @@
   编辑器自己做controller 的封装."
   (:require
     [top.kzre.krro.canvas.core.layer.core :as lc]
-    [top.kzre.krro.plugin.painting.core.ops.add :as add]
+    [top.kzre.krro.plugin.painting.core.ops.backup :as backup]
     [top.kzre.krro.plugin.painting.core.ops.delete :as delete]
     [top.kzre.krro.plugin.painting.core.ops.duplicate :as duplicate]
     [top.kzre.krro.plugin.painting.core.ops.layer :as layer]
     [top.kzre.krro.plugin.painting.core.ops.undo :as undo]
     [top.kzre.krro.plugin.painting.core.project.canvas :as pc]
-    [top.kzre.krro.plugin.painting.core.state :as state]
-    [top.kzre.krro.plugin.painting.core.ops.backup :as backup]))
-
-;; ── 辅助：计算在选中图层上方插入的路径 ──────────
-(defn- above-path
-  "返回在 selected-id 上方插入新图层时应使用的路径。"
-  [layers selected-id]
-  (if-let [raw-path (lc/find-layer-path selected-id layers)]
-    (let [parent (butlast raw-path)
-          idx (last raw-path)]
-      (conj (vec parent) (inc idx)))
-    [(count layers)]))
-
-
-(defn add-raster-layer-over-selected-undo! [canvas-id]
-  (let [selected-id (pc/current-layer-id canvas-id)       ;; 从项目数据获取
-        layers      (pc/layers-by-id! canvas-id)
-        path        (above-path layers selected-id)]
-    (add/add-layer! :raster canvas-id path )))
-
-(defn add-vector-layer-over-selected-undo! [canvas-id]
-  (let [selected-id (pc/current-layer-id canvas-id)
-        layers      (pc/layers-by-id! canvas-id)
-        path        (above-path layers selected-id)]
-    (add/add-layer! :vector canvas-id path )))
+    [top.kzre.krro.plugin.painting.core.state :as state]))
 
 
 

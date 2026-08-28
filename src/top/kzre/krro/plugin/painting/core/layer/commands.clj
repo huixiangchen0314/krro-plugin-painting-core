@@ -52,3 +52,19 @@
   new-perspective-layer-command
   :description "创建空白透视图层"
   :interactive true)
+
+
+(defn delete-selected-layers-command
+  "从当前 frame 获取 canvas-id，并切换当前图层为 layer-id。"
+  [_]
+  (if-let [f (win/active-frame)]
+    (if-let [canvas-id (frame/param f spec/canvas-id-key)]
+      (rf/dispatch :krro.painting [:delete-selected-layers canvas-id])
+      (msg/warn "No canvas-id found in current frame"))
+    (msg/warn "No current frame active")))
+
+(cmd/reg-command
+  :krro.painting/delete-selected-layers
+  delete-selected-layers-command
+  :description "删除被选中的图层"
+  :interactive true)

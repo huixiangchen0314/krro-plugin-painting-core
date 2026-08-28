@@ -9,15 +9,13 @@
                          :mask-type :hard
                          :radius 8.0}
           ;; 前景色
-          :color        (RGB/rgba 0.2 0.7 0.56 1.0)
+          :color        (RGB/rgba 0.2 0.3 0.56 0.65)
           ;; 动力学映射
-          :dynamics     {:radius [{:sensor :pressure :curve :linear :min 0.5 :max 2.0 :mode :multiply}
-                                  {:sensor :velocity :curve :linear :min 0.8 :max 1.2 :mode :multiply}]}
+          :dynamics     {:radius [{:sensor :pressure :curve :linear :min 0.5 :max 2.0 :mode :multiply}]}
           ;; DAB 间距
           :spacing      0.2
           :radius       3
           :blend-mode   :normal
-          :mix-mode     :colored-brush
           ;:taper-start-px   50
           ;:taper-end-px     50
           ;:taper-fields     []

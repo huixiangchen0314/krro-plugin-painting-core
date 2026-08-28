@@ -4,7 +4,7 @@
     [top.kzre.krro.canvas.core.layer.core :as lc]
     [top.kzre.krro.core.reframe :as rf]
     [top.kzre.krro.plugin.painting.core.layer.util :as util]
-    [top.kzre.krro.plugin.painting.core.ops.undo :as undo]
+    [top.kzre.krro.plugin.painting.core.undo.core :as undo]
     [top.kzre.krro.plugin.painting.core.project.canvas :as pc]
     [top.kzre.krro.plugin.painting.core.project.raster-layer :as pr]))
 
@@ -43,12 +43,7 @@
       (undo/record-raster-layer-added! canvas-id path layer))))
 
 (rf/reg-fx
-  :krro.painting :record-canvas
+  :krro.painting :record-canvas-edited
   (fn [_ canvas-id]
-    (undo/record-layer-edit-attrs-state! canvas-id)))
-
-(rf/reg-fx
-  :krro.painting :record-canvas-rendered
-  (fn [_ canvas-id]
-    (undo/record-layer-render-attrs-state! canvas-id)))
+    (undo/record-canvas-edited! canvas-id)))
 

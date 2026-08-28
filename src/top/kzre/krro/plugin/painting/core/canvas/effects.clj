@@ -29,7 +29,7 @@
 
 
 (rf/reg-fx
-  :krro.painting :set-selected-layer-fx
+  :krro.painting :set-selected-layer
   (fn [_app-id record-id layer-id]
     (swap! state/canvas-runtimes assoc-in [record-id :selected-layer-id] layer-id)
     (swap! state/canvas-runtimes assoc-in [record-id :selected-layer-ids] [layer-id])))

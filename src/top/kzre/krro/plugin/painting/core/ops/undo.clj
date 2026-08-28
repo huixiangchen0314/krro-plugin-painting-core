@@ -7,12 +7,10 @@
     [top.kzre.krro.core.frame :as frame]
     [top.kzre.krro.core.hook :as hook]
     [top.kzre.krro.core.message :as msg]
-    [top.kzre.krro.core.reframe :as rf]
     [top.kzre.krro.plugin.painting.core.ops.layer :as layer]
     [top.kzre.krro.plugin.painting.core.ops.snapshot :as snap]
     [top.kzre.krro.plugin.painting.core.project.canvas :as pc]
     [top.kzre.krro.plugin.painting.core.project.raster-layer :as pr]
-    [top.kzre.krro.plugin.painting.core.spec :as spec]
     [top.kzre.krro.plugin.painting.core.state :as state]
     [top.kzre.krro.plugin.undo.core :as undo]
     [top.kzre.krro.plugin.undo.protocol :as undo-p])
@@ -118,7 +116,10 @@
 ;; 记录函数
 ;; ═══════════════════════════════════════════════════════
 (defn record-layer-edit-attrs-state! [canvas-id]
-  (undo/record-state! (make-layer-edit-attrs-changed-meta canvas-id)))
+  (undo/record-state!
+    {:type              undo-type-layer-edit-attrs-changed
+     :seq               (inc-undo-metadata-seq-key)
+     :canvas-id         canvas-id}))
 
 (defn record-layer-render-attrs-state! [canvas-id]
   (undo/record-state! (make-layer-render-attrs-changed-meta canvas-id)))
@@ -171,23 +172,6 @@
 (defmulti restore-canvas-state!
           (fn [lifecycle meta] [lifecycle (:type meta)]))
 
-;; ── 图层添加 ────────────────────────────────────
-(defmethod restore-canvas-state! [:after-undo undo-type-raster-layer-add]
-  [_ {:keys [canvas-id layer-id dirty-tiles]}]
-  (rf/dispatch :krro.painting
-               [:after-undo-add-raster-layer canvas-id layer-id dirty-tiles]))
-
-(defmethod restore-canvas-state! [:before-redo undo-type-raster-layer-add]
-  [_ {:keys [canvas-id layer-id snapshot]}]
-  (let [canvas (snap/read-tiled-canvas snapshot)]
-    (rf/dispatch :krro.painting
-                 [:before-redo-add-raster-layer layer-id canvas-id canvas])))
-
-(defmethod restore-canvas-state! [:after-redo undo-type-raster-layer-add]
-  [_ {:keys [canvas-id dirty-tiles]}]
-  (rf/dispatch :krro.painting
-               [:after-redo-add-raster-layer canvas-id dirty-tiles]))
-
 ;; ── 图层删除 ────────────────────────────────────
 (defmethod restore-canvas-state! [:before-undo undo-type-raster-layer-remove] [_ meta]
   (let [canvas (snap/read-tiled-canvas (:snapshot meta))]
@@ -210,27 +194,6 @@
 
 (defmethod restore-canvas-state! [:after-redo undo-type-raster-stroke] [_ meta]
   (restore-tiled-stroke! meta :new-snapshot))
-
-;; ── 其他图层状态变更 ────────────────────────────
-(defmethod restore-canvas-state! [:after-undo undo-type-layer-edit-attrs-changed] [_ metadata]
-  (let [canvas-id (:canvas-id metadata)]
-    (state/invalidate-canvas-dirty! canvas-id)
-    (hook/run-hook! spec/layer-changed-hook-key canvas-id )))
-
-(defmethod restore-canvas-state! [:after-redo undo-type-layer-edit-attrs-changed] [_ metadata]
-  (let [canvas-id (:canvas-id metadata)]
-    (state/invalidate-canvas-dirty! canvas-id)
-    (hook/run-hook! spec/layer-changed-hook-key canvas-id )))
-
-(defmethod restore-canvas-state! [:after-undo undo-type-layer-render-attrs-changed] [_ metadata]
-  (let [canvas-id (:canvas-id metadata)]
-    (state/invalidate-canvas-dirty! canvas-id)
-    (layer/refresh-canvas-and-layer! canvas-id)))
-
-(defmethod restore-canvas-state! [:after-redo undo-type-layer-render-attrs-changed] [_ metadata]
-  (let [canvas-id (:canvas-id metadata)]
-    (state/invalidate-canvas-dirty! canvas-id)
-    (layer/refresh-canvas-and-layer! canvas-id)))
 
 (defmethod restore-canvas-state! [:after-undo undo-type-layer-commit] [_ metadata]
   (let [canvas-id (:canvas-id metadata)

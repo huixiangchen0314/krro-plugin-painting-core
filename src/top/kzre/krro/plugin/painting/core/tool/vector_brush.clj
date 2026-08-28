@@ -4,15 +4,14 @@
    提交后自动更新备份图层，以便连续绘制。"
   (:require
     [top.kzre.krro.brush.vector :as vec-brush]
-    [top.kzre.krro.canvas.core.layer.util :as layer-util]
     [top.kzre.krro.curve.bezier2d.core :as bezier]
     [top.kzre.krro.plugin.painting.core.brush.core :as brush]
     [top.kzre.krro.plugin.painting.core.tool.protocol :as tp]
-    [top.kzre.krro.plugin.painting.core.tool.stroke :as stroke]      ;; ← 复用工具模块
+    [top.kzre.krro.plugin.painting.core.tool.stroke :as stroke]
     [top.kzre.krro.plugin.painting.core.tool.util :as tool-util])
   (:import
     (top.kzre.colorutils.color RGB)
-    (top.kzre.krro.brush DynamicsStroke Stroke)))
+    (top.kzre.krro.brush Stroke)))
 
 ;; ── 内部辅助：基于备份图层和路径数据生成新图层 ──
 (defn- add-path-to-layer
@@ -34,7 +33,6 @@
 ;; 工具实现
 ;; ═══════════════════════════════════════════════════════
 (defrecord VectorBrushTool [stroke-atom    ;; atom: 最外层 Stroke (ResampleStroke)
-                            dynamics-atom  ;; atom: DynamicsStroke
                             brush          ;; 当前笔刷规格
                             parent-inv]    ;; atom: 缓存父逆矩阵
   tp/ITool
@@ -43,26 +41,30 @@
 
   (begin! [_ layer rt _ctx]
     (reset! stroke-atom nil)
-    (reset! dynamics-atom nil)
     (reset! parent-inv nil)
     {:layer layer :state rt})
 
   (end! [_ layer rt _ctx]
     (reset! stroke-atom nil)
-    (reset! dynamics-atom nil)
     (reset! parent-inv nil)
     {:layer layer :state rt})
 
   (apply! [_ layer _rt ev ctx]
     (let [{:keys [event parent-inv-new]} (tool-util/transform-event ev layer (:data ctx) :parent-inv @parent-inv)]
       (reset! parent-inv parent-inv-new)
-      (let [pevent (stroke/->pointer-event event)]
-        (when (= :press (:type event))
-          (let [{:keys [stroke dynamics]} (stroke/default-stroke brush)]
-            (reset! stroke-atom stroke)
-            (reset! dynamics-atom dynamics)))
-        (when (and @stroke-atom (#{:press :drag :release} (:type event)))
-          (.push ^Stroke @stroke-atom pevent))
+      (let [pevent (stroke/->pointer-event event)
+            current-stroke @stroke-atom
+            new-stroke (cond
+                         (= :press (:type event))
+                         (stroke/make-stroke brush)   ; 创建完整链（已包含初始事件）
+                         (#{:drag :release} (:type event))  ; 注意：release 也可作为最终事件追加，但通常 commit 时取完整链
+                         (if current-stroke
+                           (.append ^Stroke current-stroke pevent)
+                           nil)
+                         :else
+                         current-stroke)]   ; 其他事件（如 idle）不处理
+        (when new-stroke
+          (reset! stroke-atom new-stroke))
         (case (:type event)
           :press   :start
           :drag    :continue
@@ -70,10 +72,10 @@
           :idle))))
 
   (preview! [_ layer rt ctx]
-    (if-let [^DynamicsStroke dyn @dynamics-atom]
-      (let [param-vec (.getParamsVector dyn)]
-        (if (> (count param-vec) 1)
-          (if-let [result (vec-brush/render-vector-stroke param-vec)]
+    (if-let [^Stroke stroke @stroke-atom]
+      (let [stroke-vec (.getStroke stroke)]   ; IPersistentVector of maps
+        (if (> (count stroke-vec) 1)
+          (if-let [result (vec-brush/render-vector-stroke stroke-vec)]
             (let [backup-layer (:layer-backup rt)
                   preview-id (keyword (str "preview-" (System/currentTimeMillis)))
                   new-layer (add-path-to-layer backup-layer result preview-id)]
@@ -83,16 +85,15 @@
       {:layer layer :state rt}))
 
   (commit! [_ layer state ctx]
-    (if-let [^DynamicsStroke dyn @dynamics-atom]
-      (let [param-vec (.getParamsVector dyn)]
-        (if (> (count param-vec) 1)
-          (if-let [result (vec-brush/render-vector-stroke param-vec)]
+    (if-let [^Stroke stroke @stroke-atom]
+      (let [stroke-vec (.getStroke stroke)]
+        (if (> (count stroke-vec) 1)
+          (if-let [result (vec-brush/render-vector-stroke stroke-vec)]
             (let [backup-layer (:layer-backup state)
                   path-id  (keyword (str "path-" (System/currentTimeMillis)))
                   new-layer (add-path-to-layer backup-layer result path-id)]
               ;; 完成一笔，重置链
               (reset! stroke-atom nil)
-              (reset! dynamics-atom nil)
               (reset! parent-inv nil)
               {:layer new-layer
                :state (-> state
@@ -103,6 +104,6 @@
       {:layer layer :state state})))
 
 (defn make-vector-brush []
-  (->VectorBrushTool (atom nil) (atom nil)
+  (->VectorBrushTool (atom nil)
                      (or @brush/global-brush brush/default-brush)
                      (atom nil)))

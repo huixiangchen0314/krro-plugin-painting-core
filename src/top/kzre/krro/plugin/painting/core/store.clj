@@ -1,13 +1,10 @@
 (ns top.kzre.krro.plugin.painting.core.store
   "项目数据 db 定义，基于 reframe record 隔离"
   (:require
-    [top.kzre.krro.plugin.painting.core.project.canvas :as pc]
-    [top.kzre.krro.plugin.painting.core.state :as state]
+    [taoensso.timbre :as log]
     [top.kzre.krro.core.core :as kcc]
     [top.kzre.krro.core.reframe :as rf]
-    [taoensso.timbre :as log])
-  (:import (top.kzre.krro.plugin.painting.core.project.canvas CanvasData)
-           (top.kzre.krro.plugin.painting.core.state CanvasRuntime)))
+    [top.kzre.krro.plugin.painting.core.project.canvas :as pc]))
 
 
 ;; 固定 app-id，所有画布共享同一个应用实例（事件/订阅定义隔离于该 app-id）
@@ -16,10 +13,14 @@
 
 ;; 记录每个画布 store 的注销函数，key 为 canvas-id
 (defonce ^:private store-registry (atom {}))
+;; 每个画布的状态.
+(defonce ^:private canvas-states (atom {}))
 
 (defn make-record [canvas-id]
-  {:canvas-id   canvas-id
-   :canvas-data (pc/canvas-data! canvas-id)})
+  (merge
+    {:canvas-id   canvas-id
+     :canvas-data (pc/canvas-data! canvas-id)}
+     (get canvas-states canvas-id {})))
 
 (defn update-record! [{:keys [canvas-id canvas-data]}]
   (kcc/update-by-id! :krro.painting/canvas canvas-id (constantly canvas-data)))
