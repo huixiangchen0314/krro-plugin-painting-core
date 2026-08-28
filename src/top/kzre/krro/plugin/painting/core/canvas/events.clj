@@ -1,13 +1,26 @@
 (ns top.kzre.krro.plugin.painting.core.canvas.events
   "画布相关的事件处理器"
-  (:require [top.kzre.krro.canvas.core.layer.util :as util]
-            [top.kzre.krro.core.reframe :as rf]
-            [top.kzre.krro.plugin.painting.core.ops.backup :as backup]
-            [top.kzre.krro.plugin.painting.core.store :as store]))
+  (:require
+   [top.kzre.krro.canvas.core.layer.util :as util]
+   [top.kzre.krro.core.reframe :as rf]
+   [top.kzre.krro.plugin.painting.core.ops.backup :as backup]
+   [top.kzre.krro.plugin.painting.core.store :as store])
+  (:import
+   [top.kzre.krro.util.math KMath]))
 
 (defn set-current-layer
   [record layer-id]
   (assoc-in record [:canvas-data :current-layer-id] layer-id))
+
+(defn compute-layer-transform
+  [record layer-id]
+  (let [layers (get-in record [:canvas-data :layers])
+        layer (util/find-layer layer-id layers)
+        trans (util/layer-transform layer layers)
+        trans-inv (KMath/mat2dInv trans)]
+    (-> record
+        (assoc-in [:canvas-state :layer-transform] trans)
+        (assoc-in [:canvas-state :layer-transform-inv] trans-inv))))
 
 (defn set-selected-layer
   [record layer-id]
@@ -61,6 +74,7 @@
               dirty-tiles (:dirty-tiles state)]
           {:record (-> (:record cofx)
                        (set-current-layer layer-id)
+                       (compute-layer-transform layer-id)
                        (set-selected-layer layer-id)
                        (switch-layer-backup layer-id)
                        (clear-dirty-tiles))

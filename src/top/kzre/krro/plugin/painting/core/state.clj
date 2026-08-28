@@ -36,10 +36,7 @@
    layer-transform                                          ;; 当前图层正变换仿射矩阵
    layer-transform-inv                                      ;; 当前图层逆变换仿射矩阵
    cursor-position                                          ;; 最新光标位置
-   rendering?                                               ;; 是否正在执行渲染
-   pending-render?                                          ;; 是否有等待中的渲染请求
-   uploading?                                               ;; 是否正在上传画布
-   pending-upload?                                          ;; 是否有等待中的上传请求
+   tool-data                                                ;; 工具的状态数据
    ])
 
 (defn make-state []
@@ -53,10 +50,7 @@
                      :layer-transform (KMath/mat2dIdentity)
                      :layer-transform-inv (KMath/mat2dIdentity)
                      :cursor-position {:x 0 :y 0}
-                     :rendering?     false          ;; 是否正在执行渲染
-                     :pending-render? false         ;; 是否有等待中的渲染请求
-                     :uploading? false
-                     :pending-upload? false
+                     :tool-data {}
                      }))
 
 (defn layer-backup [^CanvasState rt] (:layer-backup rt))
