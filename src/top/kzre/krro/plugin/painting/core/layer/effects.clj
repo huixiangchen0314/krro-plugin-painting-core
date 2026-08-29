@@ -5,7 +5,8 @@
    [top.kzre.krro.core.reframe :as rf]
    [top.kzre.krro.plugin.painting.core.project.canvas :as pc]
    [top.kzre.krro.plugin.painting.core.project.raster-layer :as pr]
-   [top.kzre.krro.plugin.painting.core.undo.core :as undo]))
+   [top.kzre.krro.plugin.painting.core.undo.core :as undo]
+   [top.kzre.krro.plugin.painting.core.store :as store]))
 
 (rf/reg-fx
   :krro.painting :save-raster-data-fx
@@ -31,6 +32,13 @@
           path (lc/find-layer-path layer-id layers)
           layer (lc/find-layer-by-path path layers)]
       (undo/record-raster-layer-added! canvas-id path layer))))
+
+(rf/reg-fx
+  store/app-id :record-raster-layer-edited
+  (fn [_ canvas-id layer-id old-canvas new-canvas dirty-tiles]
+    (undo/record-raster-layer-edited! canvas-id layer-id
+                                       old-canvas new-canvas
+                                       dirty-tiles)))
 
 (rf/reg-fx
   :krro.painting :record-canvas-edited

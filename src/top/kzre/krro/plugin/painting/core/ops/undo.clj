@@ -150,7 +150,7 @@
         wrap   (snap/wrap-tiled-canvas canvas)]
     (undo/record-state! (make-raster-layer-remove-meta canvas-id path removed wrap))))
 
-(defn record-raster-stroke!
+(defn record-raster-layer-updated!
   [canvas-id layer-id ^TiledCanvas old-canvas ^TiledCanvas new-canvas dirties]
   (log/debug "Recording tiled raster stroke undo...")
   (try

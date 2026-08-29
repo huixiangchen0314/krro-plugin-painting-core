@@ -5,8 +5,6 @@
             [top.kzre.krro.plugin.painting.core.state]
             [top.kzre.krro.plugin.painting.core.tool.protocol :as tp]))
 
-
-
 (defrecord MoveTool [initial-mouse   ;; atom: {:x :y}
                      last-event     ;; atom: 最近鼠标事件 {:x :y}
                      initial-layer] ;; atom: {:x :y} 按下时图层的平移

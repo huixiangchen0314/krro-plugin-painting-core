@@ -40,16 +40,6 @@
                        (vec))))
       (assoc-in [:canvas-state :selected-layer-id] layer-id)))
 
-(defn switch-layer-backup
-  "更新图层备份数据"
-  [record layer-id]
-  (let [state (:canvas-state record)
-        layers (get-in record [:canvas-data :layers])
-        new-layer (util/find-layer layer-id layers)
-        new-state (backup/backup-layer! new-layer state)]
-    (backup/release-backup! state)
-    (assoc record :canvas-state new-state)))
-
 (defn clear-dirty-tiles
   [record]
   (assoc-in record [:canvas-state :dirty-tiles] #{}))
@@ -76,7 +66,6 @@
                        (set-current-layer layer-id)
                        (compute-layer-transform layer-id)
                        (set-selected-layer layer-id)
-                       (switch-layer-backup layer-id)
                        (clear-dirty-tiles))
            :fx [[:render-canvas record-id dirty-tiles]      ;; 画布重绘
                 [:rerender-canvas-frame-fx record-id]         ;; UI 刷新

@@ -13,6 +13,7 @@
      :seq               (core/inc-undo-metadata-seq-key)
      :canvas-id         canvas-id}))
 
+;; TODO  dispatch 回 reframe 处理
 (defmethod core/restore-canvas-state! [:after-undo ::edit-canvas]
   [_ {:keys [canvas-id]}]
   (state/invalidate-canvas-dirty! canvas-id)

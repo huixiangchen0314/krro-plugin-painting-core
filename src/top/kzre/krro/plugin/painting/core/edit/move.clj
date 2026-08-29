@@ -32,11 +32,10 @@
   [layer parent-transform]
   (when-let [local-tiles (tiles/layer-tiles layer pc/global-tile-size)]
     (let [trans (layer-transform layer parent-transform)]
-      (LayerUtils/transformTiles local-tiles pc/global-tile-size trans))
-    ))
+      (LayerUtils/transformTiles local-tiles pc/global-tile-size trans))))
 
 (rf/reg-event-fx
-  store/app-id :tool-move-press
+  store/app-id :move-tool/press
   (fn [cofx [_ _record-id cursor-x cursor-y]]
     (let [record (:record cofx)
           cd (:canvas-data record)]
@@ -54,7 +53,7 @@
         {:fx [:warn "No active layer."]}))))
 
 (rf/reg-event-fx
-  store/app-id :tool-move-drag
+  store/app-id :move-tool/drag
   (fn [cofx [_ record-id frame cursor-x cursor-y]]
     (let [record (:record cofx)
           tool-data (get-in record [:canvas-state :tool-data])]
@@ -86,9 +85,8 @@
                                       (fn [data] (assoc data :move/last-layer new-layer))))
                :fx [[:render-canvas record-id dirty-tiles]]})))))))
 
-
 (rf/reg-event-fx
-  store/app-id :tool-move-release
+  store/app-id :move-tool/release
   (fn [cofx [_ record-id]]
     (let [record (:record cofx)
           tool-data (get-in record [:canvas-state :tool-data])

@@ -121,7 +121,7 @@
           (let [new-layer (assoc layer :canvas new-canvas)]
             (layer/replace-layer! (:canvas-id ctx) new-layer)
             ;; 记录撤销（使用 tmp-canvas 作为填充前的状态）
-            (undo/record-raster-stroke! (:canvas-id ctx) (:id layer)
+            (undo/record-raster-layer-updated! (:canvas-id ctx) (:id layer)
                                         tmp-canvas new-canvas dirties)
             ;; 清理暂存
             (reset! pending-fill nil)

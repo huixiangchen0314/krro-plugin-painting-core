@@ -142,7 +142,7 @@
               new-layer-backup (assoc layer :canvas new-canvas)
               new-layer (assoc layer :canvas updated-canvas)]
           (layer/replace-layer! (:canvas-id ctx) new-layer)
-          (undo/record-raster-stroke! (:canvas-id ctx) (:id layer)
+          (undo/record-raster-layer-updated! (:canvas-id ctx) (:id layer)
                                       tmp-canvas updated-canvas dirties)
           (.clear tmp-canvas)
           ;; 提交后清空 stroke

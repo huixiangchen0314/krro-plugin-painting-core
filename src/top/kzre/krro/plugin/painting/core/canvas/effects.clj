@@ -1,14 +1,15 @@
 (ns top.kzre.krro.plugin.painting.core.canvas.effects
   "画布相关的副作用处理器"
   (:require
-    [taoensso.timbre :as log]
-    [top.kzre.krro.core.message :as msg]
-    [top.kzre.krro.core.reframe :as rf]
-    [top.kzre.krro.plugin.painting.core.layer.destroy :as destroy]
-    [top.kzre.krro.plugin.painting.core.project.canvas :as pc]
-    [top.kzre.krro.plugin.painting.core.render :as render]
-    [top.kzre.krro.plugin.painting.core.state :as state]
-    [top.kzre.krro.plugin.painting.core.store :as store]))
+   [taoensso.timbre :as log]
+   [top.kzre.krro.core.message :as msg]
+   [top.kzre.krro.core.reframe :as rf]
+   [top.kzre.krro.core.variable :as variable]
+   [top.kzre.krro.plugin.painting.core.layer.destroy :as destroy]
+   [top.kzre.krro.plugin.painting.core.project.canvas :as pc]
+   [top.kzre.krro.plugin.painting.core.render :as render]
+   [top.kzre.krro.plugin.painting.core.state :as state]
+   [top.kzre.krro.plugin.painting.core.store :as store]))
 
 (rf/reg-fx
   :krro.painting :log-info
@@ -29,6 +30,13 @@
   store/app-id :error
   (fn [_ message]
     (msg/error message)))
+(rf/reg-fx
+  store/app-id :disable-command
+  (fn [_] (reset! variable/disable-command true)))
+
+(rf/reg-fx
+  store/app-id :enable-command
+  (fn [_] (reset! variable/disable-command false)))
 
 (rf/reg-fx
   :krro.painting :render-canvas
