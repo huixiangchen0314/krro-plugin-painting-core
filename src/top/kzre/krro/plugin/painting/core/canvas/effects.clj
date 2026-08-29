@@ -1,20 +1,34 @@
 (ns top.kzre.krro.plugin.painting.core.canvas.effects
   "画布相关的副作用处理器"
   (:require
-   [clojure.core.async :as async]
-   [taoensso.timbre :as log]
-   [top.kzre.krro.core.reframe :as rf]
-   [top.kzre.krro.plugin.painting.core.layer.clone :as clone]
-   [top.kzre.krro.plugin.painting.core.layer.destroy :as destroy]
-   [top.kzre.krro.plugin.painting.core.project.canvas :as pc]
-   [top.kzre.krro.plugin.painting.core.render :as render]
-   [top.kzre.krro.plugin.painting.core.state :as state]
-   [top.kzre.krro.plugin.painting.core.store :as store]))
+    [taoensso.timbre :as log]
+    [top.kzre.krro.core.message :as msg]
+    [top.kzre.krro.core.reframe :as rf]
+    [top.kzre.krro.plugin.painting.core.layer.destroy :as destroy]
+    [top.kzre.krro.plugin.painting.core.project.canvas :as pc]
+    [top.kzre.krro.plugin.painting.core.render :as render]
+    [top.kzre.krro.plugin.painting.core.state :as state]
+    [top.kzre.krro.plugin.painting.core.store :as store]))
 
 (rf/reg-fx
   :krro.painting :log-info
   (fn [_app-id message]
     (log/info message)))
+
+(rf/reg-fx
+  store/app-id :warn
+  (fn [_ message]
+    (msg/warn message)))
+
+(rf/reg-fx
+  store/app-id :message
+  (fn [_ message]
+    (msg/message message)))
+
+(rf/reg-fx
+  store/app-id :error
+  (fn [_ message]
+    (msg/error message)))
 
 (rf/reg-fx
   :krro.painting :render-canvas

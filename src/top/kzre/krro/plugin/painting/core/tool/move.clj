@@ -5,17 +5,7 @@
             [top.kzre.krro.plugin.painting.core.state]
             [top.kzre.krro.plugin.painting.core.tool.protocol :as tp]))
 
-(custom/defcustom :krro.painting/move-tool-speed
-                  1.0
-                  :type :number
-                  :group :krro.painting/edit
-                  :doc "移动工具的移动速度配置, 1.0 为像素同比速度.")
 
-(custom/defcustom :krro.painting/move-tool-dead-zone
-                  0.5
-                  :type :number
-                  :group :krro.painting/edit
-                  :doc "移动工具的死区（像素），位移小于此值时忽略移动。")
 
 (defrecord MoveTool [initial-mouse   ;; atom: {:x :y}
                      last-event     ;; atom: 最近鼠标事件 {:x :y}

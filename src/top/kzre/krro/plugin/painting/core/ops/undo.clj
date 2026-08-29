@@ -89,8 +89,8 @@
   {undo-type-key undo-type-layer-commit
    :seq (inc-undo-metadata-seq-key)
    :canvas-id canvas-id
-   :old-layer-backup old-layer-backup
-   :new-layer-backup new-layer-backup
+   :old-layer-backup (pc/persistable-layer old-layer-backup)
+   :new-layer-backup (pc/persistable-layer new-layer-backup)
    })
 
 (defn make-raster-layer-remove-meta [canvas-id path layer snapshot-wrapper]
@@ -200,6 +200,7 @@
   (let [canvas-id (:canvas-id metadata)
         new-layer-backup (:old-layer-backup metadata)
         rt (state/canvas-runtime canvas-id)]
+    ;; TODO FIX 备份的数据应当是最新的图层。而无需额外逻辑
     (swap! state/canvas-runtimes assoc canvas-id (assoc rt :layer-backup new-layer-backup))
     (state/invalidate-canvas-dirty! canvas-id)
     (layer/refresh-canvas-and-layer! canvas-id)))
