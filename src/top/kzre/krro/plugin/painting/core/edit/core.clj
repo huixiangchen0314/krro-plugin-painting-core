@@ -7,13 +7,13 @@
    [top.kzre.krro.plugin.painting.core.edit.move]))
 
 
-;(defmethod dispatch/tool-event :move
-;  [_ event-map]
-;  (case (:type event-map)
-;    :press :move-tool/press
-;    :drag :move-tool/drag
-;    :release :move-tool/release
-;    nil))
+(defmethod dispatch/tool-event :move
+  [_ event-map]
+  (case (:type event-map)
+    :press :move-tool/press
+    :drag :move-tool/drag
+    :release :move-tool/release
+    nil))
 
 (defmethod dispatch/tool-event :viewport
   [_ event-map]

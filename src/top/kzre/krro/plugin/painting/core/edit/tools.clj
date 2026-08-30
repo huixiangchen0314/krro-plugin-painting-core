@@ -2,4 +2,5 @@
 
 (defn tools
   []
-  [{:id :brush :name "画笔" :icon "🖌"}])
+  [{:id :brush :name "画笔" :icon "🖌"}
+   {:id :move :name "移动" :icon "✥"}])

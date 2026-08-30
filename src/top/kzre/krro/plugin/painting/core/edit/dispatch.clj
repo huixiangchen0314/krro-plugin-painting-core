@@ -2,8 +2,7 @@
   (:require
     [top.kzre.krro.core.reframe :as rf]
     [top.kzre.krro.plugin.painting.core.edit.common :as common]
-    [top.kzre.krro.plugin.painting.core.store :as store]
-    [taoensso.timbre :as log]))
+    [top.kzre.krro.plugin.painting.core.store :as store]))
 
 (defmulti tool-event
   (fn [current-tool event-map]

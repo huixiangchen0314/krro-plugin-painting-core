@@ -55,8 +55,8 @@
   store/app-id :viewport-tool/drag
   (fn [cofx [_ record-id event-map frame]]
     (let [record (:record cofx)
-          moving? (get-in record [:canvas-state :tool-data :moving?])]
-      (when moving?
+          state (get-in record [:canvas-state :tool-data])]
+      (when (instance? ViewportState state)
         (let [speed (custom/get-custom :krro.painting/viewport-pan-speed frame)
               dead-zone (custom/get-custom :krro.painting/viewport-pan-dead-zone frame)
               cursor-x (:x event-map)
@@ -74,7 +74,8 @@
                      (-> original-viewport
                          (update-in [:offset-x] (fn [offset-x] (- offset-x (/ dx zoom))))
                          (update-in [:offset-y] (fn [offset-y] (- offset-y (/ dy zoom)))))]
-                    [:render-canvas record-id nil]]})))))))
+                    [:render-canvas record-id nil]]}))))
+     )))
 
 
 (rf/reg-event-fx
@@ -102,12 +103,14 @@
                            :offset-y new-offset-y)]
         {:record
          ;; 如果是移动中缩放，就立马更新初始数据
-         (when (get-in record [:canvas-state :tool-data :moving?])
-           (update-in record [:canvas-state :tool-data]
-                      merge
-                      {:init-cursor-x cursor-x
-                      :init-cursor-y cursor-y
-                      :original-viewport new-viewport}))
+         (when-let [state (get-in record [:canvas-state :tool-data])]
+           (when (and (instance? ViewportState state)
+                      (:moving? state))
+             (update-in record [:canvas-state :tool-data]
+                        merge
+                        {:init-cursor-x cursor-x
+                         :init-cursor-y cursor-y
+                         :original-viewport new-viewport})))
          :fx
          [[:set-viewport frame
            (assoc vp
@@ -119,5 +122,7 @@
 (rf/reg-event-fx
   store/app-id :viewport-tool/release
   (fn [cofx [_ _ _ _]]
-    (let [record (:record cofx)]
-      {:record  (common/cleanup-tool-data! record)})))
+    (let [record (:record cofx)
+          state (get-in record [:canvas-state :tool-data])]
+      (when (instance? ViewportState state)
+        {:record  (common/cleanup-tool-data! record)}))))
