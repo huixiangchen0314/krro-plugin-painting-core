@@ -37,7 +37,6 @@
    layer-transform                                          ;; 当前图层正变换仿射矩阵
    layer-transform-inv                                      ;; 当前图层逆变换仿射矩阵
    tool-data                                                ;; 工具的状态数据
-   viewport                                                 ;; 视口
    ])
 
 (defn make-state []
@@ -51,7 +50,6 @@
                      :layer-transform (KMath/mat2dIdentity)
                      :layer-transform-inv (KMath/mat2dIdentity)
                      :tool-data {}
-                     :viewport vp/default-viewport
                      }))
 
 (defn layer-backup [^CanvasState rt] (:layer-backup rt))

@@ -2,7 +2,6 @@
   (:require
     [taoensso.timbre :as log]
     [top.kzre.krro.canvas.core.core :as canv]
-    [top.kzre.krro.core.hook :as hook]
     [top.kzre.krro.plugin.painting.core.layer.clone :as clone]
     [top.kzre.krro.plugin.painting.core.layer.dispose :as dispose]
     [top.kzre.krro.plugin.painting.core.project.canvas :as pc]
@@ -79,8 +78,6 @@
             {:keys [width height]} canvas-data]   ; 保留用于其他用途，但渲染边界使用视口尺寸
         (try
           (render-canvas layers canvas-w canvas-h dirty-tiles viewport canvas)
-          (hook/run-hook! :krro.painting/after-render-canvas-hook
-                          (or (:id canvas-data) :unknown) canvas canvas-w canvas-h)
           (when upload-fn
             (upload-fn canvas canvas-data viewport))
           (catch Exception e

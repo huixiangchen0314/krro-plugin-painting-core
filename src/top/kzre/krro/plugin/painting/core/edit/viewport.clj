@@ -5,8 +5,8 @@
     [top.kzre.krro.plugin.painting.core.edit.common :as common]
     [top.kzre.krro.plugin.painting.core.edit.interceptors :refer [cleanup-tool-interceptor]]
     [top.kzre.krro.plugin.painting.core.store :as store]
-    [top.kzre.krro.plugin.painting.core.viewport :as vp]
-    [taoensso.timbre :as log]))
+    [top.kzre.krro.plugin.painting.core.viewport :as vp])
+  (:import (top.kzre.krro.plugin.painting.core.edit.protocol IToolData)))
 
 (custom/defcustom :krro.painting/viewport-pan-speed
                   1.0
@@ -26,11 +26,17 @@
                   :group :krro.painting/edit
                   :doc "滚轮缩放灵敏度，表示每一格 delta 的缩放因子。1.1 表示每格放大 10%。")
 
+(defrecord ViewportState [init-cursor-x init-cursor-y original-viewport moving?]
+  IToolData
+  (cleanup [_]
+    nil)
+  (overlay [_]
+    nil))
+
 ;; 设置视口
 (rf/reg-fx
   store/app-id :set-viewport
   (fn [_ frame viewport]
-    (log/debug "Set viewport")
     (vp/set-viewport! frame viewport)))
 
 (rf/reg-event-fx
@@ -42,30 +48,27 @@
           cursor-y (:y event-map)
           record (:record cofx)]
       {:record (assoc-in record [:canvas-state :tool-data]
-                         {:viewport/init-cursor-x cursor-x
-                          :viewport/init-cursor-y cursor-y
-                          :viewport/original-viewport original-viewport
-                          :viewport/moving? true})})))
+                         (->ViewportState cursor-x cursor-y original-viewport true))})))
 
 
 (rf/reg-event-fx
   store/app-id :viewport-tool/drag
   (fn [cofx [_ record-id event-map frame]]
     (let [record (:record cofx)
-          moving? (get-in record [:canvas-state :tool-data :viewport/moving?])]
+          moving? (get-in record [:canvas-state :tool-data :moving?])]
       (when moving?
         (let [speed (custom/get-custom :krro.painting/viewport-pan-speed frame)
               dead-zone (custom/get-custom :krro.painting/viewport-pan-dead-zone frame)
               cursor-x (:x event-map)
               cursor-y (:y event-map)
-              init-cursor-x (get-in record [:canvas-state :tool-data :viewport/init-cursor-x])
-              init-cursor-y (get-in record [:canvas-state :tool-data :viewport/init-cursor-y])
+              init-cursor-x (get-in record [:canvas-state :tool-data :init-cursor-x])
+              init-cursor-y (get-in record [:canvas-state :tool-data :init-cursor-y])
               dx (* speed (- cursor-x init-cursor-x))
               dy (* speed (- cursor-y init-cursor-y))]
           (if (and (< (Math/abs (double dx)) dead-zone)
                    (< (Math/abs (double dy)) dead-zone))
             nil
-            (let [original-viewport (get-in record [:canvas-state :tool-data :viewport/original-viewport])
+            (let [original-viewport (get-in record [:canvas-state :tool-data :original-viewport])
                   zoom (:zoom original-viewport)]
               {:fx [[:set-viewport frame
                      (-> original-viewport
@@ -77,7 +80,6 @@
 (rf/reg-event-fx
   store/app-id :viewport-tool/scroll
   (fn [cofx [_ record-id event-map frame]]
-    (log/debug ":viewport-tool/scroll called")
     (when-let [delta-y (:delta-y event-map)]
       (let [record (:record cofx)
             sensitivity (custom/get-custom :krro.painting/viewport-zoom-sensitivity frame)
@@ -100,11 +102,12 @@
                            :offset-y new-offset-y)]
         {:record
          ;; 如果是移动中缩放，就立马更新初始数据
-         (when (get-in record [:canvas-state :tool-data :viewport/moving?])
-           (assoc-in record [:canvas-state :tool-data]
-                     {:viewport/init-cursor-x cursor-x
-                      :viewport/init-cursor-y cursor-y
-                      :viewport/original-viewport new-viewport}))
+         (when (get-in record [:canvas-state :tool-data :moving?])
+           (update-in record [:canvas-state :tool-data]
+                      merge
+                      {:init-cursor-x cursor-x
+                      :init-cursor-y cursor-y
+                      :original-viewport new-viewport}))
          :fx
          [[:set-viewport frame
            (assoc vp
