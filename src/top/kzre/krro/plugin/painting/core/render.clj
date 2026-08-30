@@ -1,87 +1,117 @@
 (ns top.kzre.krro.plugin.painting.core.render
   (:require
-    [clojure.core.async :as async]
+    [taoensso.timbre :as log]
     [top.kzre.krro.canvas.core.core :as canv]
     [top.kzre.krro.core.hook :as hook]
-    [top.kzre.krro.plugin.painting.core.layer.dispose :as dispose]
     [top.kzre.krro.plugin.painting.core.layer.clone :as clone]
-    [top.kzre.krro.plugin.painting.core.project.canvas :as pc])
+    [top.kzre.krro.plugin.painting.core.layer.dispose :as dispose]
+    [top.kzre.krro.plugin.painting.core.project.canvas :as pc]
+    [top.kzre.krro.plugin.painting.core.viewport :as vp])
   (:import
-    [java.util Collection]
-    [top.kzre.krro.util.tile CanvasUtils TiledCanvas]))
+    (java.util Collection)
+    (top.kzre.krro.canvas.core.layer LayerUtils)
+    (top.kzre.krro.core.util LastestTaskExecutor)
+    (top.kzre.krro.core.util LastestTaskExecutor$TaskParams)
+    (top.kzre.krro.core.util LastestTaskExecutor$TaskDefinition)
+    (top.kzre.krro.util.tile TiledCanvas)))
 
 (defn render-canvas
-  [layers width height dirty-tiles ^TiledCanvas dest]
-  (let [tile-size (.getTileSize dest)]
+  "渲染图层到目标画布。canvas-w 和 canvas-h 为视口尺寸（渲染区域大小）。"
+  [layers canvas-w canvas-h dirty-tiles viewport ^TiledCanvas dest]
+  (let [tile-size (.getTileSize dest)
+        viewport-transform (vp/viewport->mat2d viewport)]
     (cond
       (nil? dirty-tiles)
       (do
         (.clear dest)
-        (canv/render-layers! layers dest width height))
+        (canv/render-layers! layers dest canvas-w canvas-h
+                             :viewport viewport-transform))
 
       (empty? dirty-tiles) nil
 
       :else
       (do
         (.deleteTiles dest ^Collection dirty-tiles)
-        (canv/render-layers! layers dest width height
-                             :dirty-tiles (CanvasUtils/clipTiles dirty-tiles tile-size width height)
-                             :tile-size pc/global-tile-size)))))
+        (let [viewport-dirty (LayerUtils/transformTiles dirty-tiles tile-size viewport-transform)]
+          (canv/render-layers! layers dest canvas-w canvas-h
+                               :dirty-tiles viewport-dirty
+                               :tile-size pc/global-tile-size
+                               :viewport viewport-transform))))))
 
-(defonce render-channels (atom {}))
-(defonce pending-requests (atom {}))   ;; record-id -> {:layers, :width, :height, :canvas, :dirty-tiles}
+;; ── 渲染任务参数（包含克隆图层） ──────────────
+(defrecord RenderParams [key canvas canvas-data dirty-tiles
+                         layers viewport canvas-w canvas-h upload-fn ]
+  LastestTaskExecutor$TaskParams
+  (key [_] key))
 
-(defn get-render-chan [record-id]
-  (or (get @render-channels record-id)
-      (let [ch (async/chan 1)]  ;; 缓冲 1，确保只有一个信号在等待
-        (swap! render-channels assoc record-id ch)
-        (async/go-loop []
-          (let [signal (async/<! ch)]
-            (when signal
-              (let [record-id (:record-id signal)
-                    req (get @pending-requests record-id)]
-                (when req
-                  ;; 清除 pending，防止重复处理
-                  (swap! pending-requests dissoc record-id)
-                  (let [{:keys [layers width height canvas dirty-tiles]} req]
-                    (render-canvas layers width height dirty-tiles canvas)
-                    (doseq [l layers]
-                      (dispose/dispose-layer l))
-                    (hook/run-hook! :krro.painting/after-render-canvas-hook record-id canvas width height))))
-              (recur))))
-        ch)))
+;; ── 任务定义（合并 + 执行） ──────────────────────
+(def render-task-def
+  (reify LastestTaskExecutor$TaskDefinition
+    (mergeTask [_ current new]
+      ;; 释放旧任务的克隆图层
+      (when-let [old-cloned (:layers current)]
+        (doseq [l old-cloned]
+          (dispose/dispose-layer l)))
+      ;; 合并脏区域，视口尺寸变化则全量渲染
+      (let [old-data (:canvas-data current)
+            new-data (:canvas-data new)
+            old-vp-w (:canvas-w current)
+            old-vp-h (:canvas-h current)
+            new-vp-w (:canvas-w new)
+            new-vp-h (:canvas-h new)
+            old-dirty (:dirty-tiles current)
+            new-dirty (:dirty-tiles new)
+            merged-dirty (cond
+                           (nil? old-dirty) new-dirty
+                           (nil? new-dirty) old-dirty
+                           :else
+                           (into (or old-dirty #{}) (or new-dirty #{})))
+            ;; 如果视口尺寸或图像尺寸变化，强制全量
+            force-full (or (not= old-vp-w new-vp-w)
+                           (not= old-vp-h new-vp-h)
+                           (not= (:width old-data) (:width new-data))
+                           (not= (:height old-data) (:height new-data)))]
+        (assoc new :dirty-tiles (if force-full nil merged-dirty))))
 
-(defn request-render!
-  [record-id layers width height canvas dirty-tiles]
-  (swap! pending-requests
-         (fn [current]
-           (let [old (get current record-id)]
-             ;; 释放旧的 pending 图层（如果存在）
-             (when old
-               (doseq [l (:layers old)]
-                 (dispose/dispose-layer l)))
-             ;; 克隆新的图层（每次都重新克隆）
-             (let [cloned (mapv clone/clone-layer layers)
-                   merged-dirty (if old
-                                  (into (:dirty-tiles old) (or dirty-tiles #{}))
-                                  (or dirty-tiles #{}))
-                   final-dirty
-                   ;; 宽度和高度改变了，强制进行全量渲染.
-                   (if (or (not= width (:width old))
-                           (not= height (:height old)))
-                     nil
-                     merged-dirty)]
-               {record-id {:layers cloned
-                           :width width
-                           :height height
-                           :canvas canvas
-                           :dirty-tiles final-dirty}}))))
-  ;; 发送信号
-  (let [ch (get-render-chan record-id)]
-    (async/put! ch {:record-id record-id})))
+    (runTask [_ params]
+      (let [{:keys [canvas canvas-data viewport dirty-tiles
+                    layers upload-fn canvas-w canvas-h]} params
+            {:keys [width height]} canvas-data]   ; 保留用于其他用途，但渲染边界使用视口尺寸
+        (try
+          (render-canvas layers canvas-w canvas-h dirty-tiles viewport canvas)
+          (hook/run-hook! :krro.painting/after-render-canvas-hook
+                          (or (:id canvas-data) :unknown) canvas canvas-w canvas-h)
+          (when upload-fn
+            (upload-fn canvas canvas-data viewport))
+          (catch Exception e
+            (log/error e "Render task failed"))
+          (finally
+            (doseq [l layers]
+              (dispose/dispose-layer l))))))))
 
-(defn shutdown-render! [record-id]
-  (when-let [ch (get @render-channels record-id)]
-    (async/close! ch)
-    (swap! render-channels dissoc record-id)
-    (swap! pending-requests dissoc record-id)))
+;; ── 全局执行器 ──────────────────────────────────
+(defonce ^LastestTaskExecutor executor
+         (LastestTaskExecutor. render-task-def))
+
+(defn request-render-full!
+  [render-task-id canvas canvas-data upload-fn & {:keys [dirty-tiles]}]
+  (let [layers (:layers canvas-data)
+        cloned-layers (mapv clone/clone-layer layers)
+        params (->RenderParams render-task-id canvas canvas-data  dirty-tiles
+                               cloned-layers
+                               vp/default-viewport (:width canvas-data) (:height canvas-data) upload-fn )]
+    (.submit executor render-task-id params)))
+
+;; ── 渲染请求入口（提交时克隆图层） ──────────────
+(defn request-render-viewport!
+  "提交渲染任务，视口尺寸单独传入，用于裁剪渲染区域。"
+  [render-task-id canvas canvas-data dirty-tiles viewport viewport-w viewport-h upload-fn]
+  (let [layers (:layers canvas-data)
+        cloned-layers (mapv clone/clone-layer layers)
+        params (->RenderParams render-task-id canvas canvas-data  dirty-tiles
+                               cloned-layers viewport viewport-w viewport-h upload-fn )]
+    (.submit executor render-task-id params)))
+
+;; ── 关闭执行器 ──────────────────────────────────
+(defn shutdown! []
+  (.shutdown executor))

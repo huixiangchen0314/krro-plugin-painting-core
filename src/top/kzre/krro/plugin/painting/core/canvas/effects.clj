@@ -9,7 +9,8 @@
    [top.kzre.krro.plugin.painting.core.project.canvas :as pc]
    [top.kzre.krro.plugin.painting.core.render :as render]
    [top.kzre.krro.plugin.painting.core.state :as state]
-   [top.kzre.krro.plugin.painting.core.store :as store]))
+   [top.kzre.krro.plugin.painting.core.store :as store]
+   [top.kzre.krro.core.hook :as hook]))
 
 (rf/reg-fx
   :krro.painting :log-info
@@ -30,25 +31,18 @@
   store/app-id :error
   (fn [_ message]
     (msg/error message)))
-(rf/reg-fx
-  store/app-id :disable-command
-  (fn [_] (reset! variable/disable-command true)))
 
 (rf/reg-fx
-  store/app-id :enable-command
-  (fn [_] (reset! variable/disable-command false)))
+  store/app-id :set-command-enabled
+  (fn [_ enabled?]
+    (reset! variable/command-enabled enabled?)))
+
 
 (rf/reg-fx
   :krro.painting :render-canvas
   (fn [_ record-id dirty-tiles]
-    {:pre [(not (nil? dirty-tiles))]}
-    (let [cd (pc/canvas-data! record-id)
-          layers (:layers cd)
-          width (:width cd)
-          height (:height cd)
-          state (state/canvas-runtime record-id)
-          canvas (:preview-canvas state)]
-      (render/request-render! record-id layers width height canvas dirty-tiles))))
+    (let [cd (pc/canvas-data! record-id)]
+      (hook/run-hook! :krro.painting/render-canvas-hook record-id cd dirty-tiles))))
 
 
 (rf/reg-fx
@@ -58,9 +52,7 @@
     (let [cd (pc/canvas-data! record-id)
           layers (:layers cd)]
       (doseq [l layers]
-        (destroy/destroy-layer l)))
-    ;; 关闭画布渲染通道
-    (render/shutdown-render! record-id)))
+        (destroy/destroy-layer l)))))
 
 
 (rf/reg-fx

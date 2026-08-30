@@ -1,18 +1,19 @@
 (ns top.kzre.krro.plugin.painting.core.state
   "运行时状态：事件、笔刷、缓冲区、累积长度。"
   (:require
-    [top.kzre.krro.canvas.core.core :as canv]
-    [top.kzre.krro.canvas.core.layer.core :as lc]
-    [top.kzre.krro.core.core :as kcc]
-    [top.kzre.krro.core.frame :as frame]
-    [top.kzre.krro.plugin.painting.core.project.canvas :as pc]
-    [top.kzre.krro.plugin.painting.core.spec :as spec])
+   [top.kzre.krro.canvas.core.core :as canv]
+   [top.kzre.krro.canvas.core.layer.core :as lc]
+   [top.kzre.krro.core.core :as kcc]
+   [top.kzre.krro.core.frame :as frame]
+   [top.kzre.krro.plugin.painting.core.project.canvas :as pc]
+   [top.kzre.krro.plugin.painting.core.spec :as spec]
+   [top.kzre.krro.plugin.painting.core.viewport :as vp])
   (:import
-    (java.util Collection)
-    (top.kzre.krro.brush Stroke)
-    (top.kzre.krro.plugin.painting.core.project.canvas CanvasData)
-    (top.kzre.krro.util.math KMath)
-    (top.kzre.krro.util.tile CanvasUtils TiledCanvas)))
+   (java.util Collection)
+   (top.kzre.krro.brush Stroke)
+   (top.kzre.krro.plugin.painting.core.project.canvas CanvasData)
+   (top.kzre.krro.util.math KMath)
+   (top.kzre.krro.util.tile CanvasUtils TiledCanvas)))
 
 (defn frames-with-canvas-id
   "返回所有显示指定画布的 Frame。"
@@ -35,8 +36,8 @@
    ^Stroke stroke                                           ;; 当前笔刷笔触
    layer-transform                                          ;; 当前图层正变换仿射矩阵
    layer-transform-inv                                      ;; 当前图层逆变换仿射矩阵
-   cursor-position                                          ;; 最新光标位置
    tool-data                                                ;; 工具的状态数据
+   viewport                                                 ;; 视口
    ])
 
 (defn make-state []
@@ -49,8 +50,8 @@
                      :stroke nil
                      :layer-transform (KMath/mat2dIdentity)
                      :layer-transform-inv (KMath/mat2dIdentity)
-                     :cursor-position {:x 0 :y 0}
                      :tool-data {}
+                     :viewport vp/default-viewport
                      }))
 
 (defn layer-backup [^CanvasState rt] (:layer-backup rt))

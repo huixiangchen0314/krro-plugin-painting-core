@@ -1,12 +1,17 @@
 (ns top.kzre.krro.plugin.painting.core.edit.dispatch
   (:require
     [top.kzre.krro.core.reframe :as rf]
-    [top.kzre.krro.plugin.painting.core.store :as store]))
+    [top.kzre.krro.plugin.painting.core.edit.common :as common]
+    [top.kzre.krro.plugin.painting.core.store :as store]
+    [taoensso.timbre :as log]))
 
 (defmulti tool-event
-          "转化原始输入事件为reframe工具事件id,默认为nil.
-          根据 [current-tool event-type] 二元组分派."
-  (fn [current-tool event-map] [current-tool (:type event-map)]))
+  (fn [current-tool event-map]
+    (if (and (= :pointer (:device-type event-map))
+             (= :middle (:mouse-button event-map)))
+      :viewport
+      current-tool)
+    ))
 
 (defmethod tool-event :default [_ _] nil)
 
@@ -17,8 +22,13 @@
     (let [record (:record cofx)
           current-tool (get-in record [:canvas-state :current-tool])]
       (when-let [event-id (tool-event current-tool event-map)]
-        {:record (-> record
-                     (assoc-in [:canvas-state :cursor-position]
-                               {:x (:x event-map)
-                                :y (:y event-map)}))
-         :dispatch [event-id record-id event-map frame]}))))
+        {:dispatch [event-id record-id event-map frame]}
+        ))))
+
+(rf/reg-event-fx
+  store/app-id :tool/select-tool
+  (fn [cofx [_ _ tool-id]]
+    {:record
+     (-> (:record cofx)
+         (common/cleanup-tool-data!)
+         (assoc-in [:canvas-state :current-tool] tool-id))}))

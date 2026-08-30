@@ -3,8 +3,10 @@
     [top.kzre.krro.core.custom :as custom]
     [top.kzre.krro.core.reframe :as rf]
     [top.kzre.krro.plugin.painting.core.edit.common :as common]
+    [top.kzre.krro.plugin.painting.core.edit.interceptors :refer [cleanup-tool-interceptor]]
     [top.kzre.krro.plugin.painting.core.store :as store]
-    [top.kzre.krro.plugin.painting.core.viewport :as vp]))
+    [top.kzre.krro.plugin.painting.core.viewport :as vp]
+    [taoensso.timbre :as log]))
 
 (custom/defcustom :krro.painting/viewport-pan-speed
                   1.0
@@ -27,11 +29,13 @@
 ;; 设置视口
 (rf/reg-fx
   store/app-id :set-viewport
-  (fn [_ _ frame viewport]
+  (fn [_ frame viewport]
+    (log/debug "Set viewport")
     (vp/set-viewport! frame viewport)))
 
 (rf/reg-event-fx
   store/app-id :viewport-tool/press
+  [(cleanup-tool-interceptor)]
   (fn [cofx [_ _ event-map frame]]
     (let [original-viewport (vp/get-viewport frame)
           cursor-x (:x event-map)
@@ -73,6 +77,7 @@
 (rf/reg-event-fx
   store/app-id :viewport-tool/scroll
   (fn [cofx [_ record-id event-map frame]]
+    (log/debug ":viewport-tool/scroll called")
     (when-let [delta-y (:delta-y event-map)]
       (let [record (:record cofx)
             sensitivity (custom/get-custom :krro.painting/viewport-zoom-sensitivity frame)
@@ -112,4 +117,4 @@
   store/app-id :viewport-tool/release
   (fn [cofx [_ _ _ _]]
     (let [record (:record cofx)]
-      {:record  (common/clear-tool-data record)})))
+      {:record  (common/cleanup-tool-data! record)})))

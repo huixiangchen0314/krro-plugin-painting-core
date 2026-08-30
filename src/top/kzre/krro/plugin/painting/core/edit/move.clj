@@ -1,12 +1,13 @@
 (ns top.kzre.krro.plugin.painting.core.edit.move
   (:require
-   [top.kzre.krro.canvas.core.layer.util :as util]
-   [top.kzre.krro.core.custom :as custom]
-   [top.kzre.krro.core.reframe :as rf]
-   [top.kzre.krro.plugin.painting.core.edit.common :as common]
-   [top.kzre.krro.plugin.painting.core.layer.tiles :as tiles]
-   [top.kzre.krro.plugin.painting.core.project.canvas :as pc]
-   [top.kzre.krro.plugin.painting.core.store :as store])
+    [top.kzre.krro.canvas.core.layer.util :as util]
+    [top.kzre.krro.core.custom :as custom]
+    [top.kzre.krro.core.reframe :as rf]
+    [top.kzre.krro.plugin.painting.core.edit.common :as common]
+    [top.kzre.krro.plugin.painting.core.edit.interceptors :refer [cleanup-tool-interceptor]]
+    [top.kzre.krro.plugin.painting.core.layer.tiles :as tiles]
+    [top.kzre.krro.plugin.painting.core.project.canvas :as pc]
+    [top.kzre.krro.plugin.painting.core.store :as store])
   (:import
     (top.kzre.krro.canvas.core.layer LayerUtils)
     (top.kzre.krro.util.math KMath)))
@@ -36,6 +37,7 @@
 
 (rf/reg-event-fx
   store/app-id :move-tool/press
+  [(cleanup-tool-interceptor)]
   (fn [cofx [_ _record-id cursor-x cursor-y]]
     (let [record (:record cofx)
           cd (:canvas-data record)]
@@ -97,7 +99,7 @@
                                      (:move/parent-transform tool-data))
               trans-inv (KMath/mat2dInv trans)]
           {:record (-> record
-                       (common/clear-tool-data)
+                       (common/cleanup-tool-data!)
                        (assoc-in [:canvas-state :layer-transform] trans)
                        (assoc-in [:canvas-state :layer-transform-inv] trans-inv))
            :fx [:record-canvas-edited record-id]})))))

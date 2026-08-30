@@ -1,12 +1,13 @@
 (ns top.kzre.krro.plugin.painting.core.layer.effects
   "副作用注册"
   (:require
-   [top.kzre.krro.canvas.core.layer.core :as lc]
-   [top.kzre.krro.core.reframe :as rf]
-   [top.kzre.krro.plugin.painting.core.project.canvas :as pc]
-   [top.kzre.krro.plugin.painting.core.project.raster-layer :as pr]
-   [top.kzre.krro.plugin.painting.core.undo.core :as undo]
-   [top.kzre.krro.plugin.painting.core.store :as store]))
+    [top.kzre.krro.canvas.core.layer.core :as lc]
+    [top.kzre.krro.core.reframe :as rf]
+    [top.kzre.krro.plugin.painting.core.project.canvas :as pc]
+    [top.kzre.krro.plugin.painting.core.project.raster-layer :as pr]
+    [top.kzre.krro.plugin.painting.core.undo.core :as undo]
+    [top.kzre.krro.plugin.painting.core.store :as store])
+  (:import (top.kzre.krro.util.tile TiledCanvas)))
 
 (rf/reg-fx
   :krro.painting :save-raster-data-fx
@@ -38,7 +39,9 @@
   (fn [_ canvas-id layer-id old-canvas new-canvas dirty-tiles]
     (undo/record-raster-layer-edited! canvas-id layer-id
                                        old-canvas new-canvas
-                                       dirty-tiles)))
+                                       dirty-tiles)
+    (.clear ^TiledCanvas old-canvas)
+    (.clear ^TiledCanvas new-canvas)))
 
 (rf/reg-fx
   :krro.painting :record-canvas-edited

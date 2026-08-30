@@ -4,6 +4,8 @@
             [top.kzre.krro.plugin.painting.core.ops.undo :as undo]
             [top.kzre.krro.plugin.painting.core.canvas.core]
             [top.kzre.krro.plugin.painting.core.layer.core]
+    ;; TODO 移除
+            [top.kzre.krro.plugin.painting.core.tool.registry]
             [top.kzre.krro.plugin.painting.core.edit.core]
             [top.kzre.krro.plugin.painting.core.project.canvas :as pc]
             [top.kzre.krro.plugin.painting.core.project.raster-layer :as pr]))

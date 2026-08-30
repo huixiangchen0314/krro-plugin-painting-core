@@ -3,10 +3,9 @@
   (:require
    [top.kzre.krro.canvas.core.layer.util :as util]
    [top.kzre.krro.core.reframe :as rf]
-   [top.kzre.krro.plugin.painting.core.ops.backup :as backup]
    [top.kzre.krro.plugin.painting.core.store :as store])
   (:import
-   [top.kzre.krro.util.math KMath]))
+    (top.kzre.krro.util.math KMath)))
 
 (defn set-current-layer
   [record layer-id]
