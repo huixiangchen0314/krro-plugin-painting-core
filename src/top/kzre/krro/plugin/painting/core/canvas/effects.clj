@@ -6,7 +6,6 @@
    [top.kzre.krro.core.message :as msg]
    [top.kzre.krro.core.reframe :as rf]
    [top.kzre.krro.plugin.painting.core.layer.destroy :as destroy]
-
    [top.kzre.krro.plugin.painting.core.project.canvas :as pc]
    [top.kzre.krro.plugin.painting.core.state :as state]
    [top.kzre.krro.plugin.painting.core.store :as store]

@@ -24,7 +24,6 @@
       :press :viewport-tool/press
       :drag :viewport-tool/drag
       :scroll :viewport-tool/scroll
-      :release :viewport-tool/release
       nil)))
 
 (defmethod dispatch/tool-event :brush
@@ -33,6 +32,7 @@
     :press :brush-tool/press
     :drag :brush-tool/drag
     :release :brush-tool/release
+    :move :brush-tool/move
     nil))
 
 (defmethod dispatch/tool-event :vector-brush

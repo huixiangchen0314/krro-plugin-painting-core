@@ -2,4 +2,4 @@
 
 (defprotocol IToolData
   (cleanup [_] "清理工具状态")
-  (overlay [_] "返回叠加层描述"))
+  (overlay [_ ctx] "返回叠加层描述"))

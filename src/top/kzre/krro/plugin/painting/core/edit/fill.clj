@@ -81,13 +81,13 @@
               result (FloodFillExecutor/fill request)
               dirties (.getDirtyTiles result)]
           (when (and (.isChanged result) (seq dirties))
-            (let [^TiledCanvas old-new-canvas (.copy new-canvas)
+            (let [^TiledCanvas out-new-canvas (.copy new-canvas)
                   new-layer (assoc layer :canvas new-canvas)
                   new-layers (util/replace-layer new-layer layers)
                   new-record (-> record
                                  (assoc-in [:canvas-data :layers] new-layers))]
               {:record new-record
-               :fx [[:record-raster-layer-edited record-id layer-id old-canvas old-new-canvas dirties]
+               :fx [[:record-raster-layer-edited record-id layer-id old-canvas out-new-canvas dirties]
                     [:render-canvas record-id dirties layer-transform]
                     ]})))
        {:fx [[:warn "Fill tool is only work for raster layer!"]]})

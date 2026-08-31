@@ -1,8 +1,8 @@
 (ns top.kzre.krro.plugin.painting.core.edit.dispatch
   (:require
-    [top.kzre.krro.core.reframe :as rf]
-    [top.kzre.krro.plugin.painting.core.edit.common :as common]
-    [top.kzre.krro.plugin.painting.core.store :as store]))
+   [top.kzre.krro.core.reframe :as rf]
+   [top.kzre.krro.plugin.painting.core.edit.interceptors :refer [cleanup-tool-interceptor]]
+   [top.kzre.krro.plugin.painting.core.store :as store]))
 
 (defmulti tool-event
   (fn [current-tool event-map]
@@ -26,8 +26,8 @@
 
 (rf/reg-event-fx
   store/app-id :tool/select-tool
+  [(cleanup-tool-interceptor)]
   (fn [cofx [_ _ tool-id]]
     {:record
      (-> (:record cofx)
-         (common/cleanup-tool-data!)
          (assoc-in [:canvas-state :current-tool] tool-id))}))

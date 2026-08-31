@@ -3,7 +3,6 @@
    [top.kzre.krro.canvas.core.layer.util :as util]
    [top.kzre.krro.core.custom :as custom]
    [top.kzre.krro.core.reframe :as rf]
-   [top.kzre.krro.plugin.painting.core.edit.common :as common]
    [top.kzre.krro.plugin.painting.core.edit.interceptors :refer [cleanup-tool-interceptor]]
    [top.kzre.krro.plugin.painting.core.edit.protocol :as p]
    [top.kzre.krro.plugin.painting.core.layer.tiles :as tiles]
@@ -29,7 +28,7 @@
   p/IToolData
   (cleanup [_]
     nil)
-  (overlay [_]
+  (overlay [_ _]
     nil))
 
 
@@ -90,5 +89,4 @@
     (let [record (:record cofx)
           state (get-in record [:canvas-state :tool-data])]
       (when (instance? MoveState state)
-        {:record (common/cleanup-tool-data! record)
-         :fx [[:record-canvas-edited record-id]]}))))
+        {:fx [[:record-canvas-edited record-id]]}))))

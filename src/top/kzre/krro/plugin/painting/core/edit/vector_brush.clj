@@ -4,13 +4,12 @@
             [top.kzre.krro.core.reframe :as rf]
             [top.kzre.krro.curve.bezier2d.core :as bezier]
             [top.kzre.krro.plugin.painting.core.edit.interceptors :refer [cleanup-tool-interceptor]]
+            [top.kzre.krro.plugin.painting.core.edit.protocol :as p]
             [top.kzre.krro.plugin.painting.core.layer.clone :as clone]
             [top.kzre.krro.plugin.painting.core.store :as store]
-            [top.kzre.krro.plugin.painting.core.edit.protocol :as p]
             [top.kzre.krro.plugin.painting.core.tool.stroke :as stroke]
             [top.kzre.krro.plugin.painting.core.tool.util :as tool-util]
-            [top.kzre.krro.plugin.painting.core.viewport :as vp]
-            [top.kzre.krro.plugin.painting.core.edit.common :as common])
+            [top.kzre.krro.plugin.painting.core.viewport :as vp])
   (:import (top.kzre.colorutils.color RGB)
            (top.kzre.krro.util.math KMath)))
 
@@ -32,7 +31,7 @@
 (defrecord VectorBrushState [stroke layer-backup layer-transform layer-transform-inv]
   p/IToolData
   (cleanup [_] nil)
-  (overlay [_] nil))
+  (overlay [_ _] nil))
 
 (rf/reg-event-fx
   store/app-id :vector-brush-tool/press
@@ -106,8 +105,6 @@
                   layers (get-in record [:canvas-data :layers])
                   new-layers (util/replace-layer new-layer layers)]
               {:record (-> record
-                           (assoc-in [:canvas-data :layers] new-layers)
-                           (common/cleanup-tool-data!))
+                           (assoc-in [:canvas-data :layers] new-layers))
                :fx [[:render-canvas record-id nil nil]]})
-            {:record (common/cleanup-tool-data! record)
-             :fx [[:render-canvas record-id nil nil]]}))))))
+            {:fx [[:render-canvas record-id nil nil]]}))))))
