@@ -8,10 +8,10 @@
    [top.kzre.krro.plugin.painting.core.edit.protocol :as p]
    [top.kzre.krro.plugin.painting.core.layer.tiles :as tiles]
    [top.kzre.krro.plugin.painting.core.project.canvas :as pc]
-   [top.kzre.krro.plugin.painting.core.store :as store])
+   [top.kzre.krro.plugin.painting.core.store :as store]
+   [top.kzre.krro.plugin.painting.core.viewport :as vp])
   (:import
-   (top.kzre.krro.canvas.core.layer LayerUtils)
-   (top.kzre.krro.util.math KMath)))
+    (top.kzre.krro.util.math KMath)))
 
 (custom/defcustom :krro.painting/move-tool-speed
                   1.0
@@ -32,29 +32,22 @@
   (overlay [_]
     nil))
 
-(defn layer-transform
-  [layer parent-transform]
-  (KMath/mat2dMul parent-transform (util/compose-local-transform layer)))
-
-(defn world-tiles
-  [layer parent-transform]
-  (when-let [local-tiles (tiles/layer-tiles layer pc/global-tile-size)]
-    (let [trans (layer-transform layer parent-transform)]
-      (LayerUtils/transformTiles local-tiles pc/global-tile-size trans))))
 
 (rf/reg-event-fx
   store/app-id :move-tool/press
   [(cleanup-tool-interceptor)]
-  (fn [cofx [_ _ {:keys [x y] } _]]
+  (fn [cofx [_ _ {:keys [x y] } frame]]
     (let [record (:record cofx)
           cd (:canvas-data record)]
       (if-let [current-layer-id (:current-layer-id cd)]
         (let [layers (:layers cd)]
           (when-let [path (util/find-layer-path current-layer-id layers)]
-            (let [layer (util/find-layer-by-path path layers)
+            (let [viewport (vp/get-viewport frame)
+                  p  (vp/screen->logic viewport x y)
+                  layer (util/find-layer-by-path path layers)
                   parent-transform (util/parent-transform path layers)]
               {:record (assoc-in record [:canvas-state :tool-data]
-                                 (->MoveState x y layer layer parent-transform))})))
+                                 (->MoveState (:x p) (:y p) layer layer parent-transform))})))
         {:fx [:warn "No active layer."]}))))
 
 (rf/reg-event-fx
@@ -65,9 +58,11 @@
       (when (instance? MoveState state)
         (let [speed      (custom/get-custom :krro.painting/move-tool-speed frame)
               dead-zone  (custom/get-custom :krro.painting/move-tool-dead-zone frame)
-              original-layer (:original-layer state)
-              dx (* speed (- x (:init-cursor-x state)))
-              dy (* speed (- y (:init-cursor-y state)))]
+              {:keys [parent-transform original-layer]} state
+              viewport (vp/get-viewport frame)
+              p  (vp/screen->logic viewport x y)
+              dx (* speed (- (:x p) (:init-cursor-x state)))
+              dy (* speed (- (:y p) (:init-cursor-y state)))]
           (if (and (< (Math/abs (double dx)) dead-zone)
                    (< (Math/abs (double dy)) dead-zone))
             ;; 移动过小，什么也不做
@@ -81,7 +76,8 @@
                     (if-let [tiles2 (tiles/layer-tiles new-layer pc/global-tile-size)]
                       (into tiles1 tiles2)
                       nil)
-                    nil)]
+                    nil)
+                  layer-transform (KMath/mat2dMul parent-transform (util/compose-local-transform new-layer))]
               {:record (-> record
                            (update-in [:canvas-data :layers]
                                       (fn [layers] (util/replace-layer new-layer layers)))

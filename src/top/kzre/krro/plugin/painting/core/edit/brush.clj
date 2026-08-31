@@ -12,7 +12,6 @@
     [top.kzre.krro.plugin.painting.core.tool.util :as tool-util]
     [top.kzre.krro.plugin.painting.core.viewport :as vp])
   (:import
-    (top.kzre.krro.canvas.core.layer LayerUtils)
     (top.kzre.krro.util.math KMath)
    (top.kzre.krro.util.tile TiledCanvas)))
 

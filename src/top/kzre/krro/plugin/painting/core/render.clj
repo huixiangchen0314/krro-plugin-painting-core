@@ -12,7 +12,7 @@
     (top.kzre.krro.core.util LastestTaskExecutor$TaskParams)
     (top.kzre.krro.core.util LastestTaskExecutor$TaskDefinition)
     (top.kzre.krro.util.math KMath)
-    (top.kzre.krro.util.tile TiledCanvas)))
+    (top.kzre.krro.util.tile CanvasUtils TiledCanvas)))
 
 (defn render-canvas
   "渲染图层到目标画布。canvas-w 和 canvas-h 为视口尺寸（渲染区域大小）。"
@@ -27,11 +27,12 @@
     (empty? dirty-tiles) nil
 
     :else
-    (canv/render-layers! layers dest canvas-w canvas-h
-                         :dirty-tiles dirty-tiles
-                         :viewport viewport
-                         :tile-size pc/global-tile-size
-                         )))
+    (let [tile-size (.getTileSize dest)]
+      (canv/render-layers! layers dest canvas-w canvas-h
+                           :dirty-tiles (CanvasUtils/clipTiles dirty-tiles tile-size canvas-w canvas-h)
+                           :viewport viewport
+                           :tile-size pc/global-tile-size
+                           ))))
 
 ;; ── 渲染任务参数（包含克隆图层） ──────────────
 (defrecord RenderParams [key canvas canvas-data dirty-tiles
