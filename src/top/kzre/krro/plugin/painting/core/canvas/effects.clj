@@ -40,9 +40,9 @@
 
 (rf/reg-fx
   :krro.painting :render-canvas
-  (fn [_ record-id dirty-tiles]
+  (fn [_ record-id dirty-tiles transform]
     (let [cd (pc/canvas-data! record-id)]
-      (hook/run-hook! :krro.painting/render-canvas-hook record-id cd dirty-tiles))))
+      (hook/run-hook! :krro.painting/render-canvas-hook record-id cd dirty-tiles transform))))
 
 
 (rf/reg-fx

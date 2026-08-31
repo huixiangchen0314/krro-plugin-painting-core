@@ -34,7 +34,7 @@
 
 (defn layer-transform
   [layer parent-transform]
-  (KMath/mat2dMul (util/compose-local-transform layer) parent-transform))
+  (KMath/mat2dMul parent-transform (util/compose-local-transform layer)))
 
 (defn world-tiles
   [layer parent-transform]
@@ -76,19 +76,17 @@
                   new-y (+ (or (:y original-layer) 0.0) dy)
                   last-layer (:last-layer state)
                   new-layer (assoc original-layer :x new-x :y new-y)
-                  parent-transform (:parent-transform state)
                   dirty-tiles
-                  (if-let [tiles1 (world-tiles last-layer parent-transform)]
-                    (if-let [tiles2 (world-tiles new-layer parent-transform)]
-                      (into (set tiles1) tiles2)
+                  (if-let [tiles1 (tiles/layer-tiles last-layer pc/global-tile-size)]
+                    (if-let [tiles2 (tiles/layer-tiles new-layer pc/global-tile-size)]
+                      (into tiles1 tiles2)
                       nil)
                     nil)]
               {:record (-> record
                            (update-in [:canvas-data :layers]
                                       (fn [layers] (util/replace-layer new-layer layers)))
-                           (update-in [:canvas-data :tool-data]
-                                      (fn [data] (assoc data :last-layer new-layer))))
-               :fx [[:render-canvas record-id dirty-tiles]]})))))))
+                           (assoc-in [:canvas-data :tool-data :last-layer] new-layer))
+               :fx [[:render-canvas record-id dirty-tiles layer-transform]]})))))))
 
 (rf/reg-event-fx
   store/app-id :move-tool/release
@@ -96,11 +94,5 @@
     (let [record (:record cofx)
           state (get-in record [:canvas-state :tool-data])]
       (when (instance? MoveState state)
-        (let [trans (layer-transform (:last-layer state)
-                                     (:parent-transform state))
-              trans-inv (KMath/mat2dInv trans)]
-          {:record (-> record
-                       (common/cleanup-tool-data!)
-                       (assoc-in [:canvas-state :layer-transform] trans)
-                       (assoc-in [:canvas-state :layer-transform-inv] trans-inv))
-           :fx [[:record-canvas-edited record-id]]})))))
+        {:record (common/cleanup-tool-data! record)
+         :fx [[:record-canvas-edited record-id]]}))))

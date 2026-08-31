@@ -1,7 +1,8 @@
 (ns top.kzre.krro.plugin.painting.core.viewport
   "视口定义与坐标转换。"
   (:require
-   [top.kzre.krro.core.frame :as frame])
+   [top.kzre.krro.core.frame :as frame]
+   [top.kzre.krro.canvas.core.layer.util :as util])
   (:import
    [top.kzre.krro.util.math KMath]))
 
@@ -32,7 +33,9 @@
   (or (frame/param frame viewport-param-key) default-viewport))
 
 (defn viewport->mat2d [vp]
-  (KMath/mat2dCompose (:offset-x vp) (:offset-y vp) (/ 1 (:zoom vp)) (/ 1 (:zoom vp)) 0))
+  (if (= vp default-viewport)
+    util/identity-matrix
+    (KMath/mat2dCompose (:offset-x vp) (:offset-y vp) (/ 1 (:zoom vp)) (/ 1 (:zoom vp)) 0)))
 
 (defn get-viewport-transform [frame]
   (-> frame

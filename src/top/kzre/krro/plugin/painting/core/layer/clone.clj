@@ -1,7 +1,7 @@
 (ns top.kzre.krro.plugin.painting.core.layer.clone
   (:import (top.kzre.krro.util.tile TiledCanvas)))
 
-(defmulti clone-layer :type)
+(defmulti clone-layer (fn [layer] (:type layer)))
 
 ;; 默认是不可变map，返回自己
 (defmethod clone-layer :default [layer] layer)

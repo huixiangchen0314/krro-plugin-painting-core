@@ -7,35 +7,31 @@
     [top.kzre.krro.plugin.painting.core.project.canvas :as pc]
     [top.kzre.krro.plugin.painting.core.viewport :as vp])
   (:import
-    (java.util Collection)
     (top.kzre.krro.canvas.core.layer LayerUtils)
     (top.kzre.krro.core.util LastestTaskExecutor)
     (top.kzre.krro.core.util LastestTaskExecutor$TaskParams)
     (top.kzre.krro.core.util LastestTaskExecutor$TaskDefinition)
+    (top.kzre.krro.util.math KMath)
     (top.kzre.krro.util.tile TiledCanvas)))
 
 (defn render-canvas
   "渲染图层到目标画布。canvas-w 和 canvas-h 为视口尺寸（渲染区域大小）。"
-  [layers canvas-w canvas-h dirty-tiles viewport ^TiledCanvas dest]
-  (let [tile-size (.getTileSize dest)
-        viewport-transform (vp/viewport->mat2d viewport)]
-    (cond
-      (nil? dirty-tiles)
-      (do
-        (.clear dest)
-        (canv/render-layers! layers dest canvas-w canvas-h
-                             :viewport viewport-transform))
+  [layers canvas-w canvas-h dirty-tiles ^TiledCanvas dest
+   & {:keys [viewport]}]
+  (cond
+    (nil? dirty-tiles)
+    (do
+      (.clear dest)
+      (canv/render-layers! layers dest canvas-w canvas-h
+                           :viewport viewport))
+    (empty? dirty-tiles) nil
 
-      (empty? dirty-tiles) nil
-
-      :else
-      (do
-        (.deleteTiles dest ^Collection dirty-tiles)
-        (let [viewport-dirty (LayerUtils/transformTiles dirty-tiles tile-size viewport-transform)]
-          (canv/render-layers! layers dest canvas-w canvas-h
-                               :dirty-tiles viewport-dirty
-                               :tile-size pc/global-tile-size
-                               :viewport viewport-transform))))))
+    :else
+    (canv/render-layers! layers dest canvas-w canvas-h
+                         :dirty-tiles dirty-tiles
+                         :viewport viewport
+                         :tile-size pc/global-tile-size
+                         )))
 
 ;; ── 渲染任务参数（包含克隆图层） ──────────────
 (defrecord RenderParams [key canvas canvas-data dirty-tiles
@@ -60,11 +56,8 @@
             new-vp-h (:canvas-h new)
             old-dirty (:dirty-tiles current)
             new-dirty (:dirty-tiles new)
-            merged-dirty (cond
-                           (nil? old-dirty) new-dirty
-                           (nil? new-dirty) old-dirty
-                           :else
-                           (into (or old-dirty #{}) (or new-dirty #{})))
+            merged-dirty (when-not (or (nil? old-dirty) (nil? new-dirty))
+                           (into old-dirty new-dirty))
             ;; 如果视口尺寸或图像尺寸变化，强制全量
             force-full (or (not= old-vp-w new-vp-w)
                            (not= old-vp-h new-vp-h)
@@ -73,11 +66,14 @@
         (assoc new :dirty-tiles (if force-full nil merged-dirty))))
 
     (runTask [_ params]
-      (let [{:keys [canvas canvas-data viewport dirty-tiles
-                    layers upload-fn canvas-w canvas-h]} params
+      (let [{:keys [canvas canvas-data  viewport
+                    dirty-tiles
+                    canvas-w canvas-h
+                    layers upload-fn ]} params
             {:keys [width height]} canvas-data]   ; 保留用于其他用途，但渲染边界使用视口尺寸
         (try
-          (render-canvas layers canvas-w canvas-h dirty-tiles viewport canvas)
+          (render-canvas layers canvas-w canvas-h dirty-tiles canvas
+                         :viewport (when viewport (vp/viewport->mat2d viewport)))
           (when upload-fn
             (upload-fn canvas canvas-data viewport))
           (catch Exception e
@@ -91,22 +87,38 @@
          (LastestTaskExecutor. render-task-def))
 
 (defn request-render-full!
-  [render-task-id canvas canvas-data upload-fn & {:keys [dirty-tiles]}]
+  [render-task-id canvas canvas-data upload-fn & {:keys [dirty-tiles dirty-transform]}]
   (let [layers (:layers canvas-data)
+        tile-size (.getTileSize canvas)
         cloned-layers (mapv clone/clone-layer layers)
-        params (->RenderParams render-task-id canvas canvas-data  dirty-tiles
+        params (->RenderParams render-task-id canvas canvas-data
+                               (when (and dirty-tiles dirty-transform)
+                                 (set (LayerUtils/transformTiles
+                                        dirty-tiles
+                                        tile-size
+                                        dirty-transform)))
                                cloned-layers
-                               vp/default-viewport (:width canvas-data) (:height canvas-data) upload-fn )]
+                               vp/default-viewport (:width canvas-data) (:height canvas-data)
+                               upload-fn )]
     (.submit executor render-task-id params)))
 
 ;; ── 渲染请求入口（提交时克隆图层） ──────────────
 (defn request-render-viewport!
   "提交渲染任务，视口尺寸单独传入，用于裁剪渲染区域。"
-  [render-task-id canvas canvas-data dirty-tiles viewport viewport-w viewport-h upload-fn]
+  [render-task-id canvas canvas-data dirty-tiles dirty-transform viewport viewport-w viewport-h upload-fn]
   (let [layers (:layers canvas-data)
+        tile-size (.getTileSize canvas)
         cloned-layers (mapv clone/clone-layer layers)
-        params (->RenderParams render-task-id canvas canvas-data  dirty-tiles
-                               cloned-layers viewport viewport-w viewport-h upload-fn )]
+        params (->RenderParams render-task-id canvas canvas-data
+                               (when (and dirty-tiles dirty-transform)
+                                 (set (LayerUtils/transformTiles
+                                        dirty-tiles
+                                        tile-size
+                                        (KMath/mat2dMul (vp/viewport->mat2d viewport)
+                                                        dirty-transform))))
+                               cloned-layers
+                               viewport viewport-w viewport-h
+                               upload-fn )]
     (.submit executor render-task-id params)))
 
 ;; ── 关闭执行器 ──────────────────────────────────

@@ -25,10 +25,10 @@
       :release :viewport-tool/release
       nil)))
 
-;(defmethod dispatch/tool-event :brush
-;  [_ event-map]
-;  (case (:type event-map)
-;    :press :brush-tool/press
-;    :drag :brush-tool/drag
-;    :release :brush-tool/release
-;    nil))
+(defmethod dispatch/tool-event :brush
+  [_ event-map]
+  (case (:type event-map)
+    :press :brush-tool/press
+    :drag :brush-tool/drag
+    :release :brush-tool/release
+    nil))

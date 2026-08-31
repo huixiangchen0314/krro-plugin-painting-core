@@ -74,7 +74,7 @@
                      (-> original-viewport
                          (update-in [:offset-x] (fn [offset-x] (- offset-x (/ dx zoom))))
                          (update-in [:offset-y] (fn [offset-y] (- offset-y (/ dy zoom)))))]
-                    [:render-canvas record-id nil]]}))))
+                    [:render-canvas record-id nil nil]]}))))
      )))
 
 
@@ -117,7 +117,7 @@
              :zoom new-zoom
              :offset-x new-offset-x
              :offset-y new-offset-y)]
-          [:render-canvas record-id nil]]}))))
+          [:render-canvas record-id nil nil]]}))))
 
 (rf/reg-event-fx
   store/app-id :viewport-tool/release
