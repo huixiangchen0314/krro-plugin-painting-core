@@ -33,9 +33,10 @@
   (or (frame/param frame viewport-param-key) default-viewport))
 
 (defn viewport->mat2d [vp]
-  (if (= vp default-viewport)
-    util/identity-matrix
-    (KMath/mat2dCompose (:offset-x vp) (:offset-y vp) (/ 1 (:zoom vp)) (/ 1 (:zoom vp)) 0)))
+  (let [zoom (:zoom vp)
+        offx (:offset-x vp)
+        offy (:offset-y vp)]
+    (KMath/mat2dCompose (- (* offx zoom)) (- (* offy zoom)) zoom zoom 0)))
 
 (defn get-viewport-transform [frame]
   (-> frame
