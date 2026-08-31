@@ -1,11 +1,13 @@
 (ns top.kzre.krro.plugin.painting.core.edit.viewport
   (:require
-    [top.kzre.krro.core.custom :as custom]
-    [top.kzre.krro.core.reframe :as rf]
-    [top.kzre.krro.plugin.painting.core.edit.protocol :as p]
-    [top.kzre.krro.plugin.painting.core.store :as store]
-    [top.kzre.krro.plugin.painting.core.viewport :as vp])
-  (:import (top.kzre.krro.plugin.painting.core.edit.protocol IToolData)))
+   [top.kzre.krro.core.custom :as custom]
+   [top.kzre.krro.core.reframe :as rf]
+   [top.kzre.krro.plugin.painting.core.edit.interceptors :refer [tool-context-interceptor]]
+   [top.kzre.krro.plugin.painting.core.edit.protocol :as p]
+   [top.kzre.krro.plugin.painting.core.store :as store]
+   [top.kzre.krro.plugin.painting.core.viewport :as vp])
+  (:import
+   (top.kzre.krro.plugin.painting.core.edit.protocol IToolData)))
 
 (custom/defcustom :krro.painting/viewport-pan-speed
                   1.0
@@ -49,6 +51,7 @@
 
 (rf/reg-event-fx
   store/app-id :viewport-tool/drag
+  ;[(tool-context-interceptor)]
   (fn [cofx [_ record-id {:keys [x y] :as event-map} frame]]
     (let [record (:record cofx)
           state (get-in record [:canvas-state :viewport-state])]
@@ -72,51 +75,47 @@
                     [:tool/flush-overlay
                      (when (and tool-data (satisfies? p/IToolData tool-data))
                        (p/overlay tool-data
-                                  {:viewport new-viewport
-                                   :event event-map}))
+                                  {:event event-map
+                                   :viewport new-viewport}))
                      frame]
                     [:render-canvas record-id nil nil]]})))))))
 
 
 (rf/reg-event-fx
   store/app-id :viewport-tool/scroll
-  (fn [cofx [_ record-id {:keys [x y delta-y] :as event-map} frame]]
+  [(tool-context-interceptor)]
+  (fn [cofx [_ record-id {:keys [x y delta-y]} frame]]
     (when delta-y
       (let [record (:record cofx)
-            sensitivity (custom/get-custom :krro.painting/viewport-zoom-sensitivity frame)
-
-            vp (vp/get-viewport frame)
-            old-zoom (:zoom vp)
+            ctx (:krro.painting/tool-context cofx)
+            {:keys [viewport canvas-event]} ctx
+            sensitivity (custom/get-custom :krro.painting/viewport-zoom-sensitivity)
+            old-zoom (:zoom viewport)
             new-zoom (-> old-zoom
                          (* (Math/pow sensitivity (double delta-y)))
                          (max 0.01) (min 100.0))
-            ;; 计算鼠标指向的逻辑坐标
-            lx (+ (/ x old-zoom) (:offset-x vp))
-            ly (+ (/ y old-zoom) (:offset-y vp))
-            ;; 新视口左上角应为 lx - sx / new-zoom
-            new-offset-x (- lx (/ x new-zoom))
-            new-offset-y (- ly (/ y new-zoom))
-            new-viewport (assoc vp
+            ;; 鼠标指向的逻辑坐标（直接从 canvas-event 获取）
+            cx (:x canvas-event)
+            cy (:y canvas-event)
+            new-offset-x (- cx (/ x new-zoom))
+            new-offset-y (- cy (/ y new-zoom))
+            new-viewport (assoc viewport
                            :zoom new-zoom
                            :offset-x new-offset-x
                            :offset-y new-offset-y)
-            tool-data (get-in record [:canvas-state :tool-data])]
+            tool-data (get-in record [:canvas-state :tool-data])
+            viewport-state (get-in record [:canvas-state :viewport-state])]
         {:record
-         ;; 如果是移动中缩放，就立马更新初始数据
-         (when-let [state (get-in record [:canvas-state :viewport-state])]
-           (when (and (instance? ViewportState state)
-                      (:moving? state))
-             (update-in record [:canvas-state :viewport-state]
-                        merge
-                        {:init-cursor-x x
-                         :init-cursor-y y
-                         :original-viewport new-viewport})))
-         :fx
-         [[:set-viewport frame new-viewport]
-          [:tool/flush-overlay
-           (when (and tool-data (satisfies? p/IToolData tool-data))
-             (p/overlay tool-data
-                        {:viewport new-viewport
-                         :event event-map}))
-           frame]
-          [:render-canvas record-id nil nil]]}))))
+         (when (and (instance? ViewportState viewport-state)
+                    (:moving? viewport-state))
+           (update-in record [:canvas-state :viewport-state]
+                      merge
+                      {:init-cursor-x x
+                       :init-cursor-y y
+                       :original-viewport new-viewport}))
+         :fx [[:set-viewport frame new-viewport]
+              [:tool/flush-overlay
+               (when (and tool-data (satisfies? p/IToolData tool-data))
+                 (p/overlay tool-data (assoc ctx :viewport new-viewport)))
+               frame]
+              [:render-canvas record-id nil nil]]}))))

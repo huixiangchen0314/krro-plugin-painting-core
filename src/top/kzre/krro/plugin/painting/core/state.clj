@@ -50,7 +50,7 @@
                      :stroke nil
                      :layer-transform (KMath/mat2dIdentity)
                      :layer-transform-inv (KMath/mat2dIdentity)
-                     :tool-data {}
+                     :tool-data nil
                      :tool-settings {}
                      :viewport-state {}
                      }))

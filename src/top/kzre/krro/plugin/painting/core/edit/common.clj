@@ -6,4 +6,4 @@
     (when (and tool-data
                (satisfies? p/IToolData tool-data))
       (p/cleanup tool-data))
-    (assoc-in record [:canvas-state :tool-data] {})))
+    record))
