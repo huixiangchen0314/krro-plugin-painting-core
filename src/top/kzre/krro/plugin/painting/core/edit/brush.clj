@@ -43,7 +43,7 @@
                          (->BrushState (stroke/make-stroke) (clone/clone-layer layer) 0
                                        layer-transform layer-transform-inv))
                :fx
-               [[:set-command-enabled false]]})
+               [[:tool/set-command-enabled false]]})
             {:fx [[:warn "Brush tool is only used for raster layer!"]]}))
         {:fx [[:warn "No active layer!"]]}))))
 
@@ -108,7 +108,7 @@
                            (common/cleanup-tool-data!))
                :fx [[:record-raster-layer-edited record-id layer-id old-canvas new-canvas dirties-set]
                     [:render-canvas record-id dirties-set layer-transform]
-                    [:set-command-enabled true]]})
+                    [:tool/set-command-enabled true]]})
             ;; else
             {:record (common/cleanup-tool-data! record)
-             :fx [[:set-command-enabled true]]}))))))
+             :fx [[:tool/set-command-enabled true]]}))))))

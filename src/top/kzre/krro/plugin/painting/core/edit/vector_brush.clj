@@ -51,7 +51,7 @@
                          (->VectorBrushState (stroke/make-stroke) (clone/clone-layer layer)
                                              layer-transform layer-transform-inv))
                :fx
-               [[:set-command-enabled false]]})
+               [[:tool/set-command-enabled false]]})
             {:fx [[:warn "Vector brush tool is only used for vector layer!"]]}))
         {:fx [[:warn "No active layer!"]]}))))
 

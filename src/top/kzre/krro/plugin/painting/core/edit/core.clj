@@ -1,9 +1,11 @@
 (ns top.kzre.krro.plugin.painting.core.edit.core
   (:require
+    [top.kzre.krro.plugin.painting.core.edit.effects]
     [top.kzre.krro.plugin.painting.core.edit.viewport]
    [top.kzre.krro.plugin.painting.core.edit.dispatch :as dispatch]
     [top.kzre.krro.plugin.painting.core.edit.brush]
     [top.kzre.krro.plugin.painting.core.edit.vector-brush]
+    [top.kzre.krro.plugin.painting.core.edit.fill]
    [top.kzre.krro.plugin.painting.core.edit.move]))
 
 
@@ -39,4 +41,10 @@
     :press :vector-brush-tool/press
     :drag :vector-brush-tool/drag
     :release :vector-brush-tool/release
+    nil))
+
+(defmethod dispatch/tool-event :fill
+  [_ event-map]
+  (case (:type event-map)
+    :press :fill-tool/press
     nil))

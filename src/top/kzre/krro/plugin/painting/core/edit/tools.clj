@@ -4,4 +4,5 @@
   []
   [{:id :brush :name "画笔" :icon "🖌"}
    {:id :vector-brush :name "矢量笔" :icon "🖌"}
-   {:id :move :name "移动" :icon "✥"}])
+   {:id :move :name "移动" :icon "✥"}
+   {:id :fill :name "填充" :icon "[]"}])

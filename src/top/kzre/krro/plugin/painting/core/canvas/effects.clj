@@ -2,15 +2,15 @@
   "画布相关的副作用处理器"
   (:require
    [taoensso.timbre :as log]
+   [top.kzre.krro.core.hook :as hook]
    [top.kzre.krro.core.message :as msg]
    [top.kzre.krro.core.reframe :as rf]
-   [top.kzre.krro.core.variable :as variable]
    [top.kzre.krro.plugin.painting.core.layer.destroy :as destroy]
+
    [top.kzre.krro.plugin.painting.core.project.canvas :as pc]
-   [top.kzre.krro.plugin.painting.core.render :as render]
    [top.kzre.krro.plugin.painting.core.state :as state]
    [top.kzre.krro.plugin.painting.core.store :as store]
-   [top.kzre.krro.core.hook :as hook]))
+   ))
 
 (rf/reg-fx
   :krro.painting :log-info
@@ -32,10 +32,6 @@
   (fn [_ message]
     (msg/error message)))
 
-(rf/reg-fx
-  store/app-id :set-command-enabled
-  (fn [_ enabled?]
-    (reset! variable/command-enabled enabled?)))
 
 
 (rf/reg-fx
