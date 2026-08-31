@@ -3,4 +3,5 @@
 (defn tools
   []
   [{:id :brush :name "画笔" :icon "🖌"}
+   {:id :vector-brush :name "矢量笔" :icon "🖌"}
    {:id :move :name "移动" :icon "✥"}])

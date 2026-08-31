@@ -32,3 +32,11 @@
     :drag :brush-tool/drag
     :release :brush-tool/release
     nil))
+
+(defmethod dispatch/tool-event :vector-brush
+  [_ event-map]
+  (case (:type event-map)
+    :press :vector-brush-tool/press
+    :drag :vector-brush-tool/drag
+    :release :vector-brush-tool/release
+    nil))
