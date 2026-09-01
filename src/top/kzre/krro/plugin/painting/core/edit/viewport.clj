@@ -29,7 +29,7 @@
 
 (defrecord ViewportState [init-cursor-x init-cursor-y original-viewport moving?]
   IToolData
-  (cleanup [_]
+  (cleanup! [_]
     nil)
   (overlay [_ _]
     nil))
@@ -51,8 +51,8 @@
 
 (rf/reg-event-fx
   store/app-id :viewport-tool/drag
-  ;[(tool-context-interceptor)]
-  (fn [cofx [_ record-id {:keys [x y] :as event-map} frame]]
+  [(tool-context-interceptor)]
+  (fn [cofx [_ record-id {:keys [x y] } frame]]
     (let [record (:record cofx)
           state (get-in record [:canvas-state :viewport-state])]
       (when (instance? ViewportState state)
@@ -74,9 +74,7 @@
               {:fx [[:set-viewport frame new-viewport]
                     [:tool/flush-overlay
                      (when (and tool-data (satisfies? p/IToolData tool-data))
-                       (p/overlay tool-data
-                                  {:event event-map
-                                   :viewport new-viewport}))
+                       (p/overlay tool-data (:krro.painting/tool-context cofx)))
                      frame]
                     [:render-canvas record-id nil nil]]})))))))
 

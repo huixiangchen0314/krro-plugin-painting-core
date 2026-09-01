@@ -26,33 +26,26 @@
 ;; TODO 把tool重构成proj
 ;; TODO 渲染缓存
 (defrecord CanvasState
-  [^TiledCanvas preview-canvas                              ;; 预览画布
-   selected-layer-id                                        ;; 当前选中图层id
+  [selected-layer-id                                        ;; 当前选中图层id
    selected-layer-ids                                       ;; 当前选中的所有图层id.
-   layer-backup                                             ;; 图层备份数据
    current-tool                                             ;; 当前选择工具
-   dirty-tiles                                              ;; 画布脏tile
-   ^Stroke stroke                                           ;; 当前笔刷笔触
-   layer-transform                                          ;; 当前图层正变换仿射矩阵
-   layer-transform-inv                                      ;; 当前图层逆变换仿射矩阵
    tool-data                                                ;; 工具的状态数据
    viewport-state                                           ;; 视口工具状态
    tool-settings                                            ;; 工具会话限定工具设拽
+   last-press-time
+   second-last-press-time
    ])
 
 (defn make-state []
   (map->CanvasState {:preview-canvas   (TiledCanvas. pc/global-tile-size )
                      :selected-layer-id nil
                      :selected-layer-ids nil
-                     :layer-backup     nil
                      :current-tool     nil
-                     :dirty-tiles      #{}
-                     :stroke nil
-                     :layer-transform (KMath/mat2dIdentity)
-                     :layer-transform-inv (KMath/mat2dIdentity)
                      :tool-data nil
                      :tool-settings {}
                      :viewport-state {}
+                     :last-press-time 0
+                     :second-last-press-time  0
                      }))
 
 (defn layer-backup [^CanvasState rt] (:layer-backup rt))

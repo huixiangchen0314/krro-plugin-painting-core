@@ -6,6 +6,7 @@
     [top.kzre.krro.plugin.painting.core.edit.brush]
     [top.kzre.krro.plugin.painting.core.edit.vector-brush]
     [top.kzre.krro.plugin.painting.core.edit.fill]
+    [top.kzre.krro.plugin.painting.core.edit.anchor]
    [top.kzre.krro.plugin.painting.core.edit.move]))
 
 
@@ -47,4 +48,12 @@
   [_ event-map]
   (case (:type event-map)
     :press :fill-tool/press
+    nil))
+
+(defmethod dispatch/tool-event :anchor
+  [_ event-map]
+  (case (:type event-map)
+    :press :anchor-tool/press
+    :drag :anchor-tool/drag
+    :release :anchor-tool/release
     nil))

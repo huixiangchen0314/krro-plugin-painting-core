@@ -30,7 +30,7 @@
 
 (defrecord VectorBrushState [stroke layer-backup layer-transform layer-transform-inv]
   p/IToolData
-  (cleanup [_] nil)
+  (cleanup! [_] nil)
   (overlay [_ _] nil))
 
 (rf/reg-event-fx
