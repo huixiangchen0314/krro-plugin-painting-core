@@ -44,6 +44,7 @@
            layer-path (when current-layer-id (util/find-layer-path current-layer-id layers))
            layer (when layer-path (util/find-layer-by-path layer-path layers))
            layer-type (when layer (:type layer))
+           layer-visible (when layer (:visible layer))
            layer-transform-inv (when layer (tool-util/layer-transform-inverse layer layers))
            layer-transform (when layer-transform-inv (KMath/mat2dInv layer-transform-inv))
 
@@ -63,7 +64,7 @@
                                                                  (:y canvas-point))]
                            (assoc event-map :x (:x layer-point) :y (:y layer-point)))
                          event-map)
-           now (System/currentTimeMillis)
+           now (:timestamp event-map)
            last-press-time (get-in record [:canvas-state :last-press-time])
            click-threshold 300
            ;; ---- 点击计数维护 ----
@@ -99,6 +100,7 @@
                       :layer-id            current-layer-id
                       :layer-path          layer-path
                       :layer-type          layer-type
+                      :layer-visible       layer-visible
                       :layer               layer
                       :layer-transform     layer-transform
                       :layer-transform-inv layer-transform-inv
