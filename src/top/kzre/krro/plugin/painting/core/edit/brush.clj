@@ -17,7 +17,7 @@
                        layer-backup
                        ^int rendered-event-count]
  p/IToolData
- (cleanup! [_]
+ (cleanup! [_ _]
    (when-let [^TiledCanvas canvas  (:canvas layer-backup)]
      (.clear canvas)))
   (overlay [_ {:keys [viewport event]}]

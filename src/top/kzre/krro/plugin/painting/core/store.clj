@@ -13,16 +13,21 @@
 
 ;; 记录每个画布 store 的注销函数，key 为 canvas-id
 (defonce ^:private store-registry (atom {}))
-
+;; 支持额外状态，避免 耦合进 canvas-state 中
+(defonce ^:private extra-store (atom {}))
 
 (defn make-record [canvas-id]
-  {:canvas-id   canvas-id
-   :canvas-data (pc/canvas-data! canvas-id)
-   :canvas-state (state/canvas-runtime canvas-id)})
+  (merge
+    (get @extra-store canvas-id)
+    {:canvas-id   canvas-id
+     :canvas-data (pc/canvas-data! canvas-id)
+     :canvas-state (state/canvas-runtime canvas-id)}))
 
-(defn update-record! [{:keys [canvas-id canvas-data canvas-state]}]
+(defn update-record! [{:keys [canvas-id canvas-data canvas-state]
+                       :as record}]
   (when canvas-data (kcc/update-by-id! :krro.painting/canvas canvas-id (constantly canvas-data)))
-  (when canvas-state (swap! state/canvas-runtimes assoc canvas-id canvas-state)))
+  (when canvas-state (swap! state/canvas-runtimes assoc canvas-id canvas-state))
+  (swap! extra-store assoc canvas-id (dissoc record :canvas-data :canvas-state)))
 
 (defn reg-canvas-store
   "为指定 canvas-id 注册 reframe store（作为一个独立 record）。
@@ -48,4 +53,6 @@
   (when-let [stop-fn (get @store-registry canvas-id)]
     (stop-fn)
     (swap! store-registry dissoc canvas-id)
+    (swap! extra-store dissoc canvas-id)
+    ;; TODO 添加hook，方便最终清理检查
     (log/info "unregistered store for canvas-id:" canvas-id)))

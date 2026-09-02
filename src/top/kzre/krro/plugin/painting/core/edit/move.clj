@@ -26,7 +26,7 @@
 
 (defrecord MoveState [init-cursor-x init-cursor-y original-layer last-layer parent-transform]
   p/IToolData
-  (cleanup! [_]
+  (cleanup! [_ _]
     nil)
   (overlay [_ _]
     nil))

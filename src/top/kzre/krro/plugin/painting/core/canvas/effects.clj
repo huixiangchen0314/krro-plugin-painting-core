@@ -47,7 +47,8 @@
     (let [cd (pc/canvas-data! record-id)
           layers (:layers cd)]
       (doseq [l layers]
-        (destroy/destroy-layer l)))))
+        (destroy/destroy-layer l))
+      (store/unreg-canvas-store record-id))))
 
 
 (rf/reg-fx

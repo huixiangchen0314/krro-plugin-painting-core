@@ -29,7 +29,7 @@
 
 (defrecord ViewportState [init-cursor-x init-cursor-y original-viewport moving?]
   IToolData
-  (cleanup! [_]
+  (cleanup! [_ _]
     nil)
   (overlay [_ _]
     nil))

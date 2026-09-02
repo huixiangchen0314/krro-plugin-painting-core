@@ -18,7 +18,7 @@
           ;; 工具存在，并且不是指定类型
           (do
             (when (satisfies? p/IToolData tool-data)
-              (p/cleanup! tool-data))
+              (p/cleanup! tool-data context))
             (let [new-tool-data (when factory (factory context))]
               (assoc-in context [:coeffects :record :canvas-state :tool-data] new-tool-data)))
           ;; 无旧数据，直接放行
@@ -107,3 +107,5 @@
                       :layers              layers
                       :click-count         click-count
                       :canvas-data         canvas-data}))))})
+
+

@@ -9,9 +9,7 @@
     [top.kzre.krro.plugin.painting.core.spec :as spec])
   (:import
    (java.util Collection)
-   (top.kzre.krro.brush Stroke)
    (top.kzre.krro.plugin.painting.core.project.canvas CanvasData)
-   (top.kzre.krro.util.math KMath)
    (top.kzre.krro.util.tile CanvasUtils TiledCanvas)))
 
 (defn frames-with-canvas-id
@@ -23,8 +21,6 @@
   (doseq [f (frames-with-canvas-id canvas-id)]
     (kcc/rerender! f)))
 
-;; TODO 把tool重构成proj
-;; TODO 渲染缓存
 (defrecord CanvasState
   [selected-layer-id                                        ;; 当前选中图层id
    selected-layer-ids                                       ;; 当前选中的所有图层id.

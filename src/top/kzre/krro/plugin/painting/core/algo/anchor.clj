@@ -24,3 +24,4 @@
           anchor-groups)]
     {:paths new-paths
      :aabb aabb}))
+
