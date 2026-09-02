@@ -24,11 +24,13 @@
            :segment-fit
            })
 
-(defrecord AnchorState [selected-anchor
-                         selected-anchors ; selected 是一个 #{SelectedAnchor} 集合
-                         selected-paths                     ; #{path-id}
-                         layer-backup
-                         init-layer-point]
+(defrecord AnchorState [mode                                ;; 操作模式
+                        modal                               ;; 模态编辑
+                        active-anchor                       ;; 活动的锚点
+                        selected-anchors                    ;; 被选择的锚点
+                        selected-paths                      ;; 被选择的路径
+                        layer-backup
+                        init-layer-point]
   p/IToolData
   (cleanup! [_ ctx]
     (when-let [canvas-id (get-in ctx [:coeffects :record-id])]
@@ -57,8 +59,8 @@
                               is-selected (some #(and (= (:path-id %) path-id)
                                                       (= (:point-idx %) idx))
                                                 selected-set)
-                              is-active (and (= (:path-id selected-anchor) path-id)
-                                             (= (:point-idx selected-anchor) idx))]
+                              is-active (and (= (:path-id active-anchor) path-id)
+                                             (= (:point-idx active-anchor) idx))]
                           [:circle {:x (:x screen-pos)
                                     :y (:y screen-pos)
                                     :radius (if is-selected 8 5)
@@ -76,7 +78,12 @@
         []))))
 
 (defn make-anchor-state
-  [] (->AnchorState nil #{} #{} nil nil))
+  [& {:keys [mode modal]
+      :or {mode :translate
+           modal false}}]
+  (->AnchorState mode modal
+                 nil #{} #{}
+                 nil nil))
 
 
 (rf/reg-event-fx
@@ -165,7 +172,7 @@
                                         (conj selected-set closest-anchor)
                                         #{closest-anchor})
                          new-tool-data (assoc tool-data :selected-anchors new-selected
-                                                        :selected-anchor closest-anchor)]
+                                                        :active-anchor closest-anchor)]
                      {:record (assoc-in record [:canvas-state :tool-data] new-tool-data)
                       :fx [[:tool/flush-overlay (p/overlay new-tool-data ctx) frame]]})
                    (if shift?
