@@ -1,7 +1,7 @@
 (ns top.kzre.krro.plugin.painting.core.edit.dispatch
   (:require
    [top.kzre.krro.core.reframe :as rf]
-   [top.kzre.krro.plugin.painting.core.edit.anchor :as anchor]
+   [top.kzre.krro.plugin.painting.core.edit.anchor-translate :as anchor]
    [top.kzre.krro.plugin.painting.core.edit.interceptors :refer [cleanup-tool-interceptor]]
    [top.kzre.krro.plugin.painting.core.store :as store]))
 
@@ -33,6 +33,6 @@
      (-> (:record cofx)
          (assoc-in [:canvas-state :tool-data]
                    (case tool-id
-                     :anchor (anchor/->AnchorState #{} nil nil)
+                     :anchor-translate (anchor/->AnchorState #{} nil nil)
                      nil))
          (assoc-in [:canvas-state :current-tool] tool-id))}))

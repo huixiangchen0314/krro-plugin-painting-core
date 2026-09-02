@@ -16,15 +16,14 @@
                  (anchor/->Anchor path-id idx))))
     tree))
 
-(defn update-anchor-quadtree [^QuadTree tree old-paths new-paths anchors]
-  ;; 删除旧点
+(defn update-anchor-quadtree! [^QuadTree tree old-paths new-paths anchors]
   (doseq [anchor anchors]
-    (let [old-point (get-in old-paths [(:path-id anchor) :bezier-curve :points (:point-idx anchor)])]
-      (when old-point
-        (.delete tree (:x old-point) (:y old-point) anchor))))
-  ;; 插入新点
-  (doseq [anchor anchors]
-    (let [new-point (get-in new-paths [(:path-id anchor) :bezier-curve :points (:point-idx anchor)])]
-      (when new-point
-        (.insert tree (:x new-point) (:y new-point) anchor))))
+    ;; 删除旧点
+    (let [pts (get-in old-paths [(:path-id anchor) :bezier-curve :points])
+          pt  (nth pts (:point-idx anchor))]
+      (.delete tree (:x pt) (:y pt) anchor))
+    ;; 插入新点
+    (let [pts (get-in new-paths [(:path-id anchor) :bezier-curve :points])
+          pt  (nth pts (:point-idx anchor))]
+      (.insert tree (:x pt) (:y pt) anchor)))
   tree)

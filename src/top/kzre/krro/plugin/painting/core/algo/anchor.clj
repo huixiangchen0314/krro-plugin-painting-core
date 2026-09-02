@@ -11,11 +11,12 @@
         (reduce
           (fn [[paths aabb] [path-id anchors]]
             (if-let [path (get paths path-id)]
-              (let [idxs (mapv :point-idx anchors)
+              (let [idx (mapv :point-idx anchors)
+                    ;; TODO catmull-rom 分支
                     old-curve (:bezier-curve path)
-                    new-curve (apply bezier/translate old-curve dx dy idxs)
-                    old-aabb (apply bezier/aabb old-curve idxs)
-                    new-aabb (apply bezier/aabb new-curve idxs)
+                    new-curve (apply bezier/translate old-curve dx dy idx)
+                    old-aabb (apply bezier/aabb old-curve idx)
+                    new-aabb (apply bezier/aabb new-curve idx)
                     merged (bezier/merge-aabb old-aabb new-aabb aabb)]
                 [(assoc paths path-id (assoc path :bezier-curve new-curve))
                  merged])

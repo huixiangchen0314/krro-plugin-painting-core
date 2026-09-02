@@ -1,6 +1,5 @@
 (ns top.kzre.krro.plugin.painting.core.edit.common
   (:require [top.kzre.krro.canvas.core.layer.util :as util]
-            [top.kzre.krro.plugin.painting.core.edit.protocol :as p]
             [top.kzre.krro.plugin.painting.core.viewport :as vp]))
 
 
