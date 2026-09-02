@@ -1,10 +1,9 @@
 (ns top.kzre.krro.plugin.painting.core.viewport
   "视口定义与坐标转换。"
   (:require
-   [top.kzre.krro.core.frame :as frame]
-   [top.kzre.krro.canvas.core.layer.util :as util])
+    [top.kzre.krro.core.frame :as frame])
   (:import
-   [top.kzre.krro.util.math KMath]))
+    (top.kzre.krro.util.math KMath)))
 
 (defrecord ViewPort
   [^double offset-x   ;; 视口左上角在逻辑空间中的 X 坐标

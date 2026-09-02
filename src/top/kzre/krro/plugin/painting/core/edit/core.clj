@@ -6,7 +6,7 @@
     [top.kzre.krro.plugin.painting.core.edit.brush]
     [top.kzre.krro.plugin.painting.core.edit.vector-brush]
     [top.kzre.krro.plugin.painting.core.edit.fill]
-    [top.kzre.krro.plugin.painting.core.edit.anchor-translate]
+    [top.kzre.krro.plugin.painting.core.edit.anchor]
    [top.kzre.krro.plugin.painting.core.edit.move]))
 
 

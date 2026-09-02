@@ -1,4 +1,4 @@
-(ns top.kzre.krro.plugin.painting.core.edit.anchor-translate
+(ns top.kzre.krro.plugin.painting.core.edit.anchor
   (:require
    [taoensso.tufte :refer [p profile]]
    [top.kzre.krro.canvas.core.layer.util :as util]
@@ -17,9 +17,18 @@
    (top.kzre.krro.canvas.core QuadTree QuadTree$NearestResult)
    (top.kzre.krro.canvas.core.layer LayerUtils)))
 
-(defrecord  AnchorState [selected-anchors ; selected 是一个 #{SelectedAnchor} 集合
-                        layer-backup
-                        init-layer-point]
+(defonce anchor-modes
+         #{:translate
+           :rotate
+           :scale
+           :segment-fit
+           })
+
+(defrecord AnchorState [selected-anchor
+                         selected-anchors ; selected 是一个 #{SelectedAnchor} 集合
+                         selected-paths                     ; #{path-id}
+                         layer-backup
+                         init-layer-point]
   p/IToolData
   (cleanup! [_ ctx]
     (when-let [canvas-id (get-in ctx [:coeffects :record-id])]
@@ -47,28 +56,32 @@
                                                            (:y world-pos))
                               is-selected (some #(and (= (:path-id %) path-id)
                                                       (= (:point-idx %) idx))
-                                                selected-set)]
+                                                selected-set)
+                              is-active (and (= (:path-id selected-anchor) path-id)
+                                             (= (:point-idx selected-anchor) idx))]
                           [:circle {:x (:x screen-pos)
                                     :y (:y screen-pos)
                                     :radius (if is-selected 8 5)
-                                    :fill-color (if is-selected
-                                                  (RGB/rgba 1 1 0 0.8)
-                                                  (RGB/rgba 1 0 0 0.5))
-                                    :stroke-color (if is-selected
-                                                    (RGB/rgba 1 1 0 1)
-                                                    (RGB/rgba 1 0 0 1))
-                                    :stroke-width 1.5}]))
+                                    :fill-color (cond
+                                                  is-active (RGB/rgba 1 1 0 0.9)
+                                                  is-selected (RGB/rgba 1 1 0 0.8)
+                                                  :else (RGB/rgba 1 0 0 0.5))
+                                    :stroke-color (cond is-active (RGB/rgba 1 1 0 1)
+                                                        is-selected (RGB/rgba 0 0 1 1)
+                                                        :else (RGB/rgba 1 0 0 1))
+                                    :stroke-width (if is-active 2.0 1.5)}]))
                       points)))
                 path-order))))
         ;; 图层不可见时候不显示 overlay
         []))))
 
-
+(defn make-anchor-state
+  [] (->AnchorState nil #{} #{} nil nil))
 
 
 (rf/reg-event-fx
   store/app-id :anchor-translate/press
-  [(cleanup-tool-interceptor AnchorState :factory (fn [_] (->AnchorState #{} nil nil)))
+  [(cleanup-tool-interceptor AnchorState :factory (fn [_] (make-anchor-state)))
    (tool-context-interceptor)]
   (fn [cofx [_ _ _ _]]
     (let [ctx (:krro.painting/tool-context cofx)
@@ -85,7 +98,7 @@
 
 (rf/reg-event-fx
   store/app-id :anchor-translate/drag
-  [(cleanup-tool-interceptor AnchorState :factory (fn [_] (->AnchorState #{} nil nil)))
+  [(cleanup-tool-interceptor AnchorState :factory (fn [_] (make-anchor-state)))
    (tool-context-interceptor)
    (anchor-quadtree-interceptor)]
   (fn [cofx [_ record-id _ frame]]
@@ -121,7 +134,7 @@
 
 (rf/reg-event-fx
   store/app-id :anchor-translate/release
-  [(cleanup-tool-interceptor AnchorState :factory (fn [_] (->AnchorState #{} nil nil)))
+  [(cleanup-tool-interceptor AnchorState :factory (fn [_] (make-anchor-state)))
    (tool-context-interceptor)
    (anchor-quadtree-interceptor)]
   (fn [cofx [_ record-id event-map frame]]
@@ -151,7 +164,8 @@
                          new-selected (if shift?
                                         (conj selected-set closest-anchor)
                                         #{closest-anchor})
-                         new-tool-data (assoc tool-data :selected-anchors new-selected)]
+                         new-tool-data (assoc tool-data :selected-anchors new-selected
+                                                        :selected-anchor closest-anchor)]
                      {:record (assoc-in record [:canvas-state :tool-data] new-tool-data)
                       :fx [[:tool/flush-overlay (p/overlay new-tool-data ctx) frame]]})
                    (if shift?

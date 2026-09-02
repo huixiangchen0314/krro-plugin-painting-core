@@ -21,6 +21,7 @@
   (doseq [f (frames-with-canvas-id canvas-id)]
     (kcc/rerender! f)))
 
+;; TODO 逐渐废弃这个层级，使用基存储
 (defrecord CanvasState
   [selected-layer-id                                        ;; 当前选中图层id
    selected-layer-ids                                       ;; 当前选中的所有图层id.
