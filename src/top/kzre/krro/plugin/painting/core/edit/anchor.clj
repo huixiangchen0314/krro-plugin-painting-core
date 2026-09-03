@@ -10,12 +10,14 @@
                                                                  tool-context-interceptor]]
    [top.kzre.krro.plugin.painting.core.edit.protocol :as p]
    [top.kzre.krro.plugin.painting.core.project.canvas :as pc]
+   [top.kzre.krro.plugin.painting.core.render :as render]
    [top.kzre.krro.plugin.painting.core.store :as store]
    [top.kzre.krro.plugin.painting.core.viewport :as vp])
   (:import
    (top.kzre.colorutils.color RGB)
    (top.kzre.krro.canvas.core QuadTree QuadTree$NearestResult)
-   (top.kzre.krro.canvas.core.layer LayerUtils)))
+   [top.kzre.krro.util.math KMath]
+   (top.kzre.krro.util.tile TiledCanvas)))
 
 (defonce anchor-modes
          #{:translate
@@ -29,8 +31,7 @@
                         active-anchor                       ;; 活动的锚点
                         selected-anchors                    ;; 被选择的锚点
                         selected-paths                      ;; 被选择的路径
-                        layer-backup
-                        init-layer-point]
+                        last-layer-point]
   p/IToolData
   (cleanup! [_ ctx]
     (when-let [canvas-id (get-in ctx [:coeffects :record-id])]
@@ -41,9 +42,51 @@
       (if layer-visible
         (let [paths (:paths-map layer)
               path-order (:path-order layer [])
-              selected-set (or selected-anchors #{})]
+              selected-set (or selected-anchors #{})
+              ]
           (when (seq path-order)
-            (vec
+            (concat
+              ;; --- 绘制 AABB 包围盒 + 脏瓦片网格（调试） ---
+              (when-let [layer-aabb (anchor/aabb paths selected-set)]
+                (let [tile-size pc/global-tile-size
+                      ;; 合成变换矩阵（视口 * 图层变换），与渲染管线一致
+                      combined-transform (KMath/mat2dMul (vp/viewport->mat2d viewport) layer-transform)
+                      ;; 使用 dirty-region 将图层 AABB 转换为屏幕空间瓦片（不裁剪，便于观察完整覆盖）
+                      screen-dirties (render/dirty-region layer-aabb combined-transform 1e6 1e6 tile-size)
+                      ;; 将图层 AABB 转换到屏幕（绿色矩形）
+                      canvas-min (util/transform-point layer-transform (:min-x layer-aabb) (:min-y layer-aabb))
+                      screen-min (vp/logic->screen viewport (:x canvas-min) (:y canvas-min))
+                      canvas-max (util/transform-point layer-transform (:max-x layer-aabb) (:max-y layer-aabb))
+                      screen-max (vp/logic->screen viewport (:x canvas-max) (:y canvas-max))
+                      width (- (:x screen-max) (:x screen-min))
+                      height (- (:y screen-max) (:y screen-min))]
+                  (concat
+                    ;; 绿色包围盒
+                    [[:rect {:x (:x screen-min)
+                             :y (:y screen-min)
+                             :width width
+                             :height height
+                             :stroke-color [0 1 0 1]
+                             :stroke-width 1.0
+                             :fill-color [0 1 0 0.1]}]]
+                    ;; 红色脏瓦片网格（屏幕坐标，直接绘制矩形）
+                    (map (fn [tile-key]
+                           (let [tx (TiledCanvas/unpackTx tile-key)
+                                 ty (TiledCanvas/unpackTy tile-key)
+                                 x1 (* tx tile-size)
+                                 y1 (* ty tile-size)
+                                 x2 (+ x1 tile-size)
+                                 y2 (+ y1 tile-size)]
+                             [:rect {:x x1
+                                     :y y1
+                                     :width (- x2 x1)
+                                     :height (- y2 y1)
+                                     :fill-color [1 0 0 0.2]
+                                     :stroke-color [1 0 0 0.8]
+                                     :stroke-width 0.5}]))
+                         screen-dirties))))
+
+              ;; 锚点
               (mapcat
                 (fn [path-id]
                   (let [path (get paths path-id)
@@ -73,7 +116,10 @@
                                                         :else (RGB/rgba 1 0 0 1))
                                     :stroke-width (if is-active 2.0 1.5)}]))
                       points)))
-                path-order))))
+                path-order)
+              )
+
+            ))
         ;; 图层不可见时候不显示 overlay
         []))))
 
@@ -83,7 +129,7 @@
            modal false}}]
   (->AnchorState mode modal
                  nil #{} #{}
-                 nil nil))
+                 nil))
 
 
 (rf/reg-event-fx
@@ -92,15 +138,11 @@
    (tool-context-interceptor)]
   (fn [cofx [_ _ _ _]]
     (let [ctx (:krro.painting/tool-context cofx)
-          {:keys [layer layer-event layer-type]} ctx]
+          {:keys [ layer-event layer-type]} ctx]
       (if (= :vector layer-type)
-        (let [record (:record cofx)
-              init-pos (when (and layer-event (:x layer-event) (:y layer-event))
-                         {:x (:x layer-event)
-                          :y (:y layer-event)})]
+        (let [record (:record cofx)]
           {:record (-> record
-                       (assoc-in [:canvas-state :tool-data :init-layer-point] init-pos)
-                       (assoc-in [:canvas-state :tool-data :layer-backup] layer)) })
+                       (assoc-in [:canvas-state :tool-data :last-layer-point] layer-event)) })
         {:fx [[:warn (str "Anchor tool is invalid for " layer-type)]]}))))
 
 (rf/reg-event-fx
@@ -114,29 +156,27 @@
       (if (= :vector layer-type)
         (let [record (:record cofx)
               tool-data (get-in record [:canvas-state :tool-data])
-              layer-backup (:layer-backup tool-data)
               selected (:selected-anchors tool-data #{})
               ]
-          (when (and (seq selected) layer-backup)
-            (when-let [init-layer-point (:init-layer-point tool-data)]
-              (let [dx (- (:x layer-event) (:x init-layer-point))
-                    dy (- (:y layer-event) (:y init-layer-point))
+          (when (seq selected)
+            (when-let [last-layer-point (:last-layer-point tool-data)]
+              (let [dx (- (:x layer-event) (:x last-layer-point))
+                    dy (- (:y layer-event) (:y last-layer-point))
+                    old-paths (:paths-map layer)
                     {:keys [paths aabb]}
-                    (anchor/translate-anchors (:paths-map layer-backup) selected dx dy)
-                    dirties (LayerUtils/aabbTiles pc/global-tile-size
-                                                  (:min-x aabb)
-                                                  (:min-y aabb)
-                                                  (:max-x aabb)
-                                                  (:max-y aabb))
-                    new-layer (assoc layer-backup :paths-map paths)
+                    (anchor/translate-anchors old-paths selected dx dy)
+                    new-layer (assoc layer :paths-map paths)
                     new-layers (util/replace-layer new-layer layers)
-                    old-paths (:paths-map layer)]
+
+                    ]
                 (anchor-quadtree/update-anchor-quadtree! record-id old-paths paths selected)
-                {:record (assoc-in record [:canvas-data :layers] new-layers)
+                {:record (-> record
+                             (assoc-in [:canvas-data :layers] new-layers)
+                             (assoc-in [:canvas-state :tool-data :last-layer-point] layer-event))
                  :fx [[:tool/flush-overlay
                        (p/overlay tool-data ctx)
                        frame]
-                      [:render-canvas record-id dirties layer-transform]]}))))
+                      [:render-canvas record-id aabb layer-transform]]}))))
         {:fx [[:warn (str "Anchor tool is invalid for" layer-type)]]}))))
 
 (rf/reg-event-fx
@@ -178,7 +218,8 @@
                    (if shift?
                      {:record record
                       :fx [[:tool/flush-overlay (p/overlay tool-data ctx) frame]]}
-                     (let [new-tool-data (assoc tool-data :selected-anchors #{})]
+                     (let [new-tool-data (assoc tool-data :selected-anchors #{}
+                                                          :active-anchor nil)]
                        {:record (assoc-in record [:canvas-state :tool-data] new-tool-data)
                         :fx [[:tool/flush-overlay (p/overlay new-tool-data ctx) frame]]})))))
              {:fx [[:warn (str "Anchor tool is invalid for" layer-type)]]}))))))

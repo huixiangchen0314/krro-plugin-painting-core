@@ -6,9 +6,9 @@
     [top.kzre.krro.core.core :as kcc]
     [top.kzre.krro.core.project :as proj]
     [top.kzre.krro.core.rdb :refer [defschema]]
-    [top.kzre.krro.plugin.painting.core.edit.falloff :as-alias falloff]
-    [top.kzre.krro.plugin.painting.core.edit.snap :as-alias snap]
-    [top.kzre.krro.plugin.painting.core.edit.spec :as-alias edit])
+    [top.kzre.krro.plugin.painting.core.edit.falloff :as falloff]
+    [top.kzre.krro.plugin.painting.core.edit.snap :as snap]
+    [top.kzre.krro.plugin.painting.core.edit.spec :as edit])
   (:import
     (java.util UUID)))
 
@@ -28,7 +28,7 @@
 (s/def ::snap-options ::snap/snap-options)
 (s/def ::falloff-options ::falloff/falloff-options)
 (s/def ::id keyword?)
-(s/def ::current-layer-id keyword?)
+(s/def ::current-layer-id (s/nilable keyword?))
 (s/def ::width number?)
 (s/def ::height number?)
 (s/def ::layers vector?)

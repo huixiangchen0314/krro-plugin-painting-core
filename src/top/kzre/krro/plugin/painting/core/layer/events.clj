@@ -18,10 +18,6 @@
   [record path layer]
   (update record :canvas-data util/insert-layer-at path layer))
 
-(defn add-dirty-tiles
-  "向 record 的 canvas-state 中追加脏 tile 集合（去重）。"
-  [record tiles]
-  (update-in record [:canvas-state :dirty-tiles] (fn [existing] (into (or existing #{}) tiles))))
 
 ;; 新建空白光栅图层
 (rf/reg-event-fx

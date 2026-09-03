@@ -1,7 +1,7 @@
 (ns top.kzre.krro.plugin.painting.core.edit.falloff
   "衰减编辑参数规格"
   (:require [clojure.spec.alpha :as s]
-            [top.kzre.krro.curve.bezier2d.spec :as-alias bezier]))
+            [top.kzre.krro.curve.bezier2d.spec :as bezier]))
 
 ;; ── 衰减曲线预设 ──
 (s/def ::curve-preset
