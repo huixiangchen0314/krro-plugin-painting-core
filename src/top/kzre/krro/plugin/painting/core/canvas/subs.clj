@@ -27,3 +27,9 @@
   :current-tool
   (fn [record]
     (get-in record [:record :canvas-state :current-tool])))
+
+(rf/reg-sub
+  store/app-id
+  :canvas/cursor-position
+  (fn [record]
+    (get-in record [:record :cursor-position])))

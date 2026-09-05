@@ -26,6 +26,8 @@
 
 (defrecord MoveState [init-cursor-x init-cursor-y original-layer last-layer parent-transform]
   p/IToolData
+  (dispatch-event [_ event-map] )
+  (target-layers [_] )
   (cleanup! [_ _]
     nil)
   (overlay [_ _]

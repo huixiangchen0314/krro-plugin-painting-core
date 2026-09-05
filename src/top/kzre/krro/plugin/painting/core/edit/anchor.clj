@@ -6,33 +6,70 @@
    [top.kzre.krro.plugin.painting.core.algo.anchor :as anchor]
    [top.kzre.krro.plugin.painting.core.edit.anchor-quadtree :as anchor-quadtree :refer [anchor-quadtree-interceptor]]
    [top.kzre.krro.plugin.painting.core.edit.common :as common]
+   [top.kzre.krro.plugin.painting.core.project.vector-layer :as pv]
    [top.kzre.krro.plugin.painting.core.edit.interceptors :refer [cleanup-tool-interceptor
                                                                  tool-context-interceptor]]
    [top.kzre.krro.plugin.painting.core.edit.protocol :as p]
    [top.kzre.krro.plugin.painting.core.project.canvas :as pc]
    [top.kzre.krro.plugin.painting.core.render :as render]
    [top.kzre.krro.plugin.painting.core.store :as store]
-   [top.kzre.krro.plugin.painting.core.viewport :as vp])
+   [top.kzre.krro.plugin.painting.core.viewport :as vp]
+   [top.kzre.krro.plugin.painting.core.algo.segment]
+   [top.kzre.krro.core.custom :as custom]
+   [taoensso.timbre :as log])
   (:import
-   (top.kzre.colorutils.color RGB)
-   (top.kzre.krro.canvas.core QuadTree QuadTree$NearestResult)
-   [top.kzre.krro.util.math KMath]
-   (top.kzre.krro.util.tile TiledCanvas)))
+    (top.kzre.colorutils.color RGB)
+    (top.kzre.krro.canvas.core QuadTree QuadTree$NearestResult)
+    (top.kzre.krro.plugin.painting.core.algo.anchor Anchor)
+    (top.kzre.krro.plugin.painting.core.algo.segment Segment)
+    [top.kzre.krro.util.math KMath]
+    (top.kzre.krro.util.tile TiledCanvas)))
+
+(custom/defcustom :krro.painting.anchor/adjust-width-sensitivity
+                  0.1
+                  :type :double
+                  :group :krro.painting.anchor
+                  :doc "Width adjustment sensitivity factor. Larger values make width changes more responsive to mouse movement.")
 
 (defonce anchor-modes
          #{:translate
            :rotate
            :scale
            :segment-fit
+           :adjust-width
            })
 
 (defrecord AnchorState [mode                                ;; 操作模式
-                        modal                               ;; 模态编辑
-                        active-anchor                       ;; 活动的锚点
+                        boolean modal                       ;; 模态编辑
+                        ^Anchor active-anchor               ;; 活动的锚点
                         selected-anchors                    ;; 被选择的锚点
-                        selected-paths                      ;; 被选择的路径
-                        last-layer-point]
+                        ^Segment active-segment             ;; 活动的段，用于段拟合
+                        selected-paths                      ;; 被选择的路径，用于控制锚点 overlay 显示
+                        layer-backup                        ;; 图层数据备份，用于数据恢复
+                        ^Anchor hover-anchor                ;; 光标悬浮在的锚点
+                        last-layer-point
+                        last-screen-point
+                        init-screen-point                   ;; 初始屏幕位置
+                        init-screen-delta                   ;; 初始时候和活动点的差距
+                        init-screen-distance                ;; 初始时候和活动点的距离
+                        last-screen-distance                ;; 上次距离活动点的距离
+                        ]
   p/IToolData
+  (dispatch-event [_ {:keys [type ]}]
+    (cond
+      ;; 段拟合模式下的脱拽
+      (and (= :segment-fit mode) (= type :drag))
+      :segment-fit/drag
+      (and modal (= :adjust-width mode)  (= type :move))
+      :anchor/adjust-width
+      (and modal (= :adjust-width mode) (= type :release))
+      :anchor/exit-adjust-width-modal
+      ;; 位移模态下的脱拽
+      (and modal (= mode :translate) (= type :drag))
+      :anchor-translate-modal/drag
+      ;; 默认配置分派
+      :else nil))
+  (target-layers [_] #{:vector})
   (cleanup! [_ ctx]
     (when-let [canvas-id (get-in ctx [:coeffects :record-id])]
       (swap! anchor-quadtree/anchor-quadtrees dissoc canvas-id)))
@@ -129,6 +166,15 @@
            modal false}}]
   (->AnchorState mode modal
                  nil #{} #{}
+                 nil
+                 nil
+                 nil
+                 nil
+                 nil
+                 nil
+                 nil
+                 nil
+                 nil
                  nil))
 
 
@@ -223,3 +269,105 @@
                        {:record (assoc-in record [:canvas-state :tool-data] new-tool-data)
                         :fx [[:tool/flush-overlay (p/overlay new-tool-data ctx) frame]]})))))
              {:fx [[:warn (str "Anchor tool is invalid for" layer-type)]]}))))))
+
+
+;; 进入宽度调整模态
+(rf/reg-event-fx
+  store/app-id :anchor/enter-adjust-width-modal
+  [(cleanup-tool-interceptor AnchorState :factory (fn [_] (make-anchor-state)))
+   (tool-context-interceptor)
+   (anchor-quadtree-interceptor)]
+  (fn [cofx _]
+    (profile
+      {:id :anchor-translate/release}
+      (p :anchor-translate/release
+         (let [ctx (:krro.painting/tool-context cofx)
+               {:keys [event layer layer-type layer-transform viewport]} ctx]
+           (if (= :vector layer-type)
+             ;; 宽度调整
+             (let [record (:record cofx)
+                   tool-data (get-in record [:canvas-state :tool-data])
+                   {:keys [active-anchor ]} tool-data]
+               (if active-anchor
+                 (let [paths (pv/paths layer)
+                       anchor-pt (anchor/anchor-point paths active-anchor)
+                       anchor-screen-pt (common/layer-point->screen anchor-pt layer-transform viewport)
+                       dx (- (:x event) (:x anchor-screen-pt))
+                       dy (- (:y event) (:y anchor-screen-pt))
+                       distance (Math/hypot dx dy)
+                       new-tool-data
+                       (-> tool-data
+                           (assoc :layer-backup layer)
+                           (assoc :init-screen-point event)
+                           (assoc :last-screen-point event)
+                           (assoc :init-screen-delta {:delta-x dx
+                                                      :delta-y dy})
+                           (assoc :init-screen-distance distance)
+                           (assoc :last-screen-distance distance)
+                           (assoc :mode :adjust-width)
+                           (assoc :modal true))]
+                   {:record (-> record
+                                (assoc-in [:canvas-state :tool-data] new-tool-data))
+                    :fx [[:message ":anchor/enter-adjust-width-modal"]]
+                    })
+                 {:fx [[:warn "No active anchor"]]}))
+             {:fx [[:warn (str "Anchor tool is invalid for" layer-type)]]}))))))
+
+;; 退出宽度调整模态
+(rf/reg-event-fx
+  store/app-id :anchor/exit-adjust-width-modal
+  [(cleanup-tool-interceptor AnchorState :factory (fn [_] (make-anchor-state)))
+   (tool-context-interceptor)
+   (anchor-quadtree-interceptor)]
+  (fn [cofx _]
+    (let [record (:record cofx)
+          tool-data (get-in record [:canvas-state :tool-data])
+          new-tool-data
+          (-> tool-data
+              (assoc :mode nil)
+              (assoc :modal false))]
+      {:record (-> record
+                   (assoc-in [:canvas-state :tool-data] new-tool-data))
+       })))
+
+(rf/reg-event-fx
+  store/app-id :anchor/adjust-width
+  [(cleanup-tool-interceptor AnchorState :factory (fn [_] (make-anchor-state)))
+   (tool-context-interceptor)
+   (anchor-quadtree-interceptor)]
+  (fn [cofx [_ record-id _ frame]]
+    (profile
+      {:id :krro.painting/adjust-width}
+      (p :adjust-width
+         (let [ctx (:krro.painting/tool-context cofx)
+               {:keys [event layer layers layer-type layer-transform viewport]} ctx]
+           (if (= :vector layer-type)
+             ;; 宽度调整
+             (let [record (:record cofx)
+                   tool-data (get-in record [:canvas-state :tool-data])
+                   {:keys [active-anchor  selected-anchors last-screen-distance]} tool-data]
+               (when active-anchor
+                 (let [old-paths (pv/paths layer)
+                       anchor-pt (anchor/anchor-point old-paths active-anchor)
+                       anchor-screen-pt (common/layer-point->screen anchor-pt layer-transform viewport)
+                       sensitivity (custom/get-custom :krro.painting.anchor/adjust-width-sensitivity)
+                       dx (- (:x event) (:x anchor-screen-pt))
+                       dy (- (:y event) (:y anchor-screen-pt))
+                       curr-distance (Math/hypot dx dy)
+                       width-delta (* (- curr-distance last-screen-distance) sensitivity)
+                       {:keys [paths aabb]} (anchor/adjust-widths old-paths selected-anchors width-delta)
+                       new-layer (pv/assoc-paths layer paths)
+                       new-layers (util/replace-layer new-layer layers)
+                       new-tool-data
+                       (-> tool-data
+                           (assoc :last-screen-point event)
+                           (assoc :last-screen-distance curr-distance))]
+                   (log/debug "adjust-width, width-delta=" width-delta)
+                   {:record (-> record
+                                (assoc-in [:canvas-data :layers] new-layers)
+                                (assoc-in [:canvas-state :tool-data] new-tool-data))
+                    :fx [[:render-canvas record-id aabb layer-transform]
+                         [:tool/flush-overlay (p/overlay new-tool-data ctx) frame]]})))
+             {:fx [[:warn (if layer-type
+                            (str "Anchor tool is invalid for" layer-type)
+                            "No layer selected")]]}))))))

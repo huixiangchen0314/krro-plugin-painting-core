@@ -17,6 +17,8 @@
                        layer-backup
                        ^int rendered-event-count]
  p/IToolData
+  (dispatch-event [_ event-map] )
+  (target-layers [_] )
  (cleanup! [_ _]
    (when-let [^TiledCanvas canvas  (:canvas layer-backup)]
      (.clear canvas)))

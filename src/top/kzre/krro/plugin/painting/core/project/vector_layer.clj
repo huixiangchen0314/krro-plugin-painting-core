@@ -4,6 +4,33 @@
   (:require
     [top.kzre.krro.plugin.painting.core.project.canvas :as canvas]))
 
+(defn paths
+  "返回图层的路径映射 {path-id path-data}。"
+  [layer]
+  (:paths-map layer))
+
+(defn assoc-paths [layer paths]
+  (assoc layer :paths-map paths))
+
+(defn update-paths [layer f & args]
+  (apply update layer :paths-map f args))
+
+(defn path-order
+  "返回图层的路径顺序（向量）。"
+  [layer]
+  (:path-order layer []))
+
+(defn path-count
+  "返回图层中的路径数量。"
+  [layer]
+  (count (paths layer)))
+
+(defn path-exists?
+  "检查指定路径 ID 是否存在于图层中。"
+  [layer path-id]
+  (contains? (paths layer) path-id))
+
+
 (defmethod canvas/persistable-layer :vector [layer]
   layer)
 

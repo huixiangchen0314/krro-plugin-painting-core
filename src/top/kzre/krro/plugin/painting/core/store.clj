@@ -16,14 +16,14 @@
 ;; 支持额外状态，避免 耦合进 canvas-state 中
 (defonce ^:private extra-store (atom {}))
 
-(defn make-record [canvas-id]
+(defn record [canvas-id]
   (merge
     (get @extra-store canvas-id)
     {:canvas-id   canvas-id
      :canvas-data (pc/canvas-data! canvas-id)
      :canvas-state (state/canvas-runtime canvas-id)}))
 
-(defn update-record! [{:keys [canvas-id canvas-data canvas-state]
+(defn- update-record! [{:keys [canvas-id canvas-data canvas-state]
                        :as record}]
   (when canvas-data (kcc/update-by-id! :krro.painting/canvas canvas-id (constantly canvas-data)))
   (when canvas-state (swap! state/canvas-runtimes assoc canvas-id canvas-state))
@@ -39,7 +39,7 @@
       stop-fn)
     (let [getter (fn [rid]
                    ;; rid 即 canvas-id，构造当前 record 数据
-                   (make-record rid))
+                   (record rid))
           setter (fn [rid new-record]
                    ;; 保证 record-id 一致
                    (update-record! (assoc new-record :canvas-id rid)))

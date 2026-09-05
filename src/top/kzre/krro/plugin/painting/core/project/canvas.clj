@@ -13,7 +13,7 @@
     (java.util UUID)))
 
 ;; 全局瓦片大小 256x256
-(defonce global-tile-size 256 )
+(defonce global-tile-size 256)
 
 ;; 水平镜像编辑
 (s/def ::horizontal-mirror-enabled boolean?)

@@ -17,14 +17,14 @@
     (log/info message)))
 
 (rf/reg-fx
-  store/app-id :warn
-  (fn [_ message]
-    (msg/warn message)))
-
-(rf/reg-fx
   store/app-id :message
   (fn [_ message]
     (msg/message message)))
+
+(rf/reg-fx
+  store/app-id :warn
+  (fn [_ message]
+    (msg/warn message)))
 
 (rf/reg-fx
   store/app-id :error

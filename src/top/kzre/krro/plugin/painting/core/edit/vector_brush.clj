@@ -18,10 +18,10 @@
   (let [curve-edn (bezier/curve->edn (:curve path-data))
         new-path {:path-type :bezier
                   :bezier-curve curve-edn
-                  :style {:stroke {:color (RGB/rgba 0.6 0 0 1)
-                                   :width 50
+                  :style {:stroke {:color (RGB/rgba 0.6 0 0.3 1)
+                                   :width 15
                                    :cap   :round
-                                   :join  :square}}
+                                   :join  :round}}
                   :width-samples (:width-samples path-data)
                   :arc-params (:arc-params path-data)}]
     (-> backup-layer
@@ -30,6 +30,8 @@
 
 (defrecord VectorBrushState [stroke layer-backup layer-transform layer-transform-inv]
   p/IToolData
+  (dispatch-event [_ event-map] )
+  (target-layers [_] )
   (cleanup! [_ _] nil)
   (overlay [_ _] nil))
 

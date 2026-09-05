@@ -98,16 +98,8 @@
   [region transform viewport-w viewport-h tile-size]
   (cond
     (nil? region) nil
-    (set? region)
-    (if transform
-      (let [screen-tiles (LayerUtils/transformTiles region tile-size transform)]
-        (if (and viewport-w viewport-h)
-          (CanvasUtils/clipTiles screen-tiles tile-size viewport-w viewport-h)
-          screen-tiles))
-      (if (and viewport-w viewport-h)
-        (CanvasUtils/clipTiles region tile-size viewport-w viewport-h)
-        region))
-    (map? region)
+    (not (seq region)) #{}
+    :else
     (let [{:keys [min-x min-y max-x max-y]} region
           corners [[min-x min-y] [max-x min-y] [max-x max-y] [min-x max-y]]
           screen-corners (if transform
@@ -124,11 +116,11 @@
           clipped-min-y (max screen-min-y 0.0)
           clipped-max-y (min screen-max-y (double viewport-h))]
       (if (and (< clipped-min-x clipped-max-x) (< clipped-min-y clipped-max-y))
-        (LayerUtils/aabbTiles tile-size
-                              clipped-min-x clipped-min-y
-                              clipped-max-x clipped-max-y)
-        #{}))
-    :else (throw (IllegalArgumentException. (str "region must be Set or Map, got " (type region))))))
+        (set
+          (LayerUtils/aabbTiles tile-size
+                                clipped-min-x clipped-min-y
+                                clipped-max-x clipped-max-y))
+        #{}))))
 
 
 (defn request-render-full!

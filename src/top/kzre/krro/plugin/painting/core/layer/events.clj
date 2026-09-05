@@ -47,7 +47,7 @@
           selected-id (get-in record [:canvas-data :current-layer-id])
           layers      (get-in record [:canvas-data :layers])
           path        (lu/above-layer-path selected-id layers)
-          new-layer   (vector/make-vector-layer)
+          new-layer   (vector/make-vector-layer :antialias false)
           layer-id (:id new-layer)]
       {:record
        (-> record

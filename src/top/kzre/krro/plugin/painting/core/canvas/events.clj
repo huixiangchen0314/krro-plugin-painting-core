@@ -80,6 +80,13 @@
 
 
 (rf/reg-event-fx
+  store/app-id :canvas/set-cursor-position
+  (fn [cofx [_ _ cursor-position]]
+    {:record (-> (:record cofx)
+                 (assoc :cursor-position cursor-position))
+    }))
+
+(rf/reg-event-fx
   store/app-id :close-canvas
   (fn [cofx [_ record-id]]
     {:fx [:close-canvas-render-channel record-id]}))

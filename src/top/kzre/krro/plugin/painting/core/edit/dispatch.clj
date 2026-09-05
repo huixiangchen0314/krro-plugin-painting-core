@@ -3,7 +3,9 @@
    [top.kzre.krro.core.reframe :as rf]
    [top.kzre.krro.plugin.painting.core.edit.anchor :as anchor]
    [top.kzre.krro.plugin.painting.core.edit.interceptors :refer [cleanup-tool-interceptor]]
-   [top.kzre.krro.plugin.painting.core.store :as store]))
+   [top.kzre.krro.plugin.painting.core.record :as record]
+   [top.kzre.krro.plugin.painting.core.store :as store]
+   [top.kzre.krro.plugin.painting.core.edit.protocol :as p]))
 
 (defmulti tool-event
   (fn [current-tool event-map]
@@ -20,8 +22,13 @@
   store/app-id :tool/dispatch-event
   (fn [cofx [_ record-id event-map frame]]
     (let [record (:record cofx)
-          current-tool (get-in record [:canvas-state :current-tool])]
-      (when-let [event-id (tool-event current-tool event-map)]
+          current-tool (get-in record [:canvas-state :current-tool])
+          tool (record/current-tool record)]
+      (when-let [event-id (or
+                            ;; 先尝试基于状态的分派
+                            (when tool (p/dispatch-event tool event-map))
+                            ;; 再进行基于配置的分派
+                            (tool-event current-tool event-map))]
         {:dispatch [event-id record-id event-map frame]}
         ))))
 
