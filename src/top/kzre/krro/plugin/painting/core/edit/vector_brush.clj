@@ -14,16 +14,16 @@
            (top.kzre.krro.util.math KMath)))
 
 (defn- add-path-to-layer
-  [backup-layer path-data path-id]
-  (let [curve-edn (bezier/curve->edn (:curve path-data))
+  [backup-layer {:keys [curve width-samples arc-params]} path-id]
+  (let [curve-edn (bezier/curve->edn curve)
         new-path {:path-type :bezier
                   :bezier-curve curve-edn
                   :style {:stroke {:color (RGB/rgba 0.6 0 0.3 1)
                                    :width 15
                                    :cap   :round
                                    :join  :round}}
-                  :width-samples (:width-samples path-data)
-                  :arc-params (:arc-params path-data)}]
+                  :width-samples nil
+                  :arc-params nil}]
     (-> backup-layer
         (assoc-in [:paths-map path-id] new-path)
         (update :path-order conj path-id))))

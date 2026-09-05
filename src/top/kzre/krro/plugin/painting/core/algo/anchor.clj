@@ -26,13 +26,12 @@
 
 (defn max-path-width
   [path]
-  (let [stroke (get-in path [:style :stroke])]
+  (let [stroke-width (get-in path [:style :stroke :width] 0)
+        width-samples (:width-samples path)]
      (cond
-       (and stroke (:width-samples stroke))
-       (apply max (:width-samples stroke))
-       (and stroke (:width stroke))
-       (:width stroke)
-       :else 0)))
+       (seq width-samples)
+       (apply max width-samples)
+       :else stroke-width)))
 
 (defn aabb
   "计算锚点集合的包围盒（世界坐标），考虑描边宽度，返回 {:min-x, :min-y, :max-x, :max-y}。
@@ -100,12 +99,12 @@
    使用 ChordLengthTable 计算真实的弦长参数。"
   ([path] (ensure-width-samples path nil))
   ([path brush]
-   (let [style (:style path)
-         stroke (:stroke style)
-         width (or (:width stroke) (:radius brush) 1.0)
-         samples (:width-samples stroke)
-         arc-params (:arc-params stroke)]
-     (if (and samples arc-params (seq samples))
+   (let [width (or (get-in path [:style :stroke :width])
+                   (:radius brush)
+                   1.0)
+         samples (:width-samples path)
+         arc-params (:arc-params path)]
+     (if (and samples (seq arc-params) (seq samples))
        path
        (let [curve (:bezier-curve path)
              points (:points curve)
@@ -114,12 +113,12 @@
            (let [xs (mapv :x points)
                  ys (mapv :y points)
                  chord-table (ChordLengthTable. (double-array xs) (double-array ys))
-                 t-params (.getParameters chord-table)  ; 真实的弦长参数
+                 t-params (.getParameters chord-table)
                  new-samples (vec (repeat num-points width))
                  new-arc-params (vec t-params)]
              (-> path
-                 (assoc-in [:style :stroke :width-samples] new-samples)
-                 (assoc-in [:style :stroke :arc-params] new-arc-params)))
+                 (assoc :width-samples new-samples)
+                 (assoc :arc-params new-arc-params)))
            path))))))
 
 
@@ -137,18 +136,16 @@
           (fn [acc [path-id anchors]]
             (let [path (get acc path-id)
                   path (ensure-width-samples path)
-                  stroke (get-in path [:style :stroke])
-                  samples (:width-samples stroke)
-                  idxs (mapv :point-idx anchors)
-                  new-samples (map-indexed
-                                (fn [idx width]
-                                  (if (contains? idxs idx)
-                                    (-> (+ width delta)
-                                        (max min-width)
-                                        (min max-width))
-                                    width)) samples)
-                  new-stroke (assoc stroke :width-samples new-samples)]
-              (assoc-in acc [path-id :style :stroke] new-stroke)))
+                  samples (:width-samples path)
+                  new-samples
+                  (map-indexed
+                    (fn [idx width]
+                      (if (some #(= idx (:point-idx %)) anchors)
+                        (-> (+ width delta)
+                            (max min-width)
+                            (min max-width))
+                        width)) samples)]
+              (assoc acc path-id (assoc path :width-samples new-samples))))
           paths
           groups)]
     {:paths new-paths
