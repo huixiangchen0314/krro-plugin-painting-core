@@ -30,15 +30,16 @@
   [layer path-id]
   (contains? (paths layer) path-id))
 
-
 (defmethod canvas/persistable-layer :vector [layer]
   (-> layer
-      (update :paths
-                 (fn [paths]
-                   (map (fn [[_ path]] (dissoc path :arc-params)) paths)))))
+    (update :paths
+            (fn [paths]
+              (into {} (map (fn [[path-id path]]
+                              [path-id (dissoc path :arc-params)])
+                            paths))))))
 
 (defmethod canvas/persistable-layer! :vector [layer _canvas-id]
-  layer)
+  (canvas/persistable-layer layer))
 
 (defmethod canvas/active-layer! :vector [layer _canvas-id]
   layer)

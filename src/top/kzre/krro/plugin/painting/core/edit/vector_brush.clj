@@ -22,6 +22,7 @@
                                    :width 15
                                    :cap   :round
                                    :join  :round}}
+                  :t-params nil
                   :width-samples nil
                   :arc-params nil}]
     (-> backup-layer
