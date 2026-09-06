@@ -31,7 +31,7 @@
 (defrecord VectorBrushState [stroke layer-backup layer-transform layer-transform-inv]
   p/IToolData
   (dispatch-event [_ event-map] )
-  (target-layers [_] )
+
   (cleanup! [_ _] nil)
   (overlay [_ _] nil))
 

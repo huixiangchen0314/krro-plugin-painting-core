@@ -10,7 +10,7 @@
     [taoensso.timbre :as log]))
 
 (cmd/reg-command
-  :krro.painting/enter-adjust-width-modal
+  :krro.painting.anchor/enter-adjust-width-modal
   (fn [_]
     (if-let [f frame/*current-frame*]
       (if-let [canvas-id (frame/param f spec/canvas-id-key)]
@@ -20,4 +20,17 @@
         (msg/warn "No canvas-id found in current frame"))
       (msg/warn "No current frame active")))
   :description "Enter width adjustment modal for selected anchors (S key)"
+  :interactive true)
+
+(cmd/reg-command
+  :krro.painting.anchor/enter-extrude-anchor-modal
+  (fn [_]
+    (if-let [f frame/*current-frame*]
+      (if-let [canvas-id (frame/param f spec/canvas-id-key)]
+        (if-let [cursor-position (record/cursor-position canvas-id)]
+          (rf/dispatch store/app-id [:anchor/enter-extrude-anchor-modal canvas-id cursor-position f])
+          (msg/warn "cursor-position is nil"))
+        (msg/warn "No canvas-id found in current frame"))
+      (msg/warn "No current frame active")))
+  :description "Enter extrude anchor modal (default E key)"
   :interactive true)

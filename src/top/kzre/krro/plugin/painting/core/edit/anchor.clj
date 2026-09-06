@@ -16,7 +16,8 @@
    [top.kzre.krro.plugin.painting.core.viewport :as vp]
    [top.kzre.krro.plugin.painting.core.algo.segment]
    [top.kzre.krro.core.custom :as custom]
-   [taoensso.timbre :as log])
+   [taoensso.timbre :as log]
+   [top.kzre.krro.curve.bezier2d.core :as bezier])
   (:import
     (top.kzre.colorutils.color RGB)
     (top.kzre.krro.canvas.core QuadTree QuadTree$NearestResult)
@@ -37,11 +38,14 @@
            :scale
            :segment-fit
            :adjust-width
+           :extrude-anchor
            })
 
 (defrecord AnchorState [mode                                ;; 操作模式
                         boolean modal                       ;; 模态编辑
                         ^Anchor active-anchor               ;; 活动的锚点
+                        ^Anchor second-active-anchor        ;; 次要活动锚点
+                        ^Anchor anchor-backup               ;; 备份锚点
                         selected-anchors                    ;; 被选择的锚点
                         ^Segment active-segment             ;; 活动的段，用于段拟合
                         selected-paths                      ;; 被选择的路径，用于控制锚点 overlay 显示
@@ -53,6 +57,7 @@
                         init-screen-delta                   ;; 初始时候和活动点的差距
                         init-screen-distance                ;; 初始时候和活动点的距离
                         last-screen-distance                ;; 上次距离活动点的距离
+                        new-anchor                          ;; 新增加的锚点
                         ]
   p/IToolData
   (dispatch-event [_ {:keys [type ]}]
@@ -60,16 +65,22 @@
       ;; 段拟合模式下的脱拽
       (and (= :segment-fit mode) (= type :drag))
       :segment-fit/drag
+      ;; 宽度调整模态
       (and modal (= :adjust-width mode)  (= type :move))
       :anchor/adjust-width
       (and modal (= :adjust-width mode) (= type :release))
       :anchor/exit-adjust-width-modal
+      ;; 锚点挤出模态
+      (and modal (= :extrude-anchor mode)  (= type :move))
+      :anchor/extrude-anchor
+      (and modal (= :extrude-anchor mode) (= type :release))
+      :anchor/exit-extrude-anchor-modal
       ;; 位移模态下的脱拽
       (and modal (= mode :translate) (= type :drag))
       :anchor-translate-modal/drag
       ;; 默认配置分派
       :else nil))
-  (target-layers [_] #{:vector})
+
   (cleanup! [_ ctx]
     (when-let [canvas-id (get-in ctx [:coeffects :record-id])]
       (swap! anchor-quadtree/anchor-quadtrees dissoc canvas-id)))
@@ -164,18 +175,8 @@
   [& {:keys [mode modal]
       :or {mode :translate
            modal false}}]
-  (->AnchorState mode modal
-                 nil #{} #{}
-                 nil
-                 nil
-                 nil
-                 nil
-                 nil
-                 nil
-                 nil
-                 nil
-                 nil
-                 nil))
+  (map->AnchorState {:mode mode
+                     :modal modal}))
 
 
 (rf/reg-event-fx
@@ -213,9 +214,8 @@
                     (anchor/translate-anchors old-paths selected dx dy)
                     new-layer (assoc layer :paths-map paths)
                     new-layers (util/replace-layer new-layer layers)
-
                     ]
-                (anchor-quadtree/update-anchor-quadtree! record-id old-paths paths selected)
+                (anchor-quadtree/update-anchors! record-id old-paths paths selected)
                 {:record (-> record
                              (assoc-in [:canvas-data :layers] new-layers)
                              (assoc-in [:canvas-state :tool-data :last-layer-point] layer-event))
@@ -368,6 +368,118 @@
                                 (assoc-in [:canvas-state :tool-data] new-tool-data))
                     :fx [[:render-canvas record-id aabb layer-transform]
                          [:tool/flush-overlay (p/overlay new-tool-data ctx) frame]]})))
+             {:fx [[:warn (if layer-type
+                            (str "Anchor tool is invalid for" layer-type)
+                            "No layer selected")]]}))))))
+
+;; 进入顶点挤出模态
+(rf/reg-event-fx
+  store/app-id :anchor/enter-extrude-anchor-modal
+  [(cleanup-tool-interceptor AnchorState :factory (fn [_] (make-anchor-state)))
+   (tool-context-interceptor)
+   (anchor-quadtree-interceptor)]
+  (fn [cofx _]
+    (profile
+      {:id :anchor/enter-extrude-anchor-modal}
+      (p :anchor/enter-extrude-anchor-modal
+         (let [ctx (:krro.painting/tool-context cofx)
+               {:keys [ layer layer-type]} ctx]
+           (if (= :vector layer-type)
+             ;; 宽度调整
+             (let [record (:record cofx)
+                   tool-data (get-in record [:canvas-state :tool-data])
+                   {:keys [active-anchor]} tool-data]
+               (if active-anchor
+                 (let [new-tool-data
+                       (-> tool-data
+                           (assoc :layer-backup layer)
+                           (assoc :second-active-anchor nil)
+                           (assoc :anchor-backup nil)
+                           (assoc :mode :extrude-anchor)
+                           (assoc :modal true))]
+                   {:record (-> record
+                                (assoc-in [:canvas-state :tool-data] new-tool-data))
+                    :fx [[:message ":anchor/enter-adjust-width-modal"]]
+                    })
+                 {:fx [[:warn "No active anchor"]]}))
+             {:fx [[:warn (str "Anchor tool is invalid for" layer-type)]]}))))))
+
+;; 退出锚点挤出模态
+(rf/reg-event-fx
+  store/app-id :anchor/exit-extrude-anchor-modal
+  [(cleanup-tool-interceptor AnchorState :factory (fn [_] (make-anchor-state)))
+   (tool-context-interceptor)
+   (anchor-quadtree-interceptor)]
+  (fn [cofx [_ record-id _ frame]]
+    (let [ctx (:krro.painting/tool-context cofx)
+          {:keys [layer]} ctx
+          record (:record cofx)
+          tool-data (get-in record [:canvas-state :tool-data])
+          {:keys [new-anchor layer-backup anchor-backup second-active-anchor]} tool-data]
+      (when new-anchor
+        (let [old-paths (pv/paths layer-backup)
+              new-paths (pv/paths layer)
+              new-tool-data
+              (-> tool-data
+                  (assoc :mode nil)
+                  (assoc :modal false)
+                  (assoc :new-anchor nil))]
+          (if (= 0 (:point-idx new-anchor))
+            ;; 首部插入，路径全量更新
+            (do
+              (anchor-quadtree/delete-path! record-id old-paths (:path-id anchor-backup))
+              (anchor-quadtree/insert-path! record-id new-paths (:path-id new-anchor)))
+           (do
+             ;; 尾巴插入仅更新末尾两个
+             (anchor-quadtree/delete-anchors! record-id old-paths [anchor-backup])
+             (anchor-quadtree/insert-anchors! record-id new-paths [new-anchor second-active-anchor])))
+
+          {:record (-> record
+                       (assoc-in [:canvas-state :tool-data] new-tool-data))
+           :fx [[:tool/flush-overlay (p/overlay new-tool-data ctx) frame]]})))))
+
+;; 挤出顶点
+(rf/reg-event-fx
+  store/app-id :anchor/extrude-anchor
+  [(cleanup-tool-interceptor AnchorState :factory (fn [_] (make-anchor-state)))
+   (tool-context-interceptor)
+   (anchor-quadtree-interceptor)]
+  (fn [cofx [_ record-id _ frame]]
+    (profile
+      {:id :anchor/extrude-anchor}
+      (p :anchor/extrude-anchor
+         (let [ctx (:krro.painting/tool-context cofx)
+               {:keys [layer-event layer layers layer-type layer-transform]} ctx]
+           (if (= :vector layer-type)
+             (let [record (:record cofx)
+                   tool-data (get-in record [:canvas-state :tool-data])
+                   {:keys [active-anchor anchor-backup layer-backup]} tool-data]
+               (when active-anchor
+                 (let [old-paths (pv/paths layer-backup)
+                       focus-anchor (if (:new-anchor tool-data) anchor-backup active-anchor)
+                       old-aabb (anchor/aabb old-paths [focus-anchor])
+                       {:keys [paths aabb anchor new-anchor]} (anchor/extrude-anchor old-paths focus-anchor layer-event)]
+                   (when paths
+                     (let [all-aabb (bezier/merge-aabb old-aabb aabb)
+                           new-layer (pv/assoc-paths layer paths)
+                           new-layers (util/replace-layer new-layer layers)
+                           new-tool-data
+                           (-> tool-data
+                               (assoc :second-active-anchor anchor)
+                               (assoc :anchor-backup (if (:new-anchor tool-data) anchor-backup active-anchor))
+                               (assoc :active-anchor new-anchor)
+                               (assoc :selected-anchors #{new-anchor})
+                               (assoc :new-anchor new-anchor))]
+                       {:record (-> record
+                                    (assoc-in [:canvas-state :tool-data] new-tool-data)
+                                    (assoc-in [:canvas-data :layers] new-layers))
+                        :fx [[:render-canvas record-id all-aabb layer-transform]
+                             [:tool/flush-overlay
+                              (p/overlay new-tool-data
+                                         (-> ctx
+                                             (assoc :layer new-layer)
+                                             (assoc :layers new-layers))
+                                         ) frame]]})))))
              {:fx [[:warn (if layer-type
                             (str "Anchor tool is invalid for" layer-type)
                             "No layer selected")]]}))))))

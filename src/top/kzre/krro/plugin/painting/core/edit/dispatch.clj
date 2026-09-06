@@ -24,11 +24,12 @@
     (let [record (:record cofx)
           current-tool (get-in record [:canvas-state :current-tool])
           tool (record/current-tool record)]
-      (when-let [event-id (or
-                            ;; 先尝试基于状态的分派
-                            (when tool (p/dispatch-event tool event-map))
-                            ;; 再进行基于配置的分派
-                            (tool-event current-tool event-map))]
+      (when-let [event-id
+                 (or
+                   ;; 先尝试基于状态的分派
+                   (when tool (p/dispatch-event tool event-map))
+                   ;; 再进行基于配置的分派
+                   (tool-event current-tool event-map))]
         {:dispatch [event-id record-id event-map frame]}
         ))))
 

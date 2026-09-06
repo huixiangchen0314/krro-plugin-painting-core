@@ -4,6 +4,12 @@
 
 (defrecord Anchor [path-id point-idx])
 
+(defn anchors
+  "返回路径中所有锚点的列表（Anchor 记录）。"
+  [paths path-id]
+  (let [points (get-in paths [path-id :bezier-curve :points])]
+    (mapv (fn [idx] (->Anchor path-id idx)) (range (count points)))))
+
 (defn path-containing-anchor
   "从路径映射 paths 中查找包含 anchor 的路径数据。
    若路径存在则返回路径 map，否则返回 nil。"
@@ -150,3 +156,70 @@
           groups)]
     {:paths new-paths
      :aabb (aabb paths new-paths anchors)}))
+
+(defn- extrude-bezier-start
+  [path point]
+  (let [curve (:bezier-curve path)
+        points (:points curve)
+        p0 (first points)
+        new-point (-> (select-keys point [:x :y])
+                      (assoc :dx1 0 :dy1 0
+                             :dx2 0 :dy2  0))
+        updated-p0 (-> p0
+                       (assoc :dx1 0 :dy1 0))
+        new-points (vec (concat [new-point] (cons updated-p0 (rest points))))]
+    (assoc-in path [:bezier-curve :points] new-points)))
+
+(defn- extrude-bezier-end
+  [path point]
+  (let [curve (:bezier-curve path)
+        points (:points curve)
+        p-last (last points)
+        dx (- (:x point) (:x p-last))
+        dy (- (:y point) (:y p-last))
+        new-point (-> (select-keys point [:x :y])
+                      (assoc :dx1 0 :dy1 0
+                             :dx2 0 :dy2 0))
+        updated-p-last (-> p-last
+                           (assoc :dx2 0 :dy2 0))
+        new-points (vec (concat (butlast points) [updated-p-last new-point]))]
+    (assoc-in path [:bezier-curve :points] new-points)))
+
+(defn end-anchor?
+  "判断锚点是否为路径的端点（首点或尾点）"
+  [paths ^Anchor anchor]
+  (when-let [path (get paths (:path-id anchor))]
+    (let [curve (:bezier-curve path)
+          points (:points curve)
+          idx (:point-idx anchor)]
+      (and (not (:closed curve))
+           (or (zero? idx)
+               (= idx (dec (count points))))))))
+
+(defn extrude-anchor
+  "根据锚点挤出路径。如果锚点是首尾点，则在对应端挤出；否则返回 nil。
+   返回 {:paths new-paths :aabb aabb :new-anchor Anchor}，或 nil。"
+  [paths ^Anchor anchor point]
+  (when (end-anchor? paths anchor)
+    (let [path-id (:path-id anchor)
+          path (get paths path-id)
+          curve (:bezier-curve path)
+          idx (:point-idx anchor)
+          num-points (count (:points curve))]
+      (when-let [new-path
+                 (cond
+                   (zero? idx) (extrude-bezier-start path point)
+                   (= idx (dec num-points)) (extrude-bezier-end path point)
+                   :else nil)]
+        (let [new-paths (assoc paths path-id new-path)
+              new-points (get-in new-path [:bezier-curve :points])
+              new-anchor (if (zero? idx)
+                           (->Anchor path-id 0)  ; 起点挤出，新点索引 0
+                           (->Anchor path-id (dec (count new-points))))  ; 终点挤出，新点索引最后
+              updated-anchor (if (zero? idx)
+                               (->Anchor path-id 1)
+                               anchor)]
+          {:paths new-paths
+           :aabb (aabb new-paths [new-anchor])
+           :anchor updated-anchor
+           :new-anchor new-anchor})))))

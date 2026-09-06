@@ -6,6 +6,15 @@
 ;; 锚点四叉树加速结构
 (defonce anchor-quadtrees (atom {}))
 
+(defmacro quadtree-fn
+  "获取 canvas-id 对应的四叉树，若存在则调用 fn-sym，并将 tree 作为第一个参数插入。
+   (quadtree-fn canvas-id anchor-quadtree/delete-anchors! paths anchors)
+   展开为：
+   (when-let [tree (get @anchor-quadtrees canvas-id)]
+     (anchor-quadtree/delete-anchors! tree paths anchors))"
+  [canvas-id fn-sym & args]
+  `(when-let [~'tree (get @anchor-quadtrees ~canvas-id)]
+     (~fn-sym ~'tree ~@args)))
 
 (defn anchor-quadtree-interceptor
   "更新前确保 anchor-quadtree存在"
@@ -25,15 +34,25 @@
                      (swap! anchor-quadtrees assoc canvas-id tree)))))))))
      context)})
 
-
-
-(defn update-anchor-quadtree!
+(defn update-anchors!
   "增量更新画布的锚点四叉树：删除旧点，插入新点。
-   old-paths 和 new-paths 是路径映射，anchors 是修改的锚点集合。"
+   old-paths 和 new-paths 是路径映射，anchors 是修改的锚点集合。
+   注意：调用此函数前应确保四叉树已存在（由 interceptor 或初始构建保证）。"
   [canvas-id old-paths new-paths anchors]
-  (let [^QuadTree tree (get @anchor-quadtrees canvas-id)]
-    (if tree
-      (anchor-quadtree/update-anchor-quadtree! tree old-paths new-paths anchors)
-      ;; 树不存在，完全重建
-      (let [new-tree (anchor-quadtree/build-anchor-quadtree new-paths)]
-        (swap! anchor-quadtrees assoc canvas-id new-tree)))))
+  (quadtree-fn canvas-id anchor-quadtree/update-anchors! old-paths new-paths anchors))
+
+(defn delete-anchors!
+  [canvas-id paths anchors]
+  (quadtree-fn canvas-id anchor-quadtree/delete-anchors! paths anchors))
+
+(defn insert-anchors!
+  [canvas-id paths anchors]
+  (quadtree-fn canvas-id anchor-quadtree/insert-anchors! paths anchors))
+
+(defn delete-path!
+  [canvas-id paths path-id]
+  (quadtree-fn canvas-id anchor-quadtree/delete-path! paths path-id))
+
+(defn insert-path!
+  [canvas-id paths path-id]
+  (quadtree-fn canvas-id anchor-quadtree/insert-path! paths path-id))
