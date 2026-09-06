@@ -17,7 +17,8 @@
    [top.kzre.krro.plugin.painting.core.algo.segment]
    [top.kzre.krro.core.custom :as custom]
    [taoensso.timbre :as log]
-   [top.kzre.krro.curve.bezier2d.core :as bezier])
+   [top.kzre.krro.curve.bezier2d.core :as bezier]
+   [top.kzre.krro.core.interactive :as i])
   (:import
     (top.kzre.colorutils.color RGB)
     (top.kzre.krro.canvas.core QuadTree QuadTree$NearestResult)
@@ -387,20 +388,22 @@
            (if (= :vector layer-type)
              ;; 宽度调整
              (let [record (:record cofx)
+                   paths (pv/paths layer)
                    tool-data (get-in record [:canvas-state :tool-data])
                    {:keys [active-anchor]} tool-data]
                (if active-anchor
-                 (let [new-tool-data
-                       (-> tool-data
-                           (assoc :layer-backup layer)
-                           (assoc :second-active-anchor nil)
-                           (assoc :anchor-backup nil)
-                           (assoc :mode :extrude-anchor)
-                           (assoc :modal true))]
-                   {:record (-> record
-                                (assoc-in [:canvas-state :tool-data] new-tool-data))
-                    :fx [[:message ":anchor/enter-adjust-width-modal"]]
-                    })
+                 (if (anchor/end-anchor? paths active-anchor)
+                   (let [new-tool-data
+                         (-> tool-data
+                             (assoc :layer-backup layer)
+                             (assoc :second-active-anchor nil)
+                             (assoc :anchor-backup nil)
+                             (assoc :mode :extrude-anchor)
+                             (assoc :modal true))]
+                     {:record (-> record
+                                  (assoc-in [:canvas-state :tool-data] new-tool-data))
+                      :fx [[:message ":anchor/enter-adjust-width-modal"]]})
+                   {:fx [[:warn "active anchor is not in end"]]})
                  {:fx [[:warn "No active anchor"]]}))
              {:fx [[:warn (str "Anchor tool is invalid for" layer-type)]]}))))))
 

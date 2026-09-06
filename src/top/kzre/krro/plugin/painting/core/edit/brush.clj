@@ -69,7 +69,6 @@
                                 (get-in record [:canvas-state :tool-data :rendered-event-count]))
                   stroke' (.last new-stroke last-count)
                   [new-canvas dirties] (brush-core/render-stroke layer-canvas stroke')
-                  dirties-set (set dirties)
                   new-layers (util/replace-layer (assoc layer :canvas new-canvas) layers)
                   new-tool-data (-> tool-data
                                     (assoc :stroke new-stroke)
@@ -80,7 +79,7 @@
                            (assoc-in [:canvas-state :tool-data] new-tool-data))
                :fx [[:tool/flush-overlay
                      (p/overlay new-tool-data ctx) frame]
-                    [:render-canvas record-id dirties-set layer-transform]]})))))))
+                    [:render-canvas record-id dirties layer-transform]]})))))))
 
 (rf/reg-event-fx
   store/app-id :brush-tool/release
