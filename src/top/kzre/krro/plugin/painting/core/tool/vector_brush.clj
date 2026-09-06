@@ -26,7 +26,7 @@
                   :width-samples (:width-samples path-data)
                   :arc-params (:arc-params path-data)}]
     (-> backup-layer
-        (assoc-in [:paths-map path-id] new-path)
+        (assoc-in [:paths path-id] new-path)
         (update :path-order conj path-id))))
 
 ;; ═══════════════════════════════════════════════════════

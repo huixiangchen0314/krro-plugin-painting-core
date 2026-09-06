@@ -88,7 +88,7 @@
   (overlay [_ {:keys [viewport layer layer-type layer-visible layer-transform]}]
     (when (= :vector layer-type)
       (if layer-visible
-        (let [paths (:paths-map layer)
+        (let [paths (:paths layer)
               path-order (:path-order layer [])
               selected-set (or selected-anchors #{})
               ]
@@ -209,10 +209,10 @@
             (when-let [last-layer-point (:last-layer-point tool-data)]
               (let [dx (- (:x layer-event) (:x last-layer-point))
                     dy (- (:y layer-event) (:y last-layer-point))
-                    old-paths (:paths-map layer)
+                    old-paths (:paths layer)
                     {:keys [paths aabb]}
                     (anchor/translate-anchors old-paths selected dx dy)
-                    new-layer (assoc layer :paths-map paths)
+                    new-layer (assoc layer :paths paths)
                     new-layers (util/replace-layer new-layer layers)
                     ]
                 (anchor-quadtree/update-anchors! record-id old-paths paths selected)

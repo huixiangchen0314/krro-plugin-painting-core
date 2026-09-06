@@ -7,13 +7,13 @@
 (defn paths
   "返回图层的路径映射 {path-id path-data}。"
   [layer]
-  (:paths-map layer))
+  (:paths layer))
 
 (defn assoc-paths [layer paths]
-  (assoc layer :paths-map paths))
+  (assoc layer :paths paths))
 
 (defn update-paths [layer f & args]
-  (apply update layer :paths-map f args))
+  (apply update layer :paths f args))
 
 (defn path-order
   "返回图层的路径顺序（向量）。"
@@ -32,7 +32,10 @@
 
 
 (defmethod canvas/persistable-layer :vector [layer]
-  layer)
+  (-> layer
+      (update :paths
+                 (fn [paths]
+                   (map (fn [[_ path]] (dissoc path :arc-params)) paths)))))
 
 (defmethod canvas/persistable-layer! :vector [layer _canvas-id]
   layer)

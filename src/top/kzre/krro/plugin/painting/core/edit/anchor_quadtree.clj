@@ -29,7 +29,7 @@
              (let [layers (:layers canvas-data)]
                (when-let [layer (util/find-layer current-layer-id layers)]
                  (when (= :vector (:type layer))
-                   (let [paths (:paths-map layer)
+                   (let [paths (:paths layer)
                          tree (anchor-quadtree/build-anchor-quadtree paths)]
                      (swap! anchor-quadtrees assoc canvas-id tree)))))))))
      context)})

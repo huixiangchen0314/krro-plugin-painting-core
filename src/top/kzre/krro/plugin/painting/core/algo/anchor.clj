@@ -79,8 +79,6 @@
          new-aabb (aabb path2 anchors)]
      (bezier/merge-aabb old-aabb new-aabb))))
 
-
-
 (defn translate-anchors
   "移动锚点，返回新路径和更新的 aabb"
   [paths anchors dx dy]
@@ -100,32 +98,50 @@
     {:paths new-paths
      :aabb (aabb paths new-paths anchors)}))
 
+(defn chord-params-for-points
+  "根据控制点列表重新计算弦长参数。"
+  [points]
+  (let [num-points (count points)]
+    (when (> num-points 1)
+      (let [xs (mapv :x points)
+            ys (mapv :y points)
+            chord-table (ChordLengthTable. (double-array xs) (double-array ys))
+            arc-params (.getParameters chord-table)]
+        (vec arc-params))
+      [0.0])))
+
+(defn fixed-width-samples-on-points
+  "从路径和初始宽度构建宽度采样和弦长参数。
+   返回 {:width-samples [...] :arc-params [...]} 或 nil（如果顶点数不足）。"
+  [path width]
+  (let [curve (:bezier-curve path)
+        points (:points curve)
+        num-points (count points)]
+    (when-let [s-params (chord-params-for-points points)]
+      (let [samples (vec (repeat num-points width))]
+        {:width-samples samples
+         :arc-params s-params}))))
+
+(defn prepend-width-samples [path points widths])
+
+(defn postpend-width-samples [path points widths])
+
+
+
 (defn ensure-width-samples
   "确保路径的 stroke 包含宽度采样，若不存在则用当前 :stroke :width 初始化。
    使用 ChordLengthTable 计算真实的弦长参数。"
   ([path] (ensure-width-samples path nil))
-  ([path brush]
-   (let [width (or (get-in path [:style :stroke :width])
-                   (:radius brush)
-                   1.0)
+  ([path {:keys [default-width]
+          :or {default-width 1.0}}]
+   (let [width (get-in path [:style :stroke :width] default-width)
          samples (:width-samples path)
          arc-params (:arc-params path)]
      (if (and samples (seq arc-params) (seq samples))
        path
-       (let [curve (:bezier-curve path)
-             points (:points curve)
-             num-points (count points)]
-         (if (> num-points 1)
-           (let [xs (mapv :x points)
-                 ys (mapv :y points)
-                 chord-table (ChordLengthTable. (double-array xs) (double-array ys))
-                 t-params (.getParameters chord-table)
-                 new-samples (vec (repeat num-points width))
-                 new-arc-params (vec t-params)]
-             (-> path
-                 (assoc :width-samples new-samples)
-                 (assoc :arc-params new-arc-params)))
-           path))))))
+       (if-let [result (fixed-width-samples-on-points path width)]
+         (merge path result)
+         path)))))
 
 
 ;; TODO 宽度采样，控制点数量独立
@@ -175,8 +191,6 @@
   (let [curve (:bezier-curve path)
         points (:points curve)
         p-last (last points)
-        dx (- (:x point) (:x p-last))
-        dy (- (:y point) (:y p-last))
         new-point (-> (select-keys point [:x :y])
                       (assoc :dx1 0 :dy1 0
                              :dx2 0 :dy2 0))

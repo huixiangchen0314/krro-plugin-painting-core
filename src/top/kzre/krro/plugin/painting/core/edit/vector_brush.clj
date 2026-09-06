@@ -14,7 +14,7 @@
            (top.kzre.krro.util.math KMath)))
 
 (defn- add-path-to-layer
-  [backup-layer {:keys [curve width-samples arc-params]} path-id]
+  [backup-layer {:keys [curve width-samples t-params]} path-id]
   (let [curve-edn (bezier/curve->edn curve)
         new-path {:path-type :bezier
                   :bezier-curve curve-edn
@@ -25,7 +25,7 @@
                   :width-samples nil
                   :arc-params nil}]
     (-> backup-layer
-        (assoc-in [:paths-map path-id] new-path)
+        (assoc-in [:paths path-id] new-path)
         (update :path-order conj path-id))))
 
 (defrecord VectorBrushState [stroke layer-backup layer-transform layer-transform-inv]
