@@ -3,14 +3,14 @@
    [top.kzre.krro.curve.bezier2d.core :as bezier])
   (:import
     (top.kzre.curve.bezier2d
-      ArcLengthUtils ChordLengthTable
+      ArcLengthUtils
       Curve
       CurveExtrusionUtils
       Pair TableMapping)))
 
 (defrecord Anchor [path-id point-idx])
 
-(defn anchors
+(defn all-anchors
   "返回路径中所有锚点的列表（Anchor 记录）。"
   [paths path-id]
   (let [points (get-in paths [path-id :bezier-curve :points])]
@@ -266,7 +266,7 @@
                                    (dissoc :width-samples :arc-params :t-params)
                                    (assoc :width-type :fixed))]
                   [(assoc paths-acc path-id new-path)
-                   (into aabb-anchors-acc (anchors path))])
+                   (into aabb-anchors-acc (all-anchors paths path-id))])
 
                 (:point-width :t-width)
                 (let [path (ensure-width-type path width-type)

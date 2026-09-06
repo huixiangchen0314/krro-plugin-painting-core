@@ -38,7 +38,7 @@
 
 (defn delete-path! [^QuadTree tree paths path-id]
   (when-let [path (get paths path-id)]
-    (let [anchors (anchor/anchors paths path-id)]
+    (let [anchors (anchor/all-anchors paths path-id)]
       (doseq [anchor anchors]
         (let [pts (get-in path [:bezier-curve :points])
               pt (nth pts (:point-idx anchor))]
@@ -54,7 +54,7 @@
 
 (defn insert-path! [^QuadTree tree paths path-id]
   (when-let [path (get paths path-id)]
-    (let [anchors (anchor/anchors paths path-id)]
+    (let [anchors (anchor/all-anchors paths path-id)]
       (doseq [anchor anchors]
         (let [pts (get-in path [:bezier-curve :points])
               pt (nth pts (:point-idx anchor))]
