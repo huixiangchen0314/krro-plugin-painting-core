@@ -149,6 +149,18 @@
   (let [num-points (count (get-in path [:bezier-curve :points]))]
     (uniform-t-params num-points)))
 
+(defn median-point
+  "返回所选择锚点的质心点（所有锚点坐标的平均值）。
+   若 anchors 为空或所有点都无效，返回 nil。"
+  [paths anchors]
+  (when (seq anchors)
+    (let [points (keep #(anchor-point paths %) anchors)]
+      (when (seq points)
+        (let [xs (map :x points)
+              ys (map :y points)
+              n (count points)]
+          {:x (/ (reduce + xs) n)
+           :y (/ (reduce + ys) n)})))))
 
 (defn end-anchor?
   "判断锚点是否为路径的端点（首点或尾点）"

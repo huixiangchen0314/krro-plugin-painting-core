@@ -12,8 +12,8 @@
   (:import
     (java.util UUID)))
 
-;; 全局瓦片大小 256x256
-(defonce global-tile-size 256)
+;; 全局瓦片大小 64x64
+(defonce global-tile-size 64)
 
 ;; 水平镜像编辑
 (s/def ::horizontal-mirror-enabled boolean?)
@@ -25,8 +25,8 @@
 (s/def ::tiling-enabled boolean?)
 ;;变换轴心点
 (s/def ::pivot-center ::edit/pivot-center)
-(s/def ::snap-options ::snap/snap-options)
-(s/def ::falloff-options ::falloff/falloff-options)
+(s/def ::snap-options (s/nilable ::snap/snap-options))
+(s/def ::falloff-options (s/nilable ::falloff/falloff-options))
 (s/def ::id keyword?)
 (s/def ::current-layer-id (s/nilable keyword?))
 (s/def ::width number?)
@@ -47,7 +47,21 @@
              ::tiling-enabled]))
 
 ;; 定义记录以便自定义编解码.
-(defrecord CanvasData [id width height layers current-layer-id])
+;; 定义记录以便自定义编解码
+(defrecord CanvasData
+  [id                                   ;; 必需，keyword?
+   width                                ;; 必需，number?
+   height                               ;; 必需，number?
+   layers                               ;; 必需，vector?
+   current-layer-id                     ;; 可选，keyword? 或 nil
+   pivot-center                         ;; 可选，::edit/pivot-center 或 nil
+   snap-options                         ;; 可选，::snap/snap-options 或 nil
+   falloff-options                      ;; 可选，::falloff/falloff-options 或 nil
+   horizontal-mirror-enabled            ;; 可选，boolean? 或 nil
+   horizontal-mirror-center             ;; 可选，number? 或 nil
+   vertical-mirror-enabled              ;; 可选，boolean? 或 nil
+   vertical-mirror-center               ;; 可选，number? 或 nil
+   tiling-enabled])                     ;; 可选，boolean? 或 nil
 
 (defschema :krro.painting/canvas
                :primary-key :id
@@ -55,11 +69,40 @@
                :not-null [:id :width :height :layers]
                :defaults {:layers []})
 
+(defn make-canvas-data
+  [width height & {:keys [id layers current-layer-id pivot-center snap-options
+                          falloff-options horizontal-mirror-enabled horizontal-mirror-center
+                          vertical-mirror-enabled vertical-mirror-center tiling-enabled]
+                   :or {id (keyword (str "canvas-" (UUID/randomUUID)))
+                        layers []
+                        pivot-center :aabb-center
+                        snap-options nil
+                        falloff-options nil
+                        horizontal-mirror-enabled false
+                        horizontal-mirror-center 0
+                        vertical-mirror-enabled false
+                        vertical-mirror-center 0
+                        tiling-enabled false}}]
+  (map->CanvasData
+    {:id id
+     :width width
+     :height height
+     :layers layers
+     :current-layer-id current-layer-id
+     :pivot-center pivot-center
+     :snap-options snap-options
+     :falloff-options falloff-options
+     :horizontal-mirror-enabled horizontal-mirror-enabled
+     :horizontal-mirror-center horizontal-mirror-center
+     :vertical-mirror-enabled vertical-mirror-enabled
+     :vertical-mirror-center vertical-mirror-center
+     :tiling-enabled tiling-enabled}))
+
 (defn create-canvas!
   "创建空白画布"
   ([w h] (create-canvas! (keyword (str (UUID/randomUUID))) w h))
   ([id w h]
-   (let [cd (CanvasData. id w h [] nil)]   ;; 将测试图层放入 layers 向量
+   (let [cd (make-canvas-data w h :id id)]   ;; 将测试图层放入 layers 向量
      (kcc/insert! :krro.painting/canvas (assoc cd :id id))
      cd)))
 

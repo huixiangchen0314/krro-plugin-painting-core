@@ -6,8 +6,7 @@
 
 (defonce default-brush
          {:dab          {:type :circle
-                         :mask-type :hard
-                         :radius 8.0}
+                         :mask-type :hard}
           ;; 前景色
           :color        (RGB/rgba 0.2 0.3 0.56 0.65)
           ;; 动力学映射

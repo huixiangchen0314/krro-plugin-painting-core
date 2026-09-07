@@ -1,18 +1,19 @@
 (ns top.kzre.krro.plugin.painting.core.render
   (:require
-    [taoensso.timbre :as log]
-    [top.kzre.krro.canvas.core.core :as canv]
-    [top.kzre.krro.plugin.painting.core.layer.clone :as clone]
-    [top.kzre.krro.plugin.painting.core.layer.dispose :as dispose]
-    [top.kzre.krro.plugin.painting.core.viewport :as vp]
-    [top.kzre.krro.plugin.painting.core.project.canvas :as pc])
+   [taoensso.timbre :as log]
+   [top.kzre.krro.canvas.core.core :as canv]
+   [top.kzre.krro.plugin.painting.core.layer.clone :as clone]
+   [top.kzre.krro.plugin.painting.core.layer.dispose :as dispose]
+   [top.kzre.krro.plugin.painting.core.project.canvas :as pc]
+   [top.kzre.krro.plugin.painting.core.viewport :as vp])
   (:import
-    (top.kzre.krro.canvas.core.layer LayerUtils)
-    (top.kzre.krro.core.util LastestTaskExecutor)
-    (top.kzre.krro.core.util LastestTaskExecutor$TaskParams)
-    (top.kzre.krro.core.util LastestTaskExecutor$TaskDefinition)
-    (top.kzre.krro.util.math KMath)
-    (top.kzre.krro.util.tile CanvasUtils TiledCanvas)))
+   [java.util Set]
+   (top.kzre.krro.canvas.core.layer LayerUtils)
+   (top.kzre.krro.core.util LastestTaskExecutor)
+   (top.kzre.krro.core.util LastestTaskExecutor$TaskParams)
+   (top.kzre.krro.core.util LastestTaskExecutor$TaskDefinition)
+   (top.kzre.krro.util.math KMath)
+   (top.kzre.krro.util.tile CanvasUtils TiledCanvas)))
 
 (defn render-canvas
   "渲染图层到目标画布。canvas-w 和 canvas-h 为视口尺寸（渲染区域大小）。"
@@ -99,7 +100,7 @@
   (cond
     (nil? region) nil
     (not (seq region)) #{}
-    (set? region)
+    (or (set? region) (instance? Set region))
     (if transform
       (let [screen-tiles (LayerUtils/transformTiles region tile-size transform)]
         (if (and viewport-w viewport-h)

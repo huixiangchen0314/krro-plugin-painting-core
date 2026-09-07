@@ -288,29 +288,34 @@
              ;; 宽度调整
              (let [record (:record cofx)
                    tool-data (get-in record [:canvas-state :tool-data])
-                   {:keys [active-anchor ]} tool-data]
+                   {:keys [active-anchor selected-anchors]} tool-data]
                (if active-anchor
-                 (let [paths (pv/paths layer)
-                       anchor-pt (anchor/anchor-point paths active-anchor)
-                       anchor-screen-pt (common/layer-point->screen anchor-pt layer-transform viewport)
-                       dx (- (:x event) (:x anchor-screen-pt))
-                       dy (- (:y event) (:y anchor-screen-pt))
-                       distance (Math/hypot dx dy)
-                       new-tool-data
-                       (-> tool-data
-                           (assoc :layer-backup layer)
-                           (assoc :init-screen-point event)
-                           (assoc :last-screen-point event)
-                           (assoc :init-screen-delta {:delta-x dx
-                                                      :delta-y dy})
-                           (assoc :init-screen-distance distance)
-                           (assoc :last-screen-distance distance)
-                           (assoc :mode :adjust-width)
-                           (assoc :modal true))]
-                   {:record (-> record
-                                (assoc-in [:canvas-state :tool-data] new-tool-data))
-                    :fx [[:message ":anchor/enter-adjust-width-modal"]]
-                    })
+                 (if (> (count selected-anchors) 1)
+                   ;; 多锚点缩放
+                   {:fx [[:message "scale anchors not implemented yet"]]}
+
+                   ;; 单锚点宽度调整
+                   (let [paths (pv/paths layer)
+                         anchor-pt (anchor/anchor-point paths active-anchor)
+                         anchor-screen-pt (common/layer-point->screen anchor-pt layer-transform viewport)
+                         dx (- (:x event) (:x anchor-screen-pt))
+                         dy (- (:y event) (:y anchor-screen-pt))
+                         distance (Math/hypot dx dy)
+                         new-tool-data
+                         (-> tool-data
+                             (assoc :layer-backup layer)
+                             (assoc :init-screen-point event)
+                             (assoc :last-screen-point event)
+                             (assoc :init-screen-delta {:delta-x dx
+                                                        :delta-y dy})
+                             (assoc :init-screen-distance distance)
+                             (assoc :last-screen-distance distance)
+                             (assoc :mode :adjust-width)
+                             (assoc :modal true))]
+                     {:record (-> record
+                                  (assoc-in [:canvas-state :tool-data] new-tool-data))
+                      :fx [[:message ":anchor/enter-adjust-width-modal"]]
+                      }))
                  {:fx [[:warn "No active anchor"]]}))
              {:fx [[:warn (str "Anchor tool is invalid for" layer-type)]]}))))))
 
@@ -460,7 +465,7 @@
                (when active-anchor
                  (let [old-paths (pv/paths layer-backup)
                        focus-anchor (if (:new-anchor tool-data) anchor-backup active-anchor)
-                       old-aabb (anchor/aabb old-paths [focus-anchor])
+                       old-aabb (anchor/aabb (pv/paths layer) [focus-anchor])
                        {:keys [paths aabb anchor new-anchor]} (anchor/extrude-anchor old-paths focus-anchor layer-event)]
                    (when paths
                      (let [all-aabb (bezier/merge-aabb old-aabb aabb)
