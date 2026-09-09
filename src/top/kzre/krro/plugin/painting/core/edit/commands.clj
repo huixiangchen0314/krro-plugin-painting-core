@@ -7,12 +7,13 @@
     [top.kzre.krro.plugin.painting.core.spec :as spec]
     [top.kzre.krro.plugin.painting.core.store :as store]
     [top.kzre.krro.plugin.painting.core.record :as record]
-    [taoensso.timbre :as log]))
+    [taoensso.timbre :as log]
+    [top.kzre.krro.core.core :as krro]))
 
 (cmd/reg-command
   :krro.painting.anchor/enter-adjust-width-modal
   (fn [_]
-    (if-let [f frame/*current-frame*]
+    (if-let [f (krro/active-frame)]
       (if-let [canvas-id (frame/param f spec/canvas-id-key)]
         (if-let [cursor-position (record/cursor-position canvas-id)]
           (rf/dispatch store/app-id [:anchor/enter-adjust-width-modal canvas-id cursor-position f])
@@ -25,7 +26,7 @@
 (cmd/reg-command
   :krro.painting.anchor/enter-extrude-anchor-modal
   (fn [_]
-    (if-let [f frame/*current-frame*]
+    (if-let [f (krro/active-frame)]
       (if-let [canvas-id (frame/param f spec/canvas-id-key)]
         (if-let [cursor-position (record/cursor-position canvas-id)]
           (rf/dispatch store/app-id [:anchor/enter-extrude-anchor-modal canvas-id cursor-position f])

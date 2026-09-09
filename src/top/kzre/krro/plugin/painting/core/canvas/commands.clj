@@ -5,12 +5,13 @@
     [top.kzre.krro.core.message :as msg]
     [top.kzre.krro.core.reframe :as rf]
     [top.kzre.krro.plugin.painting.core.spec :as spec]
-    [top.kzre.krro.core.window :as win]))
+    [top.kzre.krro.core.window :as win]
+    [top.kzre.krro.core.core :as krro]))
 
 (defn log-layers-command
   "从当前 frame 获取 canvas-id 并记录其图层信息。"
   [_project]
-  (if-let [f frame/*current-frame*]
+  (if-let [f (krro/active-frame)]
     (if-let [canvas-id (frame/param f spec/canvas-id-key)]
       (rf/dispatch :krro.painting [:log-layers canvas-id])
       (msg/warn "No canvas-id found in current frame"))

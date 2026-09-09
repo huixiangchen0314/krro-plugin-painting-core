@@ -97,7 +97,7 @@
 
 ;; 移除被选中的图层
 (rf/reg-event-fx
-  :krro.painting :delete-selected-layers
+  store/app-id :delete-selected-layers
   (fn [cofx [_ record-id]]
     (let [st (state/canvas-runtime record-id)
           id (:selected-layer-id st)
@@ -114,7 +114,7 @@
 
 
 (rf/reg-event-fx
-  :krro.painting :move-layer
+  store/app-id :move-layer
   (fn [cofx [_ record-id]]                         ;; 解构事件向量
     (let [record (:record cofx)
           layers (-> record :canvas-data :layers)]
@@ -122,7 +122,7 @@
        :fx [[:log-info (str "Current layers of " record-id ": " layers)]]})))
 
 (rf/reg-event-fx
-  :krro.painting :duplicate-raster-layer
+  store/app-id :duplicate-raster-layer
   (fn [cofx [_ record-id from-path to-path]]                         ;; 解构事件向量
     (let [record (:record cofx)
           layers (-> record :canvas-data :layers)]
@@ -130,7 +130,7 @@
        :fx [[:log-info (str "Current layers of " record-id ": " layers)]]})))
 
 (rf/reg-event-fx
-  :krro.painting :duplicate-vector-layer
+  store/app-id :duplicate-vector-layer
   (fn [cofx [_ record-id]]                         ;; 解构事件向量
     (let [record (:record cofx)
           layers (-> record :canvas-data :layers)]
@@ -139,7 +139,7 @@
 
 
 (rf/reg-event-fx
-  :krro.painting :duplicate-perspective-layer
+  store/app-id :duplicate-perspective-layer
   (fn [cofx [_ record-id]]                         ;; 解构事件向量
     (let [record (:record cofx)
           layers (-> record :canvas-data :layers)]
@@ -149,7 +149,7 @@
 
 
 (rf/reg-event-fx
-  :krro.painting :set-layer-visibility
+  store/app-id :set-layer-visibility
   (fn [cofx [_ record-id]]                         ;; 解构事件向量
     (let [record (:record cofx)
           layers (-> record :canvas-data :layers)]
