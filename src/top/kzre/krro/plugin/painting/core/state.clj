@@ -22,7 +22,7 @@
     (kcc/rerender! f)))
 
 ;; TODO 逐渐废弃这个层级，使用基存储
-(defrecord CanvasState
+(defrecord ^:deprecated CanvasState
   [selected-layer-id                                        ;; 当前选中图层id
    selected-layer-ids                                       ;; 当前选中的所有图层id.
    current-tool                                             ;; 当前选择工具
@@ -33,7 +33,7 @@
    second-last-press-time
    ])
 
-(defn make-state []
+(defn  ^:deprecated make-state []
   (map->CanvasState {:preview-canvas   (TiledCanvas. pc/global-tile-size )
                      :selected-layer-id nil
                      :selected-layer-ids nil
@@ -49,15 +49,15 @@
 
 
 
-(defonce canvas-runtimes (atom {}))
+(defonce  ^:deprecated canvas-runtimes (atom {}))
 
-(defn canvas-runtime [canvas-id]
+(defn  ^:deprecated canvas-runtime [canvas-id]
   (get @canvas-runtimes canvas-id))
 
-(defn current-layer-id [canvas-id]
+(defn  ^:deprecated current-layer-id [canvas-id]
   (pc/current-layer-id canvas-id))
 
-(defn current-layer! [canvas-id]
+(defn ^:deprecated current-layer! [canvas-id]
   (when-let [cd (pc/canvas-data! canvas-id)]
     (when-let [lid (pc/current-layer-id canvas-id)]
       (let [ls (:layers cd)]
@@ -65,7 +65,7 @@
 
 
 
-(defn pure-current-layer!
+(defn  ^:deprecated pure-current-layer!
   "获取干净的当前图层.当前图层是脏的时候，返回备份图层，否则返回项目图层数据"
   [canvas-id]
   (when-let [rt (canvas-runtime canvas-id)]
@@ -73,34 +73,34 @@
      (:layer-backup rt)
      (current-layer! canvas-id))))
 
-(defn current-tool [canvas-id]
+(defn  ^:deprecated current-tool [canvas-id]
   (when-let [rt (canvas-runtime canvas-id)]
     (:current-tool rt)))
 
-(defn set-current-tool! [canvas-id new-tool]
+(defn  ^:deprecated set-current-tool! [canvas-id new-tool]
   (swap! canvas-runtimes assoc-in [canvas-id :current-tool] new-tool))
 
-(defn preview-canvas [^CanvasState rt]
+(defn  ^:deprecated preview-canvas [^CanvasState rt]
   (:preview-canvas rt))
 
-(defn preview-canvas-by-id [canvas-id]
+(defn  ^:deprecated preview-canvas-by-id [canvas-id]
   (when-let [^CanvasState rt (canvas-runtime canvas-id)]
     (:preview-canvas rt)))
 
-(defn set-layer-backup! [canvas-id new-backup]
+(defn  ^:deprecated set-layer-backup! [canvas-id new-backup]
   (swap! canvas-runtimes assoc-in [canvas-id :layer-backup] new-backup))
 
-(defn add-dirty-tiles!
+(defn  ^:deprecated add-dirty-tiles!
   "将脏瓦片集合合并到全局运行时状态。"
   [canvas-id tiles]
   (swap! canvas-runtimes update-in [canvas-id :dirty-tiles] into tiles))
 
 (declare ensure-runtime!)
 
-(defn invalidate-canvas-dirty! [canvas-id]
+(defn  ^:deprecated invalidate-canvas-dirty! [canvas-id]
   (swap! canvas-runtimes assoc-in [canvas-id :dirty-tiles] nil))
 
-(defn render-canvas!
+(defn  ^:deprecated render-canvas!
   "渲染当前画布所有图层到目标画布（TiledCanvas）。
    dirty-tiles 语义：
      nil        → 全图刷新（清空整个画布并重绘所有图层）
@@ -141,7 +141,7 @@
                                 :tile-size pc/global-tile-size)
            (swap! canvas-runtimes assoc-in [canvas-id :dirty-tiles] #{})))))))
 
-(defn ensure-runtime!
+(defn  ^:deprecated ensure-runtime!
   ([canvas-id]
    (ensure-runtime! canvas-id 800 600))
   ([canvas-id w h]

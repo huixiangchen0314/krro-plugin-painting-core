@@ -439,6 +439,7 @@
               (anchor-quadtree/insert-path! record-id new-paths (:path-id new-anchor)))
            (do
              ;; 尾巴插入仅更新末尾两个
+             ;; TODO delete-anchors! FIX 可出现空指针异常
              (anchor-quadtree/delete-anchors! record-id old-paths [anchor-backup])
              (anchor-quadtree/insert-anchors! record-id new-paths [new-anchor second-active-anchor])))
 
