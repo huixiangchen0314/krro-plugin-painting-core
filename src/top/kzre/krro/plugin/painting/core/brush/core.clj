@@ -1,26 +1,13 @@
 (ns top.kzre.krro.plugin.painting.core.brush.core
-  (:import
-   [top.kzre.colorutils.color RGB]))
+  (:require
+   [top.kzre.krro.plugin.painting.core.brush.effects]
+   [top.kzre.krro.plugin.painting.core.brush.global :as global]
+   [top.kzre.krro.plugin.painting.core.brush.events]))
 
+(def default-brush global/default-brush)
 
+(def global-brush global/global-brush)
 
-(defonce default-brush
-         {:dab          {:type :circle
-                         :mask-type :hard}
-          ;; 前景色
-          :color        (RGB/rgba 0.2 0.3 0.56 0.65)
-          ;; 动力学映射
-          :dynamics     {:radius [{:sensor :pressure :curve :linear :min 0.5 :max 2.0 :mode :multiply}]}
-          ;; DAB 间距
-          :spacing      0.2
-          :radius       3
-          :blend-mode   :normal
-          ;:taper-start-px   50
-          ;:taper-end-px     50
-          ;:taper-fields     []
-          })
+(def set-global-brush! global/set-global-brush!)
 
-(defonce global-brush (atom default-brush))
-
-(defn set-global-brush! [brush]
-  (reset! global-brush brush))
+(def get-global-brush global/get-global-brush)

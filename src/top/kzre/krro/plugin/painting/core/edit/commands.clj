@@ -15,7 +15,7 @@
   (fn [_]
     (if-let [f (krro/active-frame)]
       (if-let [canvas-id (frame/param f spec/canvas-id-key)]
-        (if-let [cursor-position (record/cursor-position canvas-id)]
+        (if-let [cursor-position (record/cursor-position (record/record canvas-id))]
           (rf/dispatch store/app-id [:anchor/enter-adjust-width-modal canvas-id cursor-position f])
           (log/warn "cursor-position is nil"))
         (msg/warn "No canvas-id found in current frame"))
@@ -28,7 +28,7 @@
   (fn [_]
     (if-let [f (krro/active-frame)]
       (if-let [canvas-id (frame/param f spec/canvas-id-key)]
-        (if-let [cursor-position (record/cursor-position canvas-id)]
+        (if-let [cursor-position (record/cursor-position (record/record canvas-id))]
           (rf/dispatch store/app-id [:anchor/enter-extrude-anchor-modal canvas-id cursor-position f])
           (msg/warn "cursor-position is nil"))
         (msg/warn "No canvas-id found in current frame"))

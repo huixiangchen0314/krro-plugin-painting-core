@@ -17,10 +17,6 @@
       LineArtDetectors)
     (top.kzre.krro.util.tile TiledCanvas)))
 
-;; ── 笔刷配置辅助 ──────────────────────────────────
-(defn- get-brush []
-  (or @brush/global-brush brush/default-brush))
-
 ;; ── 填充参数提取 ──────────────────────────────────
 (defn- build-fill-request
   "根据当前笔刷规格和点击位置，构造 FloodFillRequest。"
@@ -87,7 +83,7 @@
         (reset! parent-inv parent-inv-new)
         (let [local-x (:x event)
               local-y (:y event)
-              brush-spec (get-brush)
+              brush-spec (brush/get-global-brush)
               ;; 将填充所需的数据暂存，等待 commit! 时使用
               fill-data {:layer layer
                          :local-x local-x

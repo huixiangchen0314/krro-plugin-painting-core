@@ -5,12 +5,9 @@
     [top.kzre.krro.canvas.core.layer.core :as lc]
     [top.kzre.krro.core.core :as kcc]
     [top.kzre.krro.core.project :as proj]
-    [top.kzre.krro.core.rdb :refer [defschema]]
-    [top.kzre.krro.plugin.painting.core.edit.falloff :as falloff]
-    [top.kzre.krro.plugin.painting.core.edit.snap :as snap]
-    [top.kzre.krro.plugin.painting.core.edit.spec :as edit])
+    [top.kzre.krro.core.rdb :refer [defschema]])
   (:import
-    (java.util UUID)))
+   (java.util UUID)))
 
 ;; 全局瓦片大小 64x64
 (defonce global-tile-size 64)
@@ -23,23 +20,18 @@
 (s/def ::vertical-mirror-center number?)
 
 (s/def ::tiling-enabled boolean?)
-;;变换轴心点
-(s/def ::pivot-center ::edit/pivot-center)
-(s/def ::snap-options (s/nilable ::snap/snap-options))
-(s/def ::falloff-options (s/nilable ::falloff/falloff-options))
+
 (s/def ::id keyword?)
 (s/def ::current-layer-id (s/nilable keyword?))
 (s/def ::width number?)
 (s/def ::height number?)
 (s/def ::layers vector?)
-
+(s/def ::current-tool keyword?)
 (s/def ::canvas-data
   (s/keys
     :req-un [::id ::width ::height ::layers]
     :opt-un [::current-layer-id
-             ::pivot-center
-             ::snap-options
-             ::falloff-options
+             ::current-tool
              ::horizontal-mirror-enabled
              ::horizontal-mirror-center
              ::vertical-mirror-enabled
@@ -54,9 +46,7 @@
    height                               ;; 必需，number?
    layers                               ;; 必需，vector?
    current-layer-id                     ;; 可选，keyword? 或 nil
-   pivot-center                         ;; 可选，::edit/pivot-center 或 nil
-   snap-options                         ;; 可选，::snap/snap-options 或 nil
-   falloff-options                      ;; 可选，::falloff/falloff-options 或 nil
+   current-tool
    horizontal-mirror-enabled            ;; 可选，boolean? 或 nil
    horizontal-mirror-center             ;; 可选，number? 或 nil
    vertical-mirror-enabled              ;; 可选，boolean? 或 nil
@@ -70,28 +60,24 @@
                :defaults {:layers []})
 
 (defn make-canvas-data
-  [width height & {:keys [id layers current-layer-id pivot-center snap-options
-                          falloff-options horizontal-mirror-enabled horizontal-mirror-center
+  [width height & {:keys [id layers current-layer-id current-brush
+                          horizontal-mirror-enabled horizontal-mirror-center
                           vertical-mirror-enabled vertical-mirror-center tiling-enabled]
                    :or {id (keyword (str "canvas-" (UUID/randomUUID)))
                         layers []
-                        pivot-center :aabb-center
-                        snap-options nil
-                        falloff-options nil
                         horizontal-mirror-enabled false
                         horizontal-mirror-center 0
                         vertical-mirror-enabled false
                         vertical-mirror-center 0
-                        tiling-enabled false}}]
+                        tiling-enabled false
+                        current-brush :brush}}]
   (map->CanvasData
     {:id id
      :width width
      :height height
      :layers layers
      :current-layer-id current-layer-id
-     :pivot-center pivot-center
-     :snap-options snap-options
-     :falloff-options falloff-options
+     :current-tool current-brush
      :horizontal-mirror-enabled horizontal-mirror-enabled
      :horizontal-mirror-center horizontal-mirror-center
      :vertical-mirror-enabled vertical-mirror-enabled
@@ -105,6 +91,7 @@
    (let [cd (make-canvas-data w h :id id)]   ;; 将测试图层放入 layers 向量
      (kcc/insert! :krro.painting/canvas (assoc cd :id id))
      cd)))
+
 
 
 (defn delete-canvas!

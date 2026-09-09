@@ -20,8 +20,6 @@
 
 ;; ── 辅助函数 ──────────────────────────────────
 
-(defn- get-brush []
-  (or @brush/global-brush brush/default-brush))
 
 (defn- build-fill-request
   [canvas brush-spec local-x local-y width height]
@@ -71,7 +69,7 @@
                                           (:x event-map) (:y event-map))
               local-pos (util/transform-point layer-transform-inv
                                               (:x logic-pos) (:y logic-pos))
-              brush-spec (get-brush)
+              brush-spec (brush/get-global-brush)
               width (get-in record [:canvas-data :width])
               height (get-in record [:canvas-data :height])
               new-canvas (.copy old-canvas)

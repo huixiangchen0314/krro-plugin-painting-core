@@ -38,7 +38,7 @@
      :reduce  - 降采样阈值（像素），不提供则不降采样。
      :spacing - 间距系数（相对于半径），默认 0.2。"
   ([]
-   (make-stroke @brush/global-brush))
+   (make-stroke (brush/get-global-brush)))
   ([brush-spec]
    (let [raw   (if-let [threshold (:reduce brush-spec)]
                      (ReducedStroke/newInstance (float threshold) brush-spec)

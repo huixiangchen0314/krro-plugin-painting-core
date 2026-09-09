@@ -105,5 +105,5 @@
 
 (defn make-vector-brush []
   (->VectorBrushTool (atom nil)
-                     (or @brush/global-brush brush/default-brush)
+                     (brush/get-global-brush)
                      (atom nil)))
