@@ -8,7 +8,7 @@
    [top.kzre.krro.plugin.painting.core.project.canvas :as pc]
    [top.kzre.krro.plugin.painting.core.store :as store]))
 
-
+;; TODO 非画布记录，1. 合并全局数据 2. 做别的 record
 (s/def ::canvas-id keyword?)
 
 ;; =============================== 项目数据 =====================================

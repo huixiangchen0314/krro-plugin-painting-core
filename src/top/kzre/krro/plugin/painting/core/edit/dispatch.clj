@@ -27,7 +27,9 @@
       (when-let [event-id
                  (or
                    ;; 先尝试基于状态的分派
-                   (when tool (p/dispatch-event tool event-map))
+                   (when (and tool
+                              (satisfies? p/IToolData tool))
+                     (p/dispatch-event tool event-map))
                    ;; 再进行基于配置的分派
                    (tool-event current-tool event-map))]
         {:dispatch [event-id record-id event-map frame]}
