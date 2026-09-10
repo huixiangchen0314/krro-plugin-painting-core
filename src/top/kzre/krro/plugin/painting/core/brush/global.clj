@@ -27,6 +27,9 @@
 (defn get-global-brush []
   (or @global-brush default-brush))
 
+(defn get-global-brush-color []
+  (:color (get-global-brush)))
+
 (defn set-global-brush-color! [color]
   (let [brush (get-global-brush)
         old-color (:color brush)

@@ -9,5 +9,5 @@
 (def set-global-brush! global/set-global-brush!)
 
 (def get-global-brush global/get-global-brush)
-
+(def get-global-brush-color global/get-global-brush-color)
 (def set-global-brush-color! global/set-global-brush-color!)

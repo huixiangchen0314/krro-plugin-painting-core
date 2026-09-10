@@ -3,6 +3,7 @@
             [top.kzre.krro.canvas.core.layer.util :as util]
             [top.kzre.krro.core.reframe :as rf]
             [top.kzre.krro.curve.bezier2d.core :as bezier]
+            [top.kzre.krro.plugin.painting.core.brush.core :as brush]
             [top.kzre.krro.plugin.painting.core.edit.interceptors :refer [cleanup-tool-interceptor]]
             [top.kzre.krro.plugin.painting.core.edit.protocol :as p]
             [top.kzre.krro.plugin.painting.core.layer.clone :as clone]
@@ -10,15 +11,14 @@
             [top.kzre.krro.plugin.painting.core.tool.stroke :as stroke]
             [top.kzre.krro.plugin.painting.core.tool.util :as tool-util]
             [top.kzre.krro.plugin.painting.core.viewport :as vp])
-  (:import (top.kzre.colorutils.color RGB)
-           (top.kzre.krro.util.math KMath)))
+  (:import (top.kzre.krro.util.math KMath)))
 
 (defn- add-path-to-layer
   [backup-layer {:keys [curve width-samples t-params]} path-id]
   (let [curve-edn (bezier/curve->edn curve)
         new-path {:path-type :bezier
                   :bezier-curve curve-edn
-                  :style {:stroke {:color (RGB/rgba 0.6 0 0.3 1)
+                  :style {:stroke {:color (brush/get-global-brush-color)
                                    :width 15
                                    :cap   :round
                                    :join  :round}}
