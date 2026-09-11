@@ -9,5 +9,5 @@
   store/app-id :tool/set-command-enabled
   (fn [_ enabled?]
     (if enabled?
-      (hb/beat! variable/command-enabled ::set-command-enabled)
-      (hb/clear! variable/command-enabled ::set-command-enabled))))
+      (hb/clear! variable/command-disabled ::set-command-enabled)
+      (hb/beat! variable/command-disabled ::set-command-enabled))))

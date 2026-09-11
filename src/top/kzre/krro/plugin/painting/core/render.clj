@@ -46,6 +46,7 @@
 (def render-task-def
   (reify LastestTaskExecutor$TaskDefinition
     (mergeTask [_ current new]
+      (log/debug "merge render task")
       ;; 释放旧任务的克隆图层
       (when-let [old-cloned (:layers current)]
         (doseq [l old-cloned]
