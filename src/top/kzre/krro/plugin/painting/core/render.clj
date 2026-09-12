@@ -4,9 +4,8 @@
    [taoensso.timbre :as log]
    [top.kzre.krro.canvas.core.core :as canv]
    [top.kzre.krro.plugin.painting.core.layer.clone :as clone]
-   [top.kzre.krro.plugin.painting.core.model.tiled-image]
    [top.kzre.krro.plugin.painting.core.layer.dispose :as dispose]
-   [top.kzre.krro.plugin.painting.core.project.canvas :as pc]
+   [top.kzre.krro.plugin.painting.core.model.tiled-image]
    [top.kzre.krro.plugin.painting.core.viewport :as vp])
   (:import
     (java.util Set)
@@ -19,33 +18,21 @@
     (top.kzre.krro.util.tile CanvasUtils)))
 
 
-
-
 (defn render-viewport!
   "渲染图层到目标画布。viewport-w 和 viewport-h 为视口尺寸（渲染区域大小）。"
   [{:keys [canvas width height]} layers
    viewport viewport-w viewport-h viewport-dirty-tiles]
-  (cond
-    (nil? viewport-dirty-tiles)
-    (do
-      (.clear canvas)
-      (canv/render-layers! layers canvas viewport-w viewport-h
-                           :viewport viewport
-                           :viewport-dirty-tiles viewport-dirty-tiles
-                           :image-width width
-                           :image-height height))
-    (empty? viewport-dirty-tiles) nil
-
-    :else
-    (let [tile-size (.getTileSize canvas)]
-      (assert (= pc/global-tile-size tile-size))
-      (canv/render-layers! layers canvas viewport-w viewport-h
-                           :viewport viewport
-                           :viewport-dirty-tiles viewport-dirty-tiles
-
-                           :image-width width
-                           :image-height height
-                           ))))
+  (when
+    (or
+      (nil? viewport-dirty-tiles) ;; 全量渲染
+      (not-empty viewport-dirty-tiles)   ;; 部分更新
+      )
+    (canv/render-layers! layers canvas viewport-w viewport-h
+                         :viewport viewport
+                         :viewport-dirty-tiles viewport-dirty-tiles
+                         :image-width width
+                         :image-height height
+                         )))
 
 ;; ── 渲染任务参数（包含克隆图层） ──────────────
 (defrecord RenderParams [key
@@ -87,7 +74,6 @@
                     viewport-w viewport-h
                     layers upload-fn]} params]   ; 保留用于其他用途，但渲染边界使用视口尺寸
         (try
-          (log/debug (format "runTask: :viewport-dirty-tiles=%s" viewport-dirty-tiles))
           (render-viewport! image layers
                             (when viewport (vp/viewport->mat2d viewport))
                             viewport-w viewport-h viewport-dirty-tiles)
