@@ -1,44 +1,57 @@
 (ns top.kzre.krro.plugin.painting.core.render
+  "渲染线程"
   (:require
    [taoensso.timbre :as log]
    [top.kzre.krro.canvas.core.core :as canv]
    [top.kzre.krro.plugin.painting.core.layer.clone :as clone]
+   [top.kzre.krro.plugin.painting.core.model.tiled-image]
    [top.kzre.krro.plugin.painting.core.layer.dispose :as dispose]
    [top.kzre.krro.plugin.painting.core.project.canvas :as pc]
    [top.kzre.krro.plugin.painting.core.viewport :as vp])
   (:import
-   [java.util Set]
-   (top.kzre.krro.canvas.core.layer LayerUtils)
-   (top.kzre.krro.core.util LastestTaskExecutor)
-   (top.kzre.krro.core.util LastestTaskExecutor$TaskParams)
-   (top.kzre.krro.core.util LastestTaskExecutor$TaskDefinition)
-   (top.kzre.krro.util.math KMath)
-   (top.kzre.krro.util.tile CanvasUtils TiledCanvas)))
+    (java.util Set)
+    (top.kzre.krro.canvas.core.layer LayerUtils)
+    (top.kzre.krro.core.util LastestTaskExecutor)
+    (top.kzre.krro.core.util LastestTaskExecutor$TaskParams)
+    (top.kzre.krro.core.util LastestTaskExecutor$TaskDefinition)
+    (top.kzre.krro.plugin.painting.core.model.tiled_image TiledImage)
+    (top.kzre.krro.util.math KMath)
+    (top.kzre.krro.util.tile CanvasUtils)))
 
-(defn render-canvas
-  "渲染图层到目标画布。canvas-w 和 canvas-h 为视口尺寸（渲染区域大小）。"
-  [layers canvas-w canvas-h dirty-tiles ^TiledCanvas dest
-   & {:keys [viewport]}]
+
+
+
+(defn render-viewport!
+  "渲染图层到目标画布。viewport-w 和 viewport-h 为视口尺寸（渲染区域大小）。"
+  [{:keys [canvas width height]} layers
+   viewport viewport-w viewport-h viewport-dirty-tiles]
   (cond
-    (nil? dirty-tiles)
+    (nil? viewport-dirty-tiles)
     (do
-      (.clear dest)
-      (canv/render-layers! layers dest canvas-w canvas-h
-                           :viewport viewport))
-    (empty? dirty-tiles) nil
+      (.clear canvas)
+      (canv/render-layers! layers canvas viewport-w viewport-h
+                           :viewport viewport
+                           :viewport-dirty-tiles viewport-dirty-tiles
+                           :image-width width
+                           :image-height height))
+    (empty? viewport-dirty-tiles) nil
 
     :else
-    (let [tile-size (.getTileSize dest)]
+    (let [tile-size (.getTileSize canvas)]
       (assert (= pc/global-tile-size tile-size))
-      (canv/render-layers! layers dest canvas-w canvas-h
-                           :dirty-tiles (CanvasUtils/clipTiles dirty-tiles tile-size canvas-w canvas-h)
+      (canv/render-layers! layers canvas viewport-w viewport-h
                            :viewport viewport
-                           :tile-size tile-size
+                           :viewport-dirty-tiles viewport-dirty-tiles
+
+                           :image-width width
+                           :image-height height
                            ))))
 
 ;; ── 渲染任务参数（包含克隆图层） ──────────────
-(defrecord RenderParams [key canvas canvas-data dirty-tiles
-                         layers viewport canvas-w canvas-h upload-fn ]
+(defrecord RenderParams [key
+                         ^TiledImage image
+                         viewport-dirty-tiles
+                         layers viewport viewport-w viewport-h upload-fn ]
   LastestTaskExecutor$TaskParams
   (key [_] key))
 
@@ -52,34 +65,33 @@
         (doseq [l old-cloned]
           (dispose/dispose-layer l)))
       ;; 合并脏区域，视口尺寸变化则全量渲染
-      (let [old-data (:canvas-data current)
-            new-data (:canvas-data new)
-            old-vp-w (:canvas-w current)
-            old-vp-h (:canvas-h current)
-            new-vp-w (:canvas-w new)
-            new-vp-h (:canvas-h new)
-            old-dirty (:dirty-tiles current)
-            new-dirty (:dirty-tiles new)
+      (let [old-image (:image current)
+            new-image (:image new)
+            old-vp-w (:viewport-w current)
+            old-vp-h (:viewport-h current)
+            new-vp-w (:viewport-w new)
+            new-vp-h (:viewport-h new)
+            old-dirty (::viewport-dirty-tiles current)
+            new-dirty (::viewport-dirty-tiles new)
             merged-dirty (and (seq old-dirty) (seq new-dirty) (into old-dirty new-dirty))
             ;; 如果视口尺寸或图像尺寸变化，强制全量
             force-full (or (not= old-vp-w new-vp-w)
                            (not= old-vp-h new-vp-h)
-                           (not= (:width old-data) (:width new-data))
-                           (not= (:height old-data) (:height new-data)))]
-        (assoc new :dirty-tiles (if force-full nil merged-dirty))))
+                           (not= (:width old-image) (:width new-image))
+                           (not= (:height old-image) (:height new-image)))]
+        (assoc new ::viewport-dirty-tiles (if force-full nil merged-dirty))))
 
     (runTask [_ params]
-      (let [{:keys [canvas canvas-data  viewport
-                    dirty-tiles
-                    canvas-w canvas-h
-                    layers upload-fn ]} params
-            {:keys [width height]} canvas-data]   ; 保留用于其他用途，但渲染边界使用视口尺寸
+      (let [{:keys [image viewport
+                    viewport-dirty-tiles
+                    viewport-w viewport-h
+                    layers upload-fn]} params]   ; 保留用于其他用途，但渲染边界使用视口尺寸
         (try
-          (log/debug (format "runTask: dirty-tiles=%s" dirty-tiles))
-          (render-canvas layers canvas-w canvas-h dirty-tiles canvas
-                         :viewport (when viewport (vp/viewport->mat2d viewport)))
-          (when upload-fn
-            (upload-fn canvas canvas-data viewport))
+          (log/debug (format "runTask: :viewport-dirty-tiles=%s" viewport-dirty-tiles))
+          (render-viewport! image layers
+                            (when viewport (vp/viewport->mat2d viewport))
+                            viewport-w viewport-h viewport-dirty-tiles)
+          (upload-fn)
           (catch Exception e
             (log/error e "Render task failed"))
           (finally
@@ -137,35 +149,25 @@
     :else (throw (IllegalArgumentException. (str "region must be Set or Map, got " (type region))))))
 
 
-(defn request-render-full!
-  [render-task-id canvas canvas-data upload-fn & {:keys [dirties dirty-transform]}]
-  (let [tile-size (.getTileSize canvas)
-        viewport-w (:width canvas-data)
-        viewport-h (:height canvas-data)
-        screen-dirty (dirty-region dirties dirty-transform viewport-w viewport-h tile-size)
-        params (->RenderParams render-task-id canvas canvas-data
-                               screen-dirty
-                               (mapv clone/clone-layer (:layers canvas-data))
-                               vp/default-viewport
-                               viewport-w viewport-h
-                               upload-fn)]
-    (.submit executor render-task-id params)))
-
 ;; ── 渲染请求入口（提交时克隆图层） ──────────────
 (defn request-render-viewport!
   "提交渲染任务，视口尺寸单独传入，用于裁剪渲染区域。"
-  [render-task-id canvas canvas-data dirties dirty-transform viewport viewport-w viewport-h upload-fn]
-  (let [tile-size (.getTileSize canvas)
+  [render-task-id
+   ^TiledImage image
+   layers dirties dirty-transform
+   viewport viewport-w viewport-h
+   upload-fn]
+  (let [tile-size (.getTileSize (:canvas image))
         combined-transform (when (and dirties dirty-transform)
                              (KMath/mat2dMul (vp/viewport->mat2d viewport) dirty-transform))
-        screen-dirty (dirty-region dirties combined-transform viewport-w viewport-h tile-size)
-        params (->RenderParams render-task-id canvas canvas-data
-                               screen-dirty
-                               (mapv clone/clone-layer (:layers canvas-data))
+        viewport-dirty-tiles (dirty-region dirties combined-transform viewport-w viewport-h tile-size)
+        params (->RenderParams render-task-id  image
+                               viewport-dirty-tiles
+                               (mapv clone/clone-layer layers)
                                viewport viewport-w viewport-h
                                upload-fn)]
-    (log/debug (format "render-viewport: dirties=%s, combined-transform=%s, screen-dirty=%s"
-                       dirties combined-transform screen-dirty))
+    (log/debug (format "render-viewport: dirties=%s, combined-transform=%s, viewport-dirty-tiles=%s"
+                       dirties combined-transform viewport-dirty-tiles))
     (.submit executor render-task-id params)))
 
 ;; ── 关闭执行器 ──────────────────────────────────

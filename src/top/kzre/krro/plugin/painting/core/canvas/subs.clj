@@ -24,6 +24,12 @@
 
 (rf/reg-sub
   store/app-id
+  :image-size
+  :<- [:canvas-data]
+  (fn [canvas-data] (select-keys canvas-data [:width :height])))
+
+(rf/reg-sub
+  store/app-id
   :current-tool
   (fn [record]
     (get-in record [:record :canvas-state :current-tool])))
