@@ -6,7 +6,8 @@
    [top.kzre.krro.plugin.painting.core.layer.clone :as clone]
    [top.kzre.krro.plugin.painting.core.layer.dispose :as dispose]
    [top.kzre.krro.plugin.painting.core.model.tiled-image]
-   [top.kzre.krro.plugin.painting.core.viewport :as vp])
+   [top.kzre.krro.plugin.painting.core.viewport :as vp]
+   [top.kzre.krro.core.util.promise :as promise])
   (:import
     (java.util Set)
     (top.kzre.krro.canvas.core.layer LayerUtils)
@@ -17,28 +18,11 @@
     (top.kzre.krro.util.math KMath)
     (top.kzre.krro.util.tile CanvasUtils)))
 
-
-(defn render-viewport!
-  "渲染图层到目标画布。viewport-w 和 viewport-h 为视口尺寸（渲染区域大小）。"
-  [{:keys [canvas width height]} layers
-   viewport viewport-w viewport-h viewport-dirty-tiles]
-  (when
-    (or
-      (nil? viewport-dirty-tiles) ;; 全量渲染
-      (not-empty viewport-dirty-tiles)   ;; 部分更新
-      )
-    (canv/render-layers! layers canvas viewport-w viewport-h
-                         :viewport viewport
-                         :viewport-dirty-tiles viewport-dirty-tiles
-                         :image-width width
-                         :image-height height
-                         )))
-
 ;; ── 渲染任务参数（包含克隆图层） ──────────────
 (defrecord RenderParams [key
                          ^TiledImage image
                          viewport-dirty-tiles
-                         layers viewport viewport-w viewport-h upload-fn ]
+                         layers viewport viewport-w viewport-h done!]
   LastestTaskExecutor$TaskParams
   (key [_] key))
 
@@ -72,17 +56,30 @@
       (let [{:keys [image viewport
                     viewport-dirty-tiles
                     viewport-w viewport-h
-                    layers upload-fn]} params]   ; 保留用于其他用途，但渲染边界使用视口尺寸
-        (try
-          (render-viewport! image layers
-                            (when viewport (vp/viewport->mat2d viewport))
-                            viewport-w viewport-h viewport-dirty-tiles)
-          (upload-fn)
-          (catch Exception e
-            (log/error e "Render task failed"))
-          (finally
-            (doseq [l layers]
-              (dispose/dispose-layer l))))))))
+                    layers done!]} params
+            {:keys [canvas width height]} image]   ; 保留用于其他用途，但渲染边界使用视口尺寸
+        (when
+          (or
+            (nil? viewport-dirty-tiles) ;; 全量渲染
+            (not-empty viewport-dirty-tiles)   ;; 部分更新
+            )
+          (->
+            (canv/render-layers!
+              layers canvas
+              :view-width viewport-w
+              :view-height viewport-h
+              :view-matrix (when viewport (vp/viewport->mat2d viewport))
+              :view-dirty-tiles viewport-dirty-tiles
+              :image-width width
+              :image-height height)
+            (promise/fmap (fn [c] (done!) c))
+            (promise/handle
+              (fn [v e]
+                (try
+                  (run! dispose/dispose-layer layers)
+                  (catch Exception _ nil))
+                (when e (log/error "render failed: " e))
+                v))))))))
 
 ;; ── 全局执行器 ──────────────────────────────────
 (defonce ^LastestTaskExecutor executor
@@ -142,7 +139,7 @@
    ^TiledImage image
    layers dirties dirty-transform
    viewport viewport-w viewport-h
-   upload-fn]
+   done!]
   (let [tile-size (.getTileSize (:canvas image))
         combined-transform (when (and dirties dirty-transform)
                              (KMath/mat2dMul (vp/viewport->mat2d viewport) dirty-transform))
@@ -151,7 +148,7 @@
                                viewport-dirty-tiles
                                (mapv clone/clone-layer layers)
                                viewport viewport-w viewport-h
-                               upload-fn)]
+                               done!)]
     (log/debug (format "render-viewport: dirties=%s, combined-transform=%s, viewport-dirty-tiles=%s"
                        dirties combined-transform viewport-dirty-tiles))
     (.submit executor render-task-id params)))

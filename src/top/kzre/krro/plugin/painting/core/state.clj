@@ -6,7 +6,9 @@
     [top.kzre.krro.core.core :as kcc]
     [top.kzre.krro.core.frame :as frame]
     [top.kzre.krro.plugin.painting.core.project.canvas :as pc]
-    [top.kzre.krro.plugin.painting.core.spec :as spec])
+    [top.kzre.krro.plugin.painting.core.spec :as spec]
+    [top.kzre.krro.canvas.core.layer.util :as util]
+    [top.kzre.krro.core.util.promise :as promise])
   (:import
    (java.util Collection)
    (top.kzre.krro.plugin.painting.core.project.canvas CanvasData)
@@ -124,7 +126,10 @@
          (nil? dirty-tiles)
          (do
            (.clear dest)
-           (canv/render-layers! layers dest w h)
+           (promise/await
+             (canv/render-layers! layers dest
+                                  :view-width w
+                                  :view-height h))
            (swap! canvas-runtimes assoc-in [canvas-id :dirty-tiles] #{}))
 
          ;; 增量更新：脏瓦片为空集合，直接返回
@@ -136,9 +141,13 @@
          (do
            ;; 利用 TiledCanvas 的 deleteTiles 高效清除脏瓦片区域
            (.deleteTiles dest ^Collection dirty-tiles)
-           (canv/render-layers! layers dest w h
-                                :dirty-tiles (CanvasUtils/clipTiles dirty-tiles tile-size w h)
-                                :tile-size pc/global-tile-size)
+           (promise/await
+             (canv/render-layers! layers dest
+                                  :view-matrix util/identity-matrix
+                                  :view-width w
+                                  :view-height h
+                                  :view-dirty-tiles (CanvasUtils/clipTiles dirty-tiles tile-size w h)
+                                  :tile-size pc/global-tile-size))
            (swap! canvas-runtimes assoc-in [canvas-id :dirty-tiles] #{})))))))
 
 (defn  ^:deprecated ensure-runtime!

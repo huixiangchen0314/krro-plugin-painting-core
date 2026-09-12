@@ -1,6 +1,7 @@
 (ns top.kzre.krro.plugin.painting.core.project.raster-layer
   (:require
     [top.kzre.krro.canvas.core.layer.core :as lc]
+    [top.kzre.krro.canvas.raster.core]
     [top.kzre.krro.core.core :as kcc]
     [top.kzre.krro.core.project :as proj]
     [top.kzre.krro.core.rdb :refer [defschema]]
