@@ -1,16 +1,16 @@
 (ns top.kzre.krro.plugin.painting.core.state
   "运行时状态：事件、笔刷、缓冲区、累积长度。"
   (:require
-    [top.kzre.krro.canvas.core.core :as canv]
-    [top.kzre.krro.canvas.core.layer.core :as lc]
-    [top.kzre.krro.core.core :as kcc]
-    [top.kzre.krro.core.frame :as frame]
-    [top.kzre.krro.plugin.painting.core.project.canvas :as pc]
-    [top.kzre.krro.plugin.painting.core.spec :as spec]
-    [top.kzre.krro.canvas.core.layer.util :as util]
-    [top.kzre.krro.core.util.promise :as promise])
+   [top.kzre.krro.canvas.core.core :as canv]
+   [top.kzre.krro.canvas.core.layer.core :as lc]
+   [top.kzre.krro.canvas.core.layer.util :as util]
+   [top.kzre.krro.core.core :as kcc]
+   [top.kzre.krro.core.frame :as frame]
+   [top.kzre.krro.core.util.promise :as promise]
+   [top.kzre.krro.plugin.painting.core.project.canvas :as pc]
+   [top.kzre.krro.plugin.painting.core.spec :as spec])
   (:import
-   (java.util Collection)
+   (java.util Collection Set)
    (top.kzre.krro.plugin.painting.core.project.canvas CanvasData)
    (top.kzre.krro.util.tile CanvasUtils TiledCanvas)))
 
@@ -125,11 +125,17 @@
          ;; 全图刷新：清除画布所有瓦片，然后重绘
          (nil? dirty-tiles)
          (do
-           (.clear dest)
-           (promise/await
-             (canv/render-layers! layers dest
-                                  :view-width w
-                                  :view-height h))
+           (let [result (promise/await
+                           (canv/render-layers! layers
+                                                :tile-size pc/global-tile-size
+                                                :view-width w
+                                                :view-height h))
+                 diff-canvas (:canvas result)
+                 clipped-dirties (:dirty-tiles result)]
+
+             (.deleteTiles dest ^Set clipped-dirties)
+             (.mergeCanvas dest diff-canvas)
+             (.clear diff-canvas))
            (swap! canvas-runtimes assoc-in [canvas-id :dirty-tiles] #{}))
 
          ;; 增量更新：脏瓦片为空集合，直接返回
@@ -139,15 +145,19 @@
          ;; 有脏瓦片：先删除脏瓦片（相当于清空该区域），再重绘所有图层
          :else
          (do
-           ;; 利用 TiledCanvas 的 deleteTiles 高效清除脏瓦片区域
-           (.deleteTiles dest ^Collection dirty-tiles)
-           (promise/await
-             (canv/render-layers! layers dest
-                                  :view-matrix util/identity-matrix
-                                  :view-width w
-                                  :view-height h
-                                  :view-dirty-tiles (CanvasUtils/clipTiles dirty-tiles tile-size w h)
-                                  :tile-size pc/global-tile-size))
+           (let [result (promise/await
+                          (canv/render-layers! layers
+                                               :view-matrix util/identity-matrix
+                                               :view-width w
+                                               :view-height h
+                                               :view-dirty-tiles (CanvasUtils/clipTiles dirty-tiles tile-size w h)
+                                               :tile-size pc/global-tile-size))
+                 diff-canvas (:canvas result)
+                 clipped-dirties (:dirty-tiles result)]
+
+             (.deleteTiles dest ^Set clipped-dirties)
+             (.mergeCanvas dest diff-canvas)
+             (.clear diff-canvas))
            (swap! canvas-runtimes assoc-in [canvas-id :dirty-tiles] #{})))))))
 
 (defn  ^:deprecated ensure-runtime!

@@ -8,13 +8,11 @@
 (defrecord ViewportLayer
   [id
    ^TiledCanvas canvas
-   ^boolean visible
    ^float opacity
    blend-mode]
   proto/ILayer
   (layer-id [_] id)
   (canvas [_] canvas)
   (transform [_] util/identity-matrix)
-  (visible? [_] visible)
-  (layer-opacity [_] opacity)
+  (opacity [_] opacity)
   (blend-mode [_] blend-mode))

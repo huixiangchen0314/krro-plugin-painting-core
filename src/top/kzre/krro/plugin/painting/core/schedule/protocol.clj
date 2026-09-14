@@ -1,15 +1,12 @@
 (ns top.kzre.krro.plugin.painting.core.schedule.protocol
   "渲染调度节点协议与数据结构。"
-  (:require
-   [top.kzre.krro.plugin.painting.core.viewport :refer [ViewPort]])
+
   (:import
-    (java.util.concurrent CompletableFuture)
     (top.kzre.krro.plugin.painting.core.viewport ViewPort)))
 
 ;; ═══════════════════════════════════════════════
 ;; 质量
 ;; ═══════════════════════════════════════════════
-
 
 (def quality-values #{:preview :submit})
 
@@ -21,7 +18,8 @@
 ;; ═══════════════════════════════════════════════
 
 (defrecord RenderContext
-  [^ViewPort viewport
+  [^int tile-size
+   ^ViewPort viewport
    ^int viewport-width
    ^int viewport-height
    dirty-tiles
@@ -29,14 +27,16 @@
    current-layer-id])
 
 (defn make-render-context
-  [viewport-transform viewport-width viewport-height
+  [tile-size viewport-transform viewport-width viewport-height
    dirty-tiles quality current-layer-id]
-  (->RenderContext viewport-transform
-                   viewport-width
-                   viewport-height
-                   dirty-tiles
-                   quality
-                   current-layer-id))
+  (->RenderContext
+    tile-size
+    viewport-transform
+    viewport-width
+    viewport-height
+    dirty-tiles
+    quality
+    current-layer-id))
 
 ;; ═══════════════════════════════════════════════
 ;; ILayer
@@ -47,8 +47,7 @@
   (layer-id [_] "图层 id（Keyword）")
   (canvas [_] "图层画布（TiledCanvas）")
   (transform [_] "图层仿射变换矩阵（float[]）")
-  (visible? [_] "图层是否可见")
-  (layer-opacity [_] "图层不透明度")
+  (opacity [_] "图层不透明度")
   (blend-mode [_] "图层混合模式"))
 
 ;; ═══════════════════════════════════════════════
@@ -83,19 +82,5 @@
      异步节点：手动 complete 或 supplyAsync。"))
 
 (defprotocol IRenderScheduler
-  (scheduler-id [_] "调度器id，兼做渲染任务id"))
-
-;; ═══════════════════════════════════════════════
-;; 便捷函数
-;; ═══════════════════════════════════════════════
-
-(defn sync-result
-  "把同步结果包装为 CompletableFuture。"
-  [^ILayer layer]
-  (CompletableFuture/completedFuture layer))
-
-(defn sync-compute
-  "把同步计算包装为 render 的返回。
-   用法：(sync-compute ctx #(do-compute ...))"
-  [f]
-  (CompletableFuture/completedFuture (f)))
+  (diff! [_ layers ctx] "基于现有图层，差分调度图")
+  (render [_ ctx] "执行一次渲染"))
