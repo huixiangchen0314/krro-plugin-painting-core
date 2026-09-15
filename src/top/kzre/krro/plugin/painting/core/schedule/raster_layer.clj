@@ -17,13 +17,6 @@
 
 ;; 将光栅图层适配为渲染节点
 (defrecord RasterLayerNode [^RasterLayer layer]
-  proto/IRenderNode
-  (node-key [_] (proto/layer-id layer))
-  (set-caching! [_ _] nil)
-  (caching? [_] false)
-  (cached? [_] false)
-  (invalidate-cache! [_] nil)
-
   ;; 计算节点协议
   cg/INode
   (node-id [_] (proto/layer-id layer))

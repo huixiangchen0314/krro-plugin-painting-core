@@ -26,7 +26,7 @@
   (let [ctx-diff (context/diff-info context new-context)
         new-ctx (context/diff context new-context ctx-diff)
         new-graph (graph/build-graph layers new-ctx)]
-    (make-state (graph/diff! graph new-graph ctx-diff) layers new-ctx)))
+    (make-state (graph/diff! graph new-graph []) layers new-ctx)))
 
 (defrecord RenderScheduler [state-atom]
   proto/IRenderScheduler
@@ -38,10 +38,10 @@
           {:keys [tile-size view-dirty-tiles]} context]
       (if (and (seq layers) graph)
         ;; 返回的是差分画布，外部持有所有权
-        (-> (cg/solve graph)
+        (-> (cg/reduce-to graph (result/result-key))
+            (cg/solve)
             (promise/fmap
               (fn [value-table]
-                ;; 清理缓存
             (let [layer (get value-table (result/result-key))]
               {:canvas (proto/canvas layer)
                :dirty-tiles view-dirty-tiles})
@@ -51,7 +51,15 @@
                    (.setReadonly true))
          :dirty-tiles view-dirty-tiles})))
   AutoCloseable
-  (close [_]))
+  (close [_]
+    (let [{:keys [graph]} @state-atom]
+      ;; 1. 释放图里所有节点的缓存
+      (when graph
+        (doseq [node (vals (cg/nodes graph))]
+          (when (satisfies? proto/IRenderNode node)
+            (proto/invalidate-cache! node))))
+      ;; 2. 重置状态——防止后续误用已释放的资源
+      (reset! state-atom (make-state)))))
 
 (defn make-scheduler
   "基于画布构建渲染调度器，注意该画布所有权被转移到调度器身上了"

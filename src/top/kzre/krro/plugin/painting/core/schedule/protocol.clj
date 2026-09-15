@@ -49,7 +49,8 @@
     "节点当前是否已缓存有效结果。")
 
   (invalidate-cache! [_]
-    "强制使缓存失效。"))
+    "强制使缓存失效。")
+  (migrate [_ other change] "从另外一个渲染节点迁移缓存"))
 
 (defprotocol IRenderScheduler
   (set-layers! [_ layers])

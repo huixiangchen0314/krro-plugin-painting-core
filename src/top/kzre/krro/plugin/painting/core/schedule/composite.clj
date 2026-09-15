@@ -71,7 +71,7 @@
   (swap! state-atom
          (fn [state]
            (when-let [c (:composited-canvas state)]
-             (try (.clear c) (catch Throwable _ nil)))
+             (try (.safeClear c) (catch Throwable _ nil)))
            (dissoc state :composited-canvas))))
 
 ;; ═══════════════════════════════════════════════
@@ -94,6 +94,8 @@
 
   (invalidate-cache! [_]
     (clear-cache! state-atom))
+  (migrate [this other change]
+    this)
 
   cg/INode
   (node-id [this] (proto/node-key this))
