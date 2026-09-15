@@ -15,6 +15,9 @@
 ;; ILayer
 ;; ═══════════════════════════════════════════════
 
+;; 计算结果应当包含
+;; layer 变换到视口的图层
+;; 其他调度分析信息
 (defprotocol ILayer
   "图层抽象。既用于源图层，也用于中间节点输出。"
   (layer-id [_] "图层 id（Keyword）")
@@ -28,15 +31,13 @@
 ;; IRenderNode
 ;; ═══════════════════════════════════════════════
 
+;; 这协议用于管理，无需管理就不要实现
 (defprotocol IRenderNode
   "渲染节点抽象。每个节点可独立请求渲染，支持缓存。"
 
   (node-key [_]
     "节点身份 key。用于图重建时 diff 复用。
      通常形如 [:blend bottom-key top-key mode opacity]。")
-
-  (inputs [_]
-    "上游节点列表。")
 
   (set-caching! [_ flag]
     "通知节点是否进行缓存。")
@@ -48,13 +49,11 @@
     "节点当前是否已缓存有效结果。")
 
   (invalidate-cache! [_]
-    "强制使缓存失效。")
-
-  (request! [_ context]
-    "执行渲染请求。返回资源。"))
+    "强制使缓存失效。"))
 
 (defprotocol IRenderScheduler
-  (render! [_ layers ctx]
+  (set-layers! [_ layers])
+  (render! [_ ctx]
     "执行一次渲染,
   返回 Promise<IPersistentMap>. \n
   {:canvas canvas ;; 最终画布，该画布所有权归用户，请自行释放 \n

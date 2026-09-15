@@ -1,42 +1,60 @@
 (ns top.kzre.krro.plugin.painting.core.schedule.scheduler-impl
   (:require
-   [top.kzre.krro.plugin.painting.core.schedule.context :as context]
-   [top.kzre.krro.plugin.painting.core.schedule.graph :as graph]
-   [top.kzre.krro.plugin.painting.core.schedule.protocol :as proto])
+    [top.kzre.krro.core.util.promise :as promise]
+    [top.kzre.krro.plugin.painting.core.schedule.context :as context]
+    [top.kzre.krro.plugin.painting.core.schedule.graph :as graph]
+    [top.kzre.krro.plugin.painting.core.schedule.protocol :as proto]
+    [top.kzre.krro.core.util.computing-graph :as cg]
+    [top.kzre.krro.plugin.painting.core.schedule.result :as result])
   (:import
-   [java.lang AutoCloseable]
-   (top.kzre.krro.plugin.painting.core.schedule.protocol IRenderNode)
-   (top.kzre.krro.util.tile TiledCanvas)))
+    (java.lang AutoCloseable)
+    (top.kzre.krro.core.util.computing_graph ComputingGraph)
+    (top.kzre.krro.util.tile TiledCanvas)))
 
 
-(defrecord SchedulerState [^IRenderNode graph
+(defrecord SchedulerState [^ComputingGraph graph
+                           layers
                            context])
-
 (defn make-state
   ([]
    (map->SchedulerState {}))
-  ([^IRenderNode graph ctx]
-   (->SchedulerState graph ctx)))
+  ([^ComputingGraph graph layers ctx]
+   (->SchedulerState graph layers ctx)))
 
-(defn diff! [{:keys [graph context]} layers new-context]
+
+(defn diff! [{:keys [graph layers context]} new-context]
   (let [ctx-diff (context/diff-info context new-context)
         new-ctx (context/diff context new-context ctx-diff)
-        new-graph (graph/build-graph layers new-ctx )]
-    (make-state (graph/diff! graph new-graph ctx-diff) new-ctx)))
+        new-graph (graph/build-graph layers new-ctx)]
+    (make-state (graph/diff! graph new-graph ctx-diff) layers new-ctx)))
 
-(defrecord RenderScheduler [^TiledCanvas canvas
-                            state-atom]
+(defrecord RenderScheduler [state-atom]
   proto/IRenderScheduler
-  (render! [_ layers ctx]
-    (swap! state-atom diff! layers ctx)
-    (let [{:keys [graph context]} @state-atom]
-      (proto/request! graph context)))
+  (set-layers! [_ layers]
+    (swap! state-atom assoc :layers layers))
+  (render! [_ ctx]
+    (swap! state-atom diff! ctx)
+    (let [{:keys [graph layers context]} @state-atom
+          {:keys [tile-size view-dirty-tiles]} context]
+      (if (and (seq layers) graph)
+        ;; 返回的是差分画布，外部持有所有权
+        (-> (cg/solve graph)
+            (promise/fmap
+              (fn [value-table]
+                ;; 清理缓存
+            (let [layer (get value-table (result/result-key))]
+              {:canvas (proto/canvas layer)
+               :dirty-tiles view-dirty-tiles})
+                )))
+        {:canvas     (doto
+                       (TiledCanvas. tile-size)
+                   (.setReadonly true))
+         :dirty-tiles view-dirty-tiles})))
   AutoCloseable
-  (close [_]
-    ;; 清理画布引用
-    (.clear canvas)))
+  (close [_]))
 
 (defn make-scheduler
   "基于画布构建渲染调度器，注意该画布所有权被转移到调度器身上了"
-  [^TiledCanvas canvas]
-  (->RenderScheduler canvas (atom (make-state))))
+  []
+  (->RenderScheduler (atom (make-state)))
+  )

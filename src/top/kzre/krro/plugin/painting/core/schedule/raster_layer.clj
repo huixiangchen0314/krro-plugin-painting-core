@@ -1,6 +1,7 @@
 (ns top.kzre.krro.plugin.painting.core.schedule.raster-layer
   (:require
     [top.kzre.krro.canvas.core.layer.util :as util]
+    [top.kzre.krro.core.util.computing-graph :as cg]
     [top.kzre.krro.plugin.painting.core.schedule.protocol :as proto]
     [top.kzre.krro.core.util.promise :as promise]))
 
@@ -18,12 +19,16 @@
 (defrecord RasterLayerNode [^RasterLayer layer]
   proto/IRenderNode
   (node-key [_] (proto/layer-id layer))
-  (inputs [_] [] [])
   (set-caching! [_ _] nil)
   (caching? [_] false)
   (cached? [_] false)
   (invalidate-cache! [_] nil)
-  (request! [_ _ctx]
+
+  ;; 计算节点协议
+  cg/INode
+  (node-id [_] (proto/layer-id layer))
+  (dependencies [_] #{})
+  (compute [_ _]
     (promise/resolved layer)))
 
 (defn make-raster-layer-node [raster-layer]

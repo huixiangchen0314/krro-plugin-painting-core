@@ -12,7 +12,7 @@
 (defn dirty-region
   [region transform viewport-w viewport-h tile-size]
   (cond
-    (nil? region) nil
+    (nil? region) (set (LayerUtils/canvasTiles tile-size viewport-w viewport-h))
     (not (seq region)) #{}
     (or (set? region) (instance? Set region))
     (if transform
