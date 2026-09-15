@@ -1,8 +1,5 @@
 (ns top.kzre.krro.plugin.painting.core.schedule.protocol
-  "渲染调度节点协议与数据结构。"
-
-  (:import
-    (top.kzre.krro.plugin.painting.core.viewport ViewPort)))
+  "渲染调度节点协议与数据结构。")
 
 ;; ═══════════════════════════════════════════════
 ;; 质量
@@ -13,30 +10,6 @@
 (defn valid-quality? [q]
   (contains? quality-values q))
 
-;; ═══════════════════════════════════════════════
-;; RenderContext
-;; ═══════════════════════════════════════════════
-
-(defrecord RenderContext
-  [^int tile-size
-   ^ViewPort viewport
-   ^int viewport-width
-   ^int viewport-height
-   dirty-tiles
-   quality
-   current-layer-id])
-
-(defn make-render-context
-  [tile-size viewport-transform viewport-width viewport-height
-   dirty-tiles quality current-layer-id]
-  (->RenderContext
-    tile-size
-    viewport-transform
-    viewport-width
-    viewport-height
-    dirty-tiles
-    quality
-    current-layer-id))
 
 ;; ═══════════════════════════════════════════════
 ;; ILayer
@@ -47,6 +20,7 @@
   (layer-id [_] "图层 id（Keyword）")
   (canvas [_] "图层画布（TiledCanvas）")
   (transform [_] "图层仿射变换矩阵（float[]）")
+  (visible? [_] "图层是否可见")
   (opacity [_] "图层不透明度")
   (blend-mode [_] "图层混合模式"))
 
@@ -77,10 +51,12 @@
     "强制使缓存失效。")
 
   (request! [_ context]
-    "执行渲染请求。返回 CompletableFuture<ILayer>。
-     同步节点：completedFuture。
-     异步节点：手动 complete 或 supplyAsync。"))
+    "执行渲染请求。返回资源。"))
 
 (defprotocol IRenderScheduler
-  (diff! [_ layers ctx] "基于现有图层，差分调度图")
-  (render [_ ctx] "执行一次渲染"))
+  (render! [_ layers ctx]
+    "执行一次渲染,
+  返回 Promise<IPersistentMap>. \n
+  {:canvas canvas ;; 最终画布，该画布所有权归用户，请自行释放 \n
+  :dirty-tiles dirty-tiles ;; 裁剪过后的脏矩形，合并前请先删除这块区域 \n
+  "))

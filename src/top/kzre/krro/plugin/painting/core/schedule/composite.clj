@@ -1,13 +1,14 @@
 (ns top.kzre.krro.plugin.painting.core.schedule.composite
   "通用合成节点"
   (:require
-   [top.kzre.krro.core.util.promise :as promise]
-   [top.kzre.krro.plugin.painting.core.model.tiled-image :as tiled-image]
-   [top.kzre.krro.plugin.painting.core.render :as render]
-   [top.kzre.krro.plugin.painting.core.schedule.protocol :as proto]
-   [top.kzre.krro.plugin.painting.core.schedule.viewport-layer :as viewport-layer])
+    [top.kzre.krro.canvas.core.core :as canv]
+    [top.kzre.krro.core.util.promise :as promise]
+    [top.kzre.krro.plugin.painting.core.schedule.protocol :as proto]
+    [top.kzre.krro.plugin.painting.core.schedule.util :as schedule.util]
+    [top.kzre.krro.plugin.painting.core.schedule.viewport-layer :as viewport-layer])
   (:import
-   (top.kzre.krro.util.tile TiledCanvas)))
+    (java.util Set)
+    (top.kzre.krro.util.tile TiledCanvas)))
 
 ;; ═══════════════════════════════════════════════
 ;; 状态
@@ -29,27 +30,36 @@
   [node]
   (keyword (str "composite-" (hash (proto/node-key node)))))
 
-(defn- render-composite-promise
-  "把回调式的 request-render-viewport! 包装为 Promise。
+(defn- render-composite!
+  "把 layers 合成到 (:canvas ctx)——原地更新——返回 Promise<TiledCanvas>。
 
-   在回调里 resolve p——返回 p。
-   满足 then 的类型契约：a -> Promise<b>。"
+   直接调用底层 render-layers!——不做调度合并——合并由上层调度器决定。
+   返回 Promise 在合成完成时以 composited 画布完成。"
   [node ctx layers]
-  (let [composited (:canvas ctx)]
-    (->
-      (render/render-layers-viewport!
-        (proto/node-key node)
-        (tiled-image/->TiledImage composited
-                                  (-> ctx :canvas-data :width)
-                                  (-> ctx :canvas-data :height))
-        (mapv #(:layer %) layers)
-        (:dirty-tiles ctx)
-        (:dirty-transform ctx)
-        (:viewport ctx)
-        (:viewport-w ctx)
-        (:viewport-h ctx))
-      (promise/fmap 
-        (fn [_] composited)))))
+  (let [^TiledCanvas composited (:canvas ctx)
+        canvas-data            (:canvas-data ctx)
+        {:keys [view-matrix viewport-h viewport-w viewport-dirty-tiles
+                tile-size]} ctx
+        composed (mapv #(schedule.util/->raster-layer %) layers)]
+
+    (-> (canv/render-layers!
+          composed
+          :transform-composed? true
+          :tile-size        tile-size
+          :view-width       viewport-w
+          :view-height      viewport-h
+          :view-matrix      view-matrix
+          :view-dirty-tiles viewport-dirty-tiles
+          :image-width      (:width canvas-data)
+          :image-height     (:height canvas-data))
+        (promise/fmap
+          (fn [{:keys [^TiledCanvas canvas dirty-tiles]}]
+            ;; 2. 合并差分到目标
+            (.deleteTiles composited ^Set dirty-tiles)
+            (.mergeCanvas composited canvas)
+            ;; 3. 释放差分画布
+            (.clear canvas)
+            composited)))))
 
 (defn- update-cache!
   "更新缓存状态：
@@ -104,23 +114,20 @@
     (if-let [cached-canvas (:composited-canvas @state-atom)]
       ;; ── 命中缓存——直接返回 ──────────────────
       (promise/resolved
-        (viewport-layer/->ViewportLayer
+        (viewport-layer/make-viewport-layer
           (composite-viewport-id this)
-          cached-canvas
-          1.0
-          :normal))
+          cached-canvas))
 
       ;; ── 未命中——并行请求 inputs → 合成 → 更新缓存 ──
       (promise/plet
         [layers     (promise/all (mapv #(proto/request! % ctx) layer-nodes))
-         composited (render-composite-promise this ctx layers)]
+         composited (render-composite! this ctx layers)]
         ;; body——最后返回 ViewportLayer
         (update-cache! state-atom composited)
-        (viewport-layer/->ViewportLayer
+        (viewport-layer/make-viewport-layer
           (composite-viewport-id this)
           composited
-          1.0
-          :normal)))))
+          )))))
 
 (defn make-composite-node [layer-nodes]
   (->CompositeNode  layer-nodes (atom (make-state))))

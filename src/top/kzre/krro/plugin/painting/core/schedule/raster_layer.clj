@@ -10,6 +10,7 @@
   (layer-id [_] (:id layer))
   (opacity [_] (:opacity layer))
   (canvas [_] (:canvas layer))
+  (visible? [_] (:visible layer))
   (transform [_] (:transform layer))
   (blend-mode [_] (util/blend-mode-str (:blend-mode layer) :normal)))
 

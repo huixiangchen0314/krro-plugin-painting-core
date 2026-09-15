@@ -1,32 +1,42 @@
 (ns top.kzre.krro.plugin.painting.core.schedule.scheduler-impl
   (:require
-   [top.kzre.krro.plugin.painting.core.schedule.protocol :as proto]
-   [top.kzre.krro.plugin.painting.core.schedule.raster-layer :as raster-layer]
-   [top.kzre.krro.plugin.painting.core.schedule.composite :as composite]))
-
-(defn build-graphs [layers]
-  (let [layer-nodes
-        (mapv
-          #(raster-layer/make-raster-layer-node %) layers)]
-    (composite/make-composite-node layer-nodes)))
+   [top.kzre.krro.plugin.painting.core.schedule.context :as context]
+   [top.kzre.krro.plugin.painting.core.schedule.graph :as graph]
+   [top.kzre.krro.plugin.painting.core.schedule.protocol :as proto])
+  (:import
+   [java.lang AutoCloseable]
+   (top.kzre.krro.plugin.painting.core.schedule.protocol IRenderNode)
+   (top.kzre.krro.util.tile TiledCanvas)))
 
 
-(defrecord SchedulerState [root-node])
+(defrecord SchedulerState [^IRenderNode graph
+                           context])
 
 (defn make-state
   ([]
    (map->SchedulerState {}))
-  ([root-node]
-   (->SchedulerState root-node)))
+  ([^IRenderNode graph ctx]
+   (->SchedulerState graph ctx)))
 
-(defrecord RenderScheduler [state-atom]
+(defn diff! [{:keys [graph context]} layers new-context]
+  (let [ctx-diff (context/diff-info context new-context)
+        new-ctx (context/diff context new-context ctx-diff)
+        new-graph (graph/build-graph layers new-ctx )]
+    (make-state (graph/diff! graph new-graph ctx-diff) new-ctx)))
+
+(defrecord RenderScheduler [^TiledCanvas canvas
+                            state-atom]
   proto/IRenderScheduler
-  (diff! [_ layers ctx]
-    (reset! state-atom
-           (make-state (build-graphs layers))))
-  (render [_ ctx]
-    (when-let [node (:root-node @state-atom)]
-      (proto/request! node ctx))))
+  (render! [_ layers ctx]
+    (swap! state-atom diff! layers ctx)
+    (let [{:keys [graph context]} @state-atom]
+      (proto/request! graph context)))
+  AutoCloseable
+  (close [_]
+    ;; 清理画布引用
+    (.clear canvas)))
 
-(defn make-scheduler []
-  (->RenderScheduler (atom (make-state))))
+(defn make-scheduler
+  "基于画布构建渲染调度器，注意该画布所有权被转移到调度器身上了"
+  [^TiledCanvas canvas]
+  (->RenderScheduler canvas (atom (make-state))))
