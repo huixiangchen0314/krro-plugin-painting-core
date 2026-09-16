@@ -5,7 +5,6 @@
     [top.kzre.krro.core.util.computing-graph :as cg]
     [top.kzre.krro.core.util.promise :as promise]
     [top.kzre.krro.plugin.painting.core.schedule.context :as context]
-    [top.kzre.krro.plugin.painting.core.schedule.protocol :as proto]
     [top.kzre.krro.plugin.painting.core.schedule.viewport-layer :as viewport-layer]
     [top.kzre.krro.plugin.painting.core.schedule.util :as util])
   (:import
@@ -60,7 +59,7 @@
   (swap! state-atom
          (fn [state]
            (when-let [old-canvas (:composited-canvas state)]
-             (try (.clear old-canvas) (catch Throwable _ nil)))
+             (try (.close old-canvas) (catch Throwable _ nil)))
            (if (:caching state)
              (assoc state :composited-canvas (.copy composited))
              (dissoc state :composited-canvas)))))

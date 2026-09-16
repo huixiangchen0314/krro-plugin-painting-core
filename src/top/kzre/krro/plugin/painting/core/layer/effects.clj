@@ -40,8 +40,8 @@
     (undo/record-raster-layer-edited! canvas-id layer-id
                                        old-canvas new-canvas
                                        dirty-tiles)
-    (.clear ^TiledCanvas old-canvas)
-    (.clear ^TiledCanvas new-canvas)))
+    (.close ^TiledCanvas old-canvas)
+    (.close ^TiledCanvas new-canvas)))
 
 (rf/reg-fx
   :krro.painting :record-canvas-edited

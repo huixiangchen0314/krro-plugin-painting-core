@@ -15,8 +15,7 @@
         - visited 防 DAG 重复
 
    总占用保证 ≤ max-mem / max-vmem——无论 Top-K 还是 BFS。
-
-   调用时机：低频——结构变化时——不每帧。"
+   "
   (:require
     [top.kzre.krro.core.util.computing-graph :as cg]
     [top.kzre.krro.plugin.painting.core.schedule.protocol :as proto])
@@ -92,7 +91,8 @@
     (loop [frontier (vec (keep nodes-map
                                (mapcat cg/dependencies (seq @cached))))]
       (when (seq frontier)
-        (let [next-frontier
+        (let [sorted (sort-by #(proto/cache-value %) > frontier)
+              next-frontier
               (reduce
                 (fn [acc node]
                   (let [nid (cg/node-id node)]
@@ -103,7 +103,7 @@
                         (try-cache! node)
                         (into acc (keep nodes-map (cg/dependencies node)))))))
                 []
-                frontier)]
+                sorted)]
           (recur next-frontier))))
 
     @cached))

@@ -13,7 +13,6 @@
    ^float opacity
    blend-mode]
   proto/ILayer
-  (layer-id [_] id)
   (canvas [_] canvas)
   (visible? [_] visible)
   (transform [_] util/identity-matrix)

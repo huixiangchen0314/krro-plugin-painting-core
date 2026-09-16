@@ -1,12 +1,12 @@
 (ns top.kzre.krro.plugin.painting.core.schedule.scheduler-impl
   (:require
-   [top.kzre.krro.core.util.computing-graph :as cg]
-   [top.kzre.krro.core.util.promise :as promise]
-   [top.kzre.krro.plugin.painting.core.schedule.context :as context]
-   [top.kzre.krro.plugin.painting.core.schedule.evaluate :as evaluate]
-   [top.kzre.krro.plugin.painting.core.schedule.graph :as graph]
-   [top.kzre.krro.plugin.painting.core.schedule.protocol :as proto]
-   [top.kzre.krro.plugin.painting.core.schedule.result :as result])
+    [top.kzre.krro.core.util.computing-graph :as cg]
+    [top.kzre.krro.core.util.promise :as promise]
+    [top.kzre.krro.plugin.painting.core.schedule.context :as context]
+    [top.kzre.krro.plugin.painting.core.schedule.evaluate :as evaluate]
+    [top.kzre.krro.plugin.painting.core.schedule.graph :as graph]
+    [top.kzre.krro.plugin.painting.core.schedule.protocol :as proto]
+    [top.kzre.krro.plugin.painting.core.schedule.result :as result])
   (:import
    (java.lang AutoCloseable)
    (top.kzre.krro.core.util.computing_graph ComputingGraph)
@@ -28,11 +28,17 @@
         new-ctx     (context/diff context new-context ctx-diff)
         building    (graph/build-graph layers new-ctx)
         new-graph   (:graph building)
+        result-node (get (cg/nodes new-graph) (result/result-key))
         above-nodes (:above-nodes building)]
     ;; 1. 评估——设置新图各节点的 caching? 标志
     (evaluate/evaluate! new-graph above-nodes new-ctx)
+    ;; 结果节点总是缓存
+    (proto/set-caching! result-node true)
+    (graph/diff! graph new-graph [])
+    ;; 从结果节点中取出新脏瓦片，更新到上下文
+
     ;; 2. diff——migrate 根据新旧 caching?/cached? 状态迁移或释放
-    (make-state (graph/diff! graph new-graph []) layers new-ctx)))
+    (make-state new-graph layers new-ctx)))
 
 (defrecord RenderScheduler [state-atom]
   proto/IRenderScheduler
@@ -50,11 +56,11 @@
               (fn [value-table]
             (let [layer (get value-table (result/result-key))]
               {:canvas (proto/canvas layer)
-               :dirty-tiles view-dirty-tiles})
-                )))
-        {:canvas     (doto
-                       (TiledCanvas. tile-size)
-                   (.setReadonly true))
+               :dirty-tiles view-dirty-tiles}))))
+        {:canvas
+         (doto
+           (TiledCanvas. tile-size)
+           (.setReadonly true))
          :dirty-tiles view-dirty-tiles})))
   AutoCloseable
   (close [_]
@@ -70,5 +76,4 @@
 (defn make-scheduler
   "基于画布构建渲染调度器，注意该画布所有权被转移到调度器身上了"
   []
-  (->RenderScheduler (atom (make-state)))
-  )
+  (->RenderScheduler  (atom (make-state))))

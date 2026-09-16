@@ -15,23 +15,15 @@
 ;; ILayer
 ;; ═══════════════════════════════════════════════
 
-;; 计算结果应当包含
-;; layer 变换到视口的图层
-;; 其他调度分析信息
 (defprotocol ILayer
   "图层抽象。既用于源图层，也用于中间节点输出。"
-  (layer-id [_] "图层 id（Keyword）")
   (canvas [_] "图层画布（TiledCanvas）")
   (transform [_] "图层仿射变换矩阵（float[]）")
   (visible? [_] "图层是否可见")
   (opacity [_] "图层不透明度")
   (blend-mode [_] "图层混合模式"))
 
-;; ═══════════════════════════════════════════════
-;; IRenderNode
-;; ═══════════════════════════════════════════════
 
-;; 这协议用于管理，无需管理就不要实现
 (defprotocol ICachingNode
   "缓存节点——支持缓存价值评估和生命周期管理。
 
@@ -82,7 +74,10 @@
   (set-layers! [_ layers])
   (render! [_ ctx]
     "执行一次渲染,
-  返回 Promise<IPersistentMap>. \n
-  {:canvas canvas ;; 最终画布，该画布所有权归用户，请自行释放 \n
-  :dirty-tiles dirty-tiles ;; 裁剪过后的脏矩形，合并前请先删除这块区域 \n
+  返回 Promise<IPersistentMap>.
+
+  {:canvas canvas ;; 最终画布，该画布所有权归用户，请自行释放.
+
+  :dirty-tiles dirty-tiles ;; 裁剪过后的脏矩形，合并前请先删除这块区域
+
   "))

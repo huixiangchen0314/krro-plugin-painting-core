@@ -8,7 +8,6 @@
 ;; 将光栅图层适配为原始输入节点
 (defrecord RasterLayer [layer]
   proto/ILayer
-  (layer-id [_] (:id layer))
   (opacity [_] (:opacity layer))
   (canvas [_] (:canvas layer))
   (visible? [_] (:visible layer))
@@ -19,7 +18,7 @@
 (defrecord RasterLayerNode [^RasterLayer layer]
   ;; 计算节点协议
   cg/INode
-  (node-id [_] (proto/layer-id layer))
+  (node-id [_] (:id (:layer layer)))
   (dependencies [_] #{})
   (compute [_ _]
     (promise/resolved layer)))
