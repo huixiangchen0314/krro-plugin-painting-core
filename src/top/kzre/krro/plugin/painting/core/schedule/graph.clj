@@ -1,6 +1,5 @@
 (ns top.kzre.krro.plugin.painting.core.schedule.graph
   (:require
-    [clojure.core.async :refer [chan]]
     [top.kzre.krro.canvas.core.layer.group :as group]
     [top.kzre.krro.canvas.core.layer.path :as path]
     [top.kzre.krro.core.core :as kcc]

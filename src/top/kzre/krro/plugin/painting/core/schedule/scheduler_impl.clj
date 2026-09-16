@@ -1,16 +1,17 @@
 (ns top.kzre.krro.plugin.painting.core.schedule.scheduler-impl
   (:require
-    [top.kzre.krro.core.util.computing-graph :as cg]
-    [top.kzre.krro.core.util.promise :as promise]
-    [top.kzre.krro.plugin.painting.core.schedule.context :as context]
-    [top.kzre.krro.plugin.painting.core.schedule.evaluate :as evaluate]
-    [top.kzre.krro.plugin.painting.core.schedule.graph :as graph]
-    [top.kzre.krro.plugin.painting.core.schedule.protocol :as proto]
-    [top.kzre.krro.plugin.painting.core.schedule.result :as result])
+   [top.kzre.krro.core.util.computing-graph :as cg]
+   [top.kzre.krro.core.util.promise :as promise]
+   [top.kzre.krro.plugin.painting.core.schedule.context :as context]
+   [top.kzre.krro.plugin.painting.core.schedule.evaluate :as evaluate]
+   [top.kzre.krro.plugin.painting.core.schedule.graph :as graph]
+   [top.kzre.krro.plugin.painting.core.schedule.layer-impl]
+   [top.kzre.krro.plugin.painting.core.schedule.protocol :as proto]
+   [top.kzre.krro.plugin.painting.core.schedule.result :as result])
   (:import
-   (java.lang AutoCloseable)
-   (top.kzre.krro.core.util.computing_graph ComputingGraph)
-   (top.kzre.krro.util.tile TiledCanvas)))
+    (java.lang AutoCloseable)
+    (top.kzre.krro.core.util.computing_graph ComputingGraph)
+    (top.kzre.krro.util.tile TiledCanvas)))
 
 
 (defrecord SchedulerState [^ComputingGraph graph
@@ -54,9 +55,15 @@
             (cg/solve)
             (promise/fmap
               (fn [value-table]
-            (let [layer (get value-table (result/result-key))]
-              {:canvas (proto/canvas layer)
-               :dirty-tiles view-dirty-tiles}))))
+            (let [layer (get value-table (result/result-key))
+                  result {:canvas (.copy (proto/canvas layer))
+                          :dirty-tiles view-dirty-tiles}]
+              ;; 释放所有中间计算结果
+              (doseq [v (vals value-table)]
+                (cond
+                  (instance? AutoCloseable v) (.close v)
+                  :else nil))
+              result))))
         {:canvas
          (doto
            (TiledCanvas. tile-size)

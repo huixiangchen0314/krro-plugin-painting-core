@@ -77,8 +77,8 @@
                                 m  (long (proto/mem-cost node))
                                 vm (long (proto/vmem-cost node))]
                             (when (and (pos? v)
-                                       (pos? m) (<= m max-mem)
-                                       (pos? vm) (<= vm max-vmem))
+                                       (<= m max-mem)
+                                       (<= vm max-vmem))
                               {:node node :value v :mem m :vmem vm})))))
                 nodes)
 
@@ -91,7 +91,8 @@
     (loop [frontier (vec (keep nodes-map
                                (mapcat cg/dependencies (seq @cached))))]
       (when (seq frontier)
-        (let [sorted (sort-by #(proto/cache-value %) > frontier)
+        (let [cacheable (filter #(instance? ICachingNode %) frontier)
+              sorted (sort-by #(proto/cache-value %) > cacheable)
               next-frontier
               (reduce
                 (fn [acc node]

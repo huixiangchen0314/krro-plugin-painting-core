@@ -13,8 +13,7 @@
 
 
 (defrecord ResultState
-          [
-           cached-layer
+          [cached-layer
            ;; 视口变换
            ^ViewPort viewport
            ;; 视口宽高

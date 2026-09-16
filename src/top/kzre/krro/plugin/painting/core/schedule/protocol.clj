@@ -17,6 +17,7 @@
 
 (defprotocol ILayer
   "图层抽象。既用于源图层，也用于中间节点输出。"
+  (layer-id [_] "图层 id（Keyword）")
   (canvas [_] "图层画布（TiledCanvas）")
   (transform [_] "图层仿射变换矩阵（float[]）")
   (visible? [_] "图层是否可见")
