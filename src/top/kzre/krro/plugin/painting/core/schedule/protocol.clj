@@ -32,12 +32,17 @@
 ;; ═══════════════════════════════════════════════
 
 ;; 这协议用于管理，无需管理就不要实现
-(defprotocol IRenderNode
-  "渲染节点抽象。每个节点可独立请求渲染，支持缓存。"
+(defprotocol ICachingNode
+  "缓存节点——支持缓存价值评估和生命周期管理。
 
-  (node-key [_]
-    "节点身份 key。用于图重建时 diff 复用。
-     通常形如 [:blend bottom-key top-key mode opacity]。")
+   实现者是一个计算图节点（cg/INode），额外承担缓存职责：
+     - 报告缓存价值（供评估器 Top-K 选择）
+     - 报告内存/显存开销
+     - 响应 caching 开关
+     - 从旧节点迁移缓存
+
+   节点身份由 cg/INode/node-id 提供——本协议不再重复声明。
+   缓存有效性由节点的 migrate 自行判断——对比 old 与自身状态。"
 
   (set-caching! [_ flag]
     "通知节点是否进行缓存。")
@@ -50,7 +55,28 @@
 
   (invalidate-cache! [_]
     "强制使缓存失效。")
-  (migrate [_ other change] "从另外一个渲染节点迁移缓存"))
+
+  (cache-value [_]
+    "该节点的缓存价值——正值表示值得缓存。
+     供评估器排序——全局 Top-K 选择。")
+
+  (mem-cost [_]
+    "缓存的内存开销——字节。")
+
+  (vmem-cost [_]
+    "缓存的显存开销——字节。")
+
+  (migrate [_ other change]
+    "从另一个缓存节点迁移缓存。
+
+     调用时机：diff 时 node-id 相同——但内容可能已变。
+     节点自己决定：
+       - 对比 old 的状态——内容是否一致
+       - 一致 → 迁移缓存
+       - 不一致 → 丢弃旧缓存——compute 时重算
+
+     other  —— 同 node-id 的旧节点
+     change —— 到达该节点的变化——节点据此判断"))
 
 (defprotocol IRenderScheduler
   (set-layers! [_ layers])

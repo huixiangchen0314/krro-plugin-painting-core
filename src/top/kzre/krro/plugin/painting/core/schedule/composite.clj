@@ -29,7 +29,7 @@
 (defn- composite-viewport-id
   "CompositeNode 的稳定 viewport id——同一节点实例永远返回同一个 id。"
   [node]
-  (keyword (str "composite-" (hash (proto/node-key node)))))
+  (keyword (str "composite-" (hash (cg/node-id node)))))
 
 (defn- render-composite!
   "把 layers 合成到 (:canvas ctx)——原地更新——返回 Promise<TiledCanvas>。
@@ -79,22 +79,6 @@
 ;; ═══════════════════════════════════════════════
 
 (defrecord CompositeNode [layer-ids state-atom]
-  proto/IRenderNode
-  (node-key [this] (cg/node-id this))
-
-  (set-caching! [_ b]
-    (swap! state-atom assoc :caching (boolean b)))
-
-  (caching? [_]
-    (boolean (:caching @state-atom)))
-
-  (cached? [_]
-    (some? (:composited-canvas @state-atom)))
-
-  (invalidate-cache! [_]
-    (clear-cache! state-atom))
-  (migrate [this other change]
-    this)
 
   cg/INode
   (node-id [_] (into [(context/context-key)] layer-ids))

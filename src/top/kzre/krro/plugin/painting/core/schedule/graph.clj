@@ -1,17 +1,18 @@
 (ns top.kzre.krro.plugin.painting.core.schedule.graph
   (:require
-   [top.kzre.krro.canvas.core.layer.group :as group]
-   [top.kzre.krro.canvas.core.layer.path :as path]
-   [top.kzre.krro.core.core :as kcc]
-   [top.kzre.krro.core.util.computing-graph :as cg]
-   [top.kzre.krro.core.util.diff :as diff]
-   [top.kzre.krro.plugin.painting.core.schedule.composite :as composite]
-   [top.kzre.krro.plugin.painting.core.schedule.context :as context]
-   [top.kzre.krro.plugin.painting.core.schedule.protocol :as proto]
-   [top.kzre.krro.plugin.painting.core.schedule.raster-layer :as raster-layer]
-   [top.kzre.krro.plugin.painting.core.schedule.result :as result]
-   [top.kzre.krro.plugin.painting.core.schedule.util :as schedule.util]
-   [top.kzre.krro.canvas.core.layer.util :as util])
+    [clojure.core.async :refer [chan]]
+    [top.kzre.krro.canvas.core.layer.group :as group]
+    [top.kzre.krro.canvas.core.layer.path :as path]
+    [top.kzre.krro.core.core :as kcc]
+    [top.kzre.krro.core.util.computing-graph :as cg]
+    [top.kzre.krro.core.util.diff :as diff]
+    [top.kzre.krro.plugin.painting.core.schedule.composite :as composite]
+    [top.kzre.krro.plugin.painting.core.schedule.context :as context]
+    [top.kzre.krro.plugin.painting.core.schedule.protocol :as proto]
+    [top.kzre.krro.plugin.painting.core.schedule.raster-layer :as raster-layer]
+    [top.kzre.krro.plugin.painting.core.schedule.result :as result]
+    [top.kzre.krro.plugin.painting.core.schedule.util :as schedule.util]
+    [top.kzre.krro.canvas.core.layer.util :as util])
   (:import
    (top.kzre.krro.core.util.computing_graph ComputingGraph)
    (top.kzre.krro.core.util.diff IDiff)))
@@ -103,17 +104,11 @@
             (recur (conj acc current) [atom] (rest remaining))))))))
 
 ;; ═══════════════════════════════════════════════
-;; above 段——按 normal 分段 + 链式合成
+;; above 段
 ;; ═══════════════════════════════════════════════
 
 (defn- build-above-level
   "构建 above 段。
-
-   输入：
-     initial-input —— below 段的 root——作为第一段的初始输入——可为 nil
-     layers        —— above 段的原子序列
-     inner-path    —— current 在 above 段首原子内部的相对路径——nil 表示不在
-     ctx
 
    分段规则：
      连续 normal 原子 → 合并成一个 CompositeNode
@@ -121,34 +116,39 @@
 
    链式：每段以 prev-root 为第一个输入。
 
-   返回 {:nodes [...] :root composite-node 或 nil}
-     无图层时 root 为 nil——由调用方决定 fallback。"
+   返回 {:nodes [...] :root composite-node 或 nil :above-nodes [...]}
+
+   :above-nodes 的组成：
+     1. 各原子内部的 above-nodes（来自组递归）——完整保留
+     2. 本段自己的 root——只暴露最顶层节点"
   [initial-input layers inner-path ctx]
   (if (empty? layers)
-    {:nodes [] :root nil}
+    {:nodes [] :root nil :above-nodes []}
     (let [groups (group-by-blend layers)]
       (loop [remaining   groups
              prev-root   initial-input
              all-nodes   []
+             inner-nodes []         ;; 原子内部的 above-nodes
              last-root   nil
              first-group true]
         (if (empty? remaining)
-          {:nodes (vec all-nodes)
-           :root  last-root}
+          {:nodes       (vec all-nodes)
+           :root        last-root
+           ;; ── 本段的 seg-comp 链只暴露最顶层——last-root
+           :above-nodes (cond-> (vec inner-nodes)
+                                last-root (conj last-root))}
           (let [group       (first remaining)
                 head        (first group)
                 tail        (vec (rest group))
 
-                head-built  (build-atom head
-                                        (when first-group inner-path)
-                                        ctx)
+                head-built  (build-atom head (when first-group inner-path) ctx)
                 tail-built  (mapv #(build-atom % nil ctx) tail)
 
-                seg-roots   (into [(:root head-built)]
-                                  (map :root tail-built))
-                seg-inputs  (if prev-root
-                              (into [prev-root] seg-roots)
-                              seg-roots)
+                head-inner  (:above-nodes head-built)
+                tail-inner  (into [] (mapcat :above-nodes) tail-built)
+
+                seg-roots   (into [(:root head-built)] (map :root tail-built))
+                seg-inputs  (if prev-root (into [prev-root] seg-roots) seg-roots)
                 seg-comp    (composite/make-composite-node seg-inputs)
 
                 seg-nodes   (vec (concat
@@ -158,6 +158,7 @@
             (recur (rest remaining)
                    seg-comp
                    (into all-nodes seg-nodes)
+                   (into inner-nodes (concat head-inner tail-inner))
                    seg-comp
                    false)))))))
 
@@ -176,7 +177,7 @@
      below = current 之前的所有兄弟——一个 CompositeNode
      above = current 及其后的兄弟——按连续 normal 再切子段——链式合成
 
-   返回 {:nodes [...] :root composite-node}"
+   返回 {:nodes [...] :root composite-node :above-nodes [...]}"
   [layers current-path ctx]
   (let [current-idx (when (seq current-path) (first current-path))
         inner-path  (when (seq current-path) (subvec current-path 1))
@@ -195,6 +196,7 @@
 
         above-built  (build-above-level below-comp above-layers inner-path ctx)
         above-comp   (:root above-built)
+        above-nodes  (:above-nodes above-built)
 
         root         (or above-comp below-comp)
 
@@ -205,11 +207,11 @@
                   (when below-comp [below-comp])
                   (:nodes above-built)
                   (mapcat :nodes below-built)))]
-          ;; 空栈兜底——root 和 nodes 同时构造
           (let [empty-root (composite/make-composite-node [])]
             [empty-root [empty-root]]))]
-    {:nodes all-nodes
-     :root  root}))
+    {:nodes       all-nodes
+     :root        root
+     :above-nodes above-nodes}))
 
 ;; ═══════════════════════════════════════════════
 ;; 顶层入口
@@ -218,17 +220,11 @@
 (defn build-graph
   "构建计算图。
 
-   流程：
-     1. 应用视口变换
-     2. 穿透处理——展开穿透组、过滤不可见图层
-     3. 用 path 定位 current 在穿透后树中的路径
-     4. 递归 build-level——current 分段 + 连续 normal 分段 + 递归组
-
-   图结构：
-     ctx-node
-     └─→ build-level 的 root
-             │
-        result-node"
+   返回：
+     :graph       —— ComputingGraph
+     :above-nodes —— 缓存评估候选
+                     每个 above 段只贡献自己的 root（最顶层节点）
+                     组内部递归产生的 above-nodes 完整保留"
   ^ComputingGraph
   [layers {:keys [view-matrix current-layer-id] :as ctx}]
   (let [ctx-node     (context/make-context-node ctx)
@@ -237,10 +233,11 @@
 
         current-path (when current-layer-id
                        (path/get-path throughed current-layer-id))
-        {:keys [nodes root]} (build-level throughed current-path ctx)
+        {:keys [nodes root above-nodes]} (build-level throughed current-path ctx)
         result-node  (result/make-result-node root)
         all-nodes    (into [ctx-node result-node] nodes)]
-    (apply cg/graph all-nodes)))
+    {:graph       (apply cg/graph all-nodes)
+     :above-nodes above-nodes}))
 
 (defrecord RenderGraphDiff []
   IDiff
@@ -258,17 +255,28 @@
 
   (migrate [_ graph node-id change old-value input-values]
     (let [new-node (get (cg/nodes graph) node-id)]
-      ;; 从旧节点迁移缓存——node-key 相同时才有意义
-      ;;   （diff 通过 node-id = node-key 保证这一点）
       (when (and old-value
-                 (satisfies? proto/IRenderNode old-value)
-                 (satisfies? proto/IRenderNode new-node))
-        (proto/migrate new-node old-value change))
+                 (satisfies? proto/ICachingNode old-value)
+                 (satisfies? proto/ICachingNode new-node))
+        (cond
+          ;; 旧有缓存 + 新要缓存 → 迁移
+          (and (proto/cached? old-value)
+               (proto/caching? new-node))
+          (proto/migrate new-node old-value change)
+
+          ;; 旧有缓存 + 新不要缓存 → 释放
+          (and (proto/cached? old-value)
+               (not (proto/caching? new-node)))
+          (proto/invalidate-cache! old-value)
+
+          ;; 旧无缓存 + 新要缓存 → 无需操作（新节点首次 compute 时自建）
+          ;; 旧无缓存 + 新不要缓存 → 无需操作
+          :else nil))
       new-node))
 
   (release [_ _graph old-value]
     ;; 被删除节点——释放资源
-    (when (satisfies? proto/IRenderNode old-value)
+    (when (satisfies? proto/ICachingNode old-value)
       (proto/invalidate-cache! old-value))))
 
 (defonce ^:private diff-spec* (->RenderGraphDiff))

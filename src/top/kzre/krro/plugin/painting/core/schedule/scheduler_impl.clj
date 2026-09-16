@@ -1,15 +1,16 @@
 (ns top.kzre.krro.plugin.painting.core.schedule.scheduler-impl
   (:require
-    [top.kzre.krro.core.util.promise :as promise]
-    [top.kzre.krro.plugin.painting.core.schedule.context :as context]
-    [top.kzre.krro.plugin.painting.core.schedule.graph :as graph]
-    [top.kzre.krro.plugin.painting.core.schedule.protocol :as proto]
-    [top.kzre.krro.core.util.computing-graph :as cg]
-    [top.kzre.krro.plugin.painting.core.schedule.result :as result])
+   [top.kzre.krro.core.util.computing-graph :as cg]
+   [top.kzre.krro.core.util.promise :as promise]
+   [top.kzre.krro.plugin.painting.core.schedule.context :as context]
+   [top.kzre.krro.plugin.painting.core.schedule.evaluate :as evaluate]
+   [top.kzre.krro.plugin.painting.core.schedule.graph :as graph]
+   [top.kzre.krro.plugin.painting.core.schedule.protocol :as proto]
+   [top.kzre.krro.plugin.painting.core.schedule.result :as result])
   (:import
-    (java.lang AutoCloseable)
-    (top.kzre.krro.core.util.computing_graph ComputingGraph)
-    (top.kzre.krro.util.tile TiledCanvas)))
+   (java.lang AutoCloseable)
+   (top.kzre.krro.core.util.computing_graph ComputingGraph)
+   (top.kzre.krro.util.tile TiledCanvas)))
 
 
 (defrecord SchedulerState [^ComputingGraph graph
@@ -23,9 +24,14 @@
 
 
 (defn diff! [{:keys [graph layers context]} new-context]
-  (let [ctx-diff (context/diff-info context new-context)
-        new-ctx (context/diff context new-context ctx-diff)
-        new-graph (graph/build-graph layers new-ctx)]
+  (let [ctx-diff    (context/diff-info context new-context)
+        new-ctx     (context/diff context new-context ctx-diff)
+        building    (graph/build-graph layers new-ctx)
+        new-graph   (:graph building)
+        above-nodes (:above-nodes building)]
+    ;; 1. 评估——设置新图各节点的 caching? 标志
+    (evaluate/evaluate! new-graph above-nodes new-ctx)
+    ;; 2. diff——migrate 根据新旧 caching?/cached? 状态迁移或释放
     (make-state (graph/diff! graph new-graph []) layers new-ctx)))
 
 (defrecord RenderScheduler [state-atom]
@@ -56,7 +62,7 @@
       ;; 1. 释放图里所有节点的缓存
       (when graph
         (doseq [node (vals (cg/nodes graph))]
-          (when (satisfies? proto/IRenderNode node)
+          (when (satisfies? proto/ICachingNode node)
             (proto/invalidate-cache! node))))
       ;; 2. 重置状态——防止后续误用已释放的资源
       (reset! state-atom (make-state)))))

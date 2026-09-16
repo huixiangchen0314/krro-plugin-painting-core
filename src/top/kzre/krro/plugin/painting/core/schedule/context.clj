@@ -119,10 +119,18 @@
           view-dirty-tiles)]
     (assoc ctx :image-dirty-tiles image-clipped-dirty-tiles)))
 
+(defn assoc-mem-budget
+  [ctx]
+  (assoc ctx
+    :max-mem (* 256 1024 1024)       ;; 512 MB
+    :max-vmem (* 1024 1024 1024)      ;; 1 GB
+    ))
+
 (defn diff
   [old-ctx new-ctx {:keys [same-viewport?]}]
   (-> new-ctx
       (assoc-view-matrix old-ctx same-viewport?)
       (assoc-view-dirty-tiles old-ctx)
-      (assoc-image-dirty-tiles old-ctx)))
+      (assoc-image-dirty-tiles old-ctx)
+      (assoc-mem-budget)))
 
