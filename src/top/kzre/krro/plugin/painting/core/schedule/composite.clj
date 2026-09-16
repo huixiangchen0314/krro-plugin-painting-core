@@ -80,8 +80,7 @@
 
 (defrecord CompositeNode [layer-ids state-atom]
   proto/IRenderNode
-  (node-key [_]
-    (into [(context/context-key)] layer-ids))
+  (node-key [this] (cg/node-id this))
 
   (set-caching! [_ b]
     (swap! state-atom assoc :caching (boolean b)))
@@ -98,8 +97,8 @@
     this)
 
   cg/INode
-  (node-id [this] (proto/node-key this))
-  (dependencies [this] (proto/node-key this))
+  (node-id [_] (into [(context/context-key)] layer-ids))
+  (dependencies [this] (cg/node-id this))
   (compute [this inputs]
     (if-let [cached-canvas (:composited-canvas @state-atom)]
       ;; ── 命中缓存——直接返回 ──────────────────

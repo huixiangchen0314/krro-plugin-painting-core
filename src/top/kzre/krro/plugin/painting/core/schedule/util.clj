@@ -52,6 +52,7 @@
     (throw (IllegalArgumentException.
              (str "region must be Set or Map, got " (type region))))))
 
+
 (defn ->raster-layer
   "把标准图层协议转换为光栅图层"
   [^ILayer layer

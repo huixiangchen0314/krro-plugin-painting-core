@@ -10,7 +10,8 @@
    [top.kzre.krro.plugin.painting.core.schedule.protocol :as proto]
    [top.kzre.krro.plugin.painting.core.schedule.raster-layer :as raster-layer]
    [top.kzre.krro.plugin.painting.core.schedule.result :as result]
-   [top.kzre.krro.plugin.painting.core.schedule.util :as schedule.util])
+   [top.kzre.krro.plugin.painting.core.schedule.util :as schedule.util]
+   [top.kzre.krro.canvas.core.layer.util :as util])
   (:import
    (top.kzre.krro.core.util.computing_graph ComputingGraph)
    (top.kzre.krro.core.util.diff IDiff)))
@@ -22,23 +23,160 @@
 
 (declare build-level)
 
+
+;; ═══════════════════════════════════════════════
+;; 叶子图层构建——多方法分派
+;; ═══════════════════════════════════════════════
+
+(defmulti build-leaf
+          "构建叶子图层节点。按 :type 分派。
+
+           仅处理叶子图层——组由 build-atom 特判后走 build-level。
+
+           方法签名：
+             (build-leaf atom ctx)
+               atom —— 叶子图层
+               ctx  —— 上下文
+
+           返回 {:nodes [...] :root node}"
+          (fn [atom _] (:type atom)))
+
+(defmethod build-leaf :raster
+  [atom _]
+  (let [node (raster-layer/make-raster-layer-node atom)]
+    {:nodes [node]
+     :root  node}))
+
+(defmethod build-leaf :default
+  [atom _]
+  (throw (ex-info "unknown leaf layer type for build-leaf"
+                  {:layer-id (:id atom)
+                   :type     (:type atom)})))
+
+;; ═══════════════════════════════════════════════
+;; 组/原子的统一入口——特判组
+;; ═══════════════════════════════════════════════
+
 (defn- build-atom
   "构建单个原子。
 
-   普通图层 → RasterLayerNode
-   非穿透组 → 递归 build-level——返回该组的 root
+   组 → 递归 build-level——消费 inner-current-path
+   其他 → build-leaf——不需要 inner-current-path
 
    inner-current-path —— 若 current 在该组内部——组内相对路径
                          否则 nil"
   [atom inner-current-path ctx]
   (if (group/group? atom)
     (build-level (group/layers atom) inner-current-path ctx)
-    ;; 当前只处理光栅图层
-    (let [node (raster-layer/make-raster-layer-node atom)]
-      {:nodes [node]
-       :root  node})))
+    (build-leaf atom ctx)))
+
+
+;; ═══════════════════════════════════════════════
+;; 连续 normal 分段
+;; ═══════════════════════════════════════════════
+
+(defn- group-by-blend
+  "把原子序列按连续 normal 合成分组。
+   非 normal 原子单独成组。
+
+   例：
+     [n n m n n n m m]
+     → [[n n] [m] [n n n] [m] [m]]"
+  [atoms]
+  (if (empty? atoms)
+    []
+    (loop [acc       []
+           current   []
+           remaining atoms]
+      (if (empty? remaining)
+        (if (seq current) (conj acc current) acc)
+        (let [atom    (first remaining)
+              normal? (util/normal-blend-mode? atom)]
+          (cond
+            (empty? current)
+            (recur acc [atom] (rest remaining))
+
+            (and normal? (util/normal-blend-mode? (first current)))
+            (recur acc (conj current atom) (rest remaining))
+
+            :else
+            (recur (conj acc current) [atom] (rest remaining))))))))
+
+;; ═══════════════════════════════════════════════
+;; above 段——按 normal 分段 + 链式合成
+;; ═══════════════════════════════════════════════
+
+(defn- build-above-level
+  "构建 above 段。
+
+   输入：
+     initial-input —— below 段的 root——作为第一段的初始输入——可为 nil
+     layers        —— above 段的原子序列
+     inner-path    —— current 在 above 段首原子内部的相对路径——nil 表示不在
+     ctx
+
+   分段规则：
+     连续 normal 原子 → 合并成一个 CompositeNode
+     非 normal 原子   → 单独一个 CompositeNode
+
+   链式：每段以 prev-root 为第一个输入。
+
+   返回 {:nodes [...] :root composite-node 或 nil}
+     无图层时 root 为 nil——由调用方决定 fallback。"
+  [initial-input layers inner-path ctx]
+  (if (empty? layers)
+    {:nodes [] :root nil}
+    (let [groups (group-by-blend layers)]
+      (loop [remaining   groups
+             prev-root   initial-input
+             all-nodes   []
+             last-root   nil
+             first-group true]
+        (if (empty? remaining)
+          {:nodes (vec all-nodes)
+           :root  last-root}
+          (let [group       (first remaining)
+                head        (first group)
+                tail        (vec (rest group))
+
+                head-built  (build-atom head
+                                        (when first-group inner-path)
+                                        ctx)
+                tail-built  (mapv #(build-atom % nil ctx) tail)
+
+                seg-roots   (into [(:root head-built)]
+                                  (map :root tail-built))
+                seg-inputs  (if prev-root
+                              (into [prev-root] seg-roots)
+                              seg-roots)
+                seg-comp    (composite/make-composite-node seg-inputs)
+
+                seg-nodes   (vec (concat
+                                   [seg-comp]
+                                   (:nodes head-built)
+                                   (mapcat :nodes tail-built)))]
+            (recur (rest remaining)
+                   seg-comp
+                   (into all-nodes seg-nodes)
+                   seg-comp
+                   false)))))))
+
+;; ═══════════════════════════════════════════════
+;; 构建一层
+;; ═══════════════════════════════════════════════
 
 (defn- build-level
+  "构建一层。
+
+   layers       —— 该层图层列表（已经过 pass-though 预处理）
+   current-path —— 相对于该层的当前路径——nil 表示该层无 current
+   ctx
+
+   分段：
+     below = current 之前的所有兄弟——一个 CompositeNode
+     above = current 及其后的兄弟——按连续 normal 再切子段——链式合成
+
+   返回 {:nodes [...] :root composite-node}"
   [layers current-path ctx]
   (let [current-idx (when (seq current-path) (first current-path))
         inner-path  (when (seq current-path) (subvec current-path 1))
@@ -51,34 +189,22 @@
                        [])
 
         below-built  (mapv #(build-atom % nil ctx) below-layers)
-        above-built  (vec
-                       (map-indexed
-                         (fn [i atom]
-                           (build-atom atom
-                                       (when (zero? i) inner-path)
-                                       ctx))
-                         above-layers))
-
         below-roots  (mapv :root below-built)
         below-comp   (when (seq below-roots)
                        (composite/make-composite-node below-roots))
 
-        above-roots  (mapv :root above-built)
-        above-inputs (cond-> []
-                             below-comp        (conj below-comp)
-                             (seq above-roots) (into above-roots))
-        above-comp   (when (seq above-inputs)
-                       (composite/make-composite-node above-inputs))
+        above-built  (build-above-level below-comp above-layers inner-path ctx)
+        above-comp   (:root above-built)
 
-        ;; ── root——空栈时兜底构造，并纳入 nodes
+        root         (or above-comp below-comp)
+
         [root all-nodes]
-        (if (or below-comp above-comp)
-          [(or above-comp below-comp)
+        (if root
+          [root
            (vec (concat
                   (when below-comp [below-comp])
-                  (when above-comp [above-comp])
-                  (mapcat :nodes below-built)
-                  (mapcat :nodes above-built)))]
+                  (:nodes above-built)
+                  (mapcat :nodes below-built)))]
           ;; 空栈兜底——root 和 nodes 同时构造
           (let [empty-root (composite/make-composite-node [])]
             [empty-root [empty-root]]))]
@@ -96,7 +222,7 @@
      1. 应用视口变换
      2. 穿透处理——展开穿透组、过滤不可见图层
      3. 用 path 定位 current 在穿透后树中的路径
-     4. 递归 build-level——按 current 分段 + 递归处理嵌套组
+     4. 递归 build-level——current 分段 + 连续 normal 分段 + 递归组
 
    图结构：
      ctx-node
