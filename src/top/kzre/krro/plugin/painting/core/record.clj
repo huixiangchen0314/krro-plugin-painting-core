@@ -78,20 +78,20 @@
   (get-in record [:canvas-data :tiling-enabled] false))
 
 
-(defn layer-context [record]
+(defn layer-context [record & [target-layer-id]]
   (let [;; 基础数据
         canvas-data (:canvas-data record)
-        current-layer-id (:current-layer-id canvas-data)
+        layer-id (or target-layer-id (:current-layer-id canvas-data))
         layers (get-in record [:canvas-data :layers])
 
         ;; 图层信息
-        layer-path (when current-layer-id (path/get-path layers current-layer-id ))
+        layer-path (when layer-id (path/get-path layers layer-id ))
         layer (when layer-path (path/get-layer layers layer-path))
         layer-type (when layer (:type layer))
         layer-visible (when layer (:visible layer))
         layer-transform-inv (when layer (tool-util/layer-transform-inverse layer layers))
         layer-transform (when layer-transform-inv (KMath/mat2dInv layer-transform-inv))]
-    {:layer-id            current-layer-id
+    {:layer-id            layer-id
      :layer-path          layer-path
      :layer-type          layer-type
      :layer-visible       layer-visible

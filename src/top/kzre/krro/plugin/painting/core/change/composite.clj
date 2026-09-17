@@ -1,4 +1,4 @@
-(ns top.kzre.krro.plugin.painting.core.changes.composite
+(ns top.kzre.krro.plugin.painting.core.change.composite
   "复合变化——组合多个异构 change。
 
    当两个 change 属于不同类型时——无法合并为单一类型——
@@ -50,7 +50,7 @@
 
 (defn composite-change
   "从 change 集合构造复合 change。"
-  [cs]
+  [& cs]
   (->CompositeChange (vec cs)))
 
 (defn empty-composite
@@ -60,7 +60,6 @@
 
 (defn changes [^CompositeChange change]
   (:changes change))
-
 
 ;; ═══════════════════════════════════════════════
 ;; 辅助——检查是否包含某类 change

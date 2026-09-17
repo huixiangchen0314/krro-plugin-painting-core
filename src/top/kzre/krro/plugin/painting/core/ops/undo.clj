@@ -151,7 +151,7 @@
     (undo/record-state! (make-raster-layer-remove-meta canvas-id path removed wrap))))
 
 (defn record-raster-layer-updated!
-  [canvas-id layer-id ^TiledCanvas old-canvas ^TiledCanvas new-canvas dirties]
+  [canvas-id layer-id ^TiledCanvas old-canvas ^TiledCanvas new-canvas dirties & [dirty-transform]]
   (log/debug "Recording tiled raster stroke undo...")
   (try
     (let [meta (make-raster-stroke-meta canvas-id layer-id old-canvas new-canvas dirties)]
