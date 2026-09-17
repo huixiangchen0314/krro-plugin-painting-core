@@ -1,14 +1,15 @@
 (ns top.kzre.krro.plugin.painting.core.edit.brush
   (:require
-    [top.kzre.krro.brush.core :as brush-core]
-    [top.kzre.krro.canvas.core.layer.util :as util]
-    [top.kzre.krro.core.reframe :as rf]
-    [top.kzre.krro.plugin.painting.core.edit.interceptors :refer [cleanup-tool-interceptor
+   [top.kzre.krro.brush.core :as brush-core]
+   [top.kzre.krro.canvas.core.layer.util :as util]
+   [top.kzre.krro.core.reframe :as rf]
+   [top.kzre.krro.plugin.painting.core.edit.interceptors :refer [cleanup-tool-interceptor
                                                                  tool-context-interceptor]]
-    [top.kzre.krro.plugin.painting.core.edit.protocol :as p]
-    [top.kzre.krro.plugin.painting.core.layer.clone :as clone]
-    [top.kzre.krro.plugin.painting.core.store :as store]
-    [top.kzre.krro.plugin.painting.core.tool.stroke :as stroke])
+   [top.kzre.krro.plugin.painting.core.edit.protocol :as p]
+   [top.kzre.krro.plugin.painting.core.layer.clone :as clone]
+   [top.kzre.krro.core.reframe.transaction :as tx :refer [transaction-interceptor]]
+   [top.kzre.krro.plugin.painting.core.store :as store]
+   [top.kzre.krro.plugin.painting.core.tool.stroke :as stroke])
   (:import
    (top.kzre.colorutils.color RGB)
    (top.kzre.krro.util.tile TiledCanvas)))
@@ -21,7 +22,7 @@
 
  (cleanup! [_ _]
    (when-let [^TiledCanvas canvas  (:canvas layer-backup)]
-     (.clear canvas)))
+     (.close canvas)))
   (overlay [_ {:keys [viewport event]}]
     (let [{:keys [zoom]} viewport]
       [[:cursor {:x (:x event)
@@ -35,7 +36,8 @@
 (rf/reg-event-fx
   store/app-id :brush-tool/press
   [(cleanup-tool-interceptor)
-   (tool-context-interceptor)]
+   (tool-context-interceptor)
+   (transaction-interceptor)]
   (fn [cofx [_ _ _ _]]
     (let [record (:record cofx)
           {:keys [layer-id layer]} (:krro.painting/tool-context cofx)]
@@ -53,7 +55,8 @@
 
 (rf/reg-event-fx
   store/app-id :brush-tool/drag
-  [(tool-context-interceptor)]
+  [(tool-context-interceptor)
+   (transaction-interceptor)]
   (fn [cofx [_ record-id _ frame]]
     (let [record (:record cofx)
           ctx (:krro.painting/tool-context cofx)
@@ -83,7 +86,8 @@
 
 (rf/reg-event-fx
   store/app-id :brush-tool/release
-  [(tool-context-interceptor)]
+  [(tool-context-interceptor)
+   (transaction-interceptor)]
   (fn [cofx [_ record-id _ _]]
     (let [record (:record cofx)
           tool-data (get-in record [:canvas-state :tool-data])]

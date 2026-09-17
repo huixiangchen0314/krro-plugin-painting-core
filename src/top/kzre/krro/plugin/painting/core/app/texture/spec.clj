@@ -1,4 +1,4 @@
-(ns top.kzre.krro.plugin.painting.core.app.texture
+(ns top.kzre.krro.plugin.painting.core.app.texture.spec
   "纹理资源"
   (:require [clojure.spec.alpha :as s]
             [top.kzre.krro.core.rdb :refer [defschema]]))

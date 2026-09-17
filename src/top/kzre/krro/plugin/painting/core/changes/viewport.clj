@@ -1,4 +1,4 @@
-(ns top.kzre.krro.plugin.painting.core.schedule.changes.viewport
+(ns top.kzre.krro.plugin.painting.core.changes.viewport
   "视口变化——三种独立语义。
 
    Pan     平移——缓存可复用——最轻
@@ -8,7 +8,7 @@
    三者不可合并——语义不同——失效代价不同。"
   (:require
    [top.kzre.krro.core.util.diff :as diff]
-   [top.kzre.krro.plugin.painting.core.schedule.changes.composite :as composite]
+   [top.kzre.krro.plugin.painting.core.changes.composite :as composite]
    [top.kzre.krro.plugin.painting.core.schedule.context :as context]))
 
 ;; ═══════════════════════════════════════════════

@@ -1,12 +1,15 @@
 (ns top.kzre.krro.plugin.painting.core.record
   (:require
-   [clojure.spec.alpha :as s]
-   [top.kzre.krro.curve.bezier2d.spec :as-alias bezier]
-   [top.kzre.krro.plugin.painting.core.edit.falloff :as falloff]
-   [top.kzre.krro.plugin.painting.core.edit.snap :as snap]
-   [top.kzre.krro.plugin.painting.core.edit.spec :as edit]
-   [top.kzre.krro.plugin.painting.core.project.canvas :as pc]
-   [top.kzre.krro.plugin.painting.core.store :as store]))
+    [clojure.spec.alpha :as s]
+    [top.kzre.krro.curve.bezier2d.spec :as-alias bezier]
+    [top.kzre.krro.plugin.painting.core.edit.falloff :as falloff]
+    [top.kzre.krro.plugin.painting.core.edit.snap :as snap]
+    [top.kzre.krro.plugin.painting.core.edit.spec :as edit]
+    [top.kzre.krro.plugin.painting.core.project.canvas :as pc]
+    [top.kzre.krro.plugin.painting.core.store :as store]
+    [top.kzre.krro.canvas.core.layer.path :as path]
+    [top.kzre.krro.plugin.painting.core.tool.util :as tool-util])
+  (:import (top.kzre.krro.util.math KMath)))
 
 ;; TODO 非画布记录，1. 合并全局数据 2. 做别的 record
 (s/def ::canvas-id keyword?)
@@ -74,4 +77,28 @@
 (defn tiling-enabled [record]
   (get-in record [:canvas-data :tiling-enabled] false))
 
+
+(defn layer-context [record]
+  (let [;; 基础数据
+        canvas-data (:canvas-data record)
+        current-layer-id (:current-layer-id canvas-data)
+        layers (get-in record [:canvas-data :layers])
+
+        ;; 图层信息
+        layer-path (when current-layer-id (path/get-path layers current-layer-id ))
+        layer (when layer-path (path/get-layer layers layer-path))
+        layer-type (when layer (:type layer))
+        layer-visible (when layer (:visible layer))
+        layer-transform-inv (when layer (tool-util/layer-transform-inverse layer layers))
+        layer-transform (when layer-transform-inv (KMath/mat2dInv layer-transform-inv))]
+    {:layer-id            current-layer-id
+     :layer-path          layer-path
+     :layer-type          layer-type
+     :layer-visible       layer-visible
+     :layer               layer
+     :layer-transform     layer-transform
+     :layer-transform-inv layer-transform-inv
+     :layers              layers
+     :canvas-id         (:id canvas-data)
+     :canvas-data         canvas-data}))
 

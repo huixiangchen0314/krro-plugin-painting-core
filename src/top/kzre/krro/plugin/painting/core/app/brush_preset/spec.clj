@@ -1,5 +1,4 @@
-(ns top.kzre.krro.plugin.painting.core.app.brush-preset
-  "笔刷预设"
+(ns top.kzre.krro.plugin.painting.core.app.brush-preset.spec
   (:require [clojure.spec.alpha :as s]
             [top.kzre.krro.brush.spec :as brush]
             [top.kzre.krro.core.rdb :refer [defschema]]))
@@ -18,6 +17,7 @@
   (s/keys :req-un [::id ::name ::brush]
           :opt-un [::icon ::tags ::favorite? ::category ::created-at ::updated-at]))
 
+;; 不进入全局project管理，但还是用 defscheme, 局部store管理
 (defschema :brush-preset
            :primary-key :id
            :spec ::brush-preset)

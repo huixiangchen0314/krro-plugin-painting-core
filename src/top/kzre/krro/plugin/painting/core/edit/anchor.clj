@@ -1,30 +1,29 @@
 (ns top.kzre.krro.plugin.painting.core.edit.anchor
   (:require
-   [taoensso.tufte :refer [p profile]]
-   [top.kzre.krro.canvas.core.layer.util :as util]
-   [top.kzre.krro.core.reframe :as rf]
-   [top.kzre.krro.plugin.painting.core.algo.anchor :as anchor]
-   [top.kzre.krro.plugin.painting.core.edit.anchor-quadtree :as anchor-quadtree :refer [anchor-quadtree-interceptor]]
-   [top.kzre.krro.plugin.painting.core.edit.common :as common]
-   [top.kzre.krro.plugin.painting.core.project.vector-layer :as pv]
-   [top.kzre.krro.plugin.painting.core.edit.interceptors :refer [cleanup-tool-interceptor
-                                                                 tool-context-interceptor]]
-   [top.kzre.krro.plugin.painting.core.edit.protocol :as p]
-   [top.kzre.krro.plugin.painting.core.project.canvas :as pc]
-   [top.kzre.krro.plugin.painting.core.render :as render]
-   [top.kzre.krro.plugin.painting.core.store :as store]
-   [top.kzre.krro.plugin.painting.core.viewport :as vp]
-   [top.kzre.krro.plugin.painting.core.algo.segment]
-   [top.kzre.krro.core.custom :as custom]
-   [taoensso.timbre :as log]
-   [top.kzre.krro.curve.bezier2d.core :as bezier]
-   [top.kzre.krro.core.interactive :as i])
+    [taoensso.timbre :as log]
+    [taoensso.tufte :refer [p profile]]
+    [top.kzre.krro.canvas.core.layer.util :as util]
+    [top.kzre.krro.core.custom :as custom]
+    [top.kzre.krro.core.reframe :as rf]
+    [top.kzre.krro.curve.bezier2d.core :as bezier]
+    [top.kzre.krro.plugin.painting.core.algo.anchor :as anchor]
+    [top.kzre.krro.plugin.painting.core.algo.segment]
+    [top.kzre.krro.plugin.painting.core.edit.anchor-quadtree :as anchor-quadtree :refer [anchor-quadtree-interceptor]]
+    [top.kzre.krro.plugin.painting.core.edit.common :as common]
+    [top.kzre.krro.plugin.painting.core.edit.interceptors :refer [cleanup-tool-interceptor
+                                                                  tool-context-interceptor]]
+    [top.kzre.krro.plugin.painting.core.edit.protocol :as p]
+    [top.kzre.krro.plugin.painting.core.project.canvas :as pc]
+    [top.kzre.krro.plugin.painting.core.project.vector-layer :as pv]
+    [top.kzre.krro.plugin.painting.core.render :as render]
+    [top.kzre.krro.plugin.painting.core.store :as store]
+    [top.kzre.krro.plugin.painting.core.viewport :as vp])
   (:import
     (top.kzre.colorutils.color RGB)
     (top.kzre.krro.canvas.core QuadTree QuadTree$NearestResult)
     (top.kzre.krro.plugin.painting.core.algo.anchor Anchor)
     (top.kzre.krro.plugin.painting.core.algo.segment Segment)
-    [top.kzre.krro.util.math KMath]
+    (top.kzre.krro.util.math KMath)
     (top.kzre.krro.util.tile TiledCanvas)))
 
 (custom/defcustom :krro.painting.anchor/adjust-width-sensitivity

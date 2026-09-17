@@ -1,9 +1,12 @@
 (ns top.kzre.krro.plugin.painting.core.edit.interceptors
-  (:require [top.kzre.krro.canvas.core.layer.util :as util]
-            [top.kzre.krro.plugin.painting.core.edit.protocol :as p]
-            [top.kzre.krro.plugin.painting.core.tool.util :as tool-util]
-            [top.kzre.krro.plugin.painting.core.viewport :as vp])
-  (:import (top.kzre.krro.util.math KMath)))
+  (:require
+   [top.kzre.krro.canvas.core.layer.util :as util]
+   [top.kzre.krro.plugin.painting.core.edit.protocol :as p]
+   [top.kzre.krro.plugin.painting.core.record :as record]
+   [top.kzre.krro.plugin.painting.core.tool.util :as tool-util]
+   [top.kzre.krro.plugin.painting.core.viewport :as vp])
+  (:import
+   (top.kzre.krro.util.math KMath)))
 
 (defn cleanup-tool-interceptor
   "返回一个 interceptor，在事件执行前检查并清理旧的工具状态（如果存在）。"
@@ -35,16 +38,9 @@
            {:keys [record event]} cofx
            [_ record-id event-map frame] event
 
-           ;; 基础数据
-           canvas-data (:canvas-data record)
-           current-layer-id (:current-layer-id canvas-data)
-           layers (get-in record [:canvas-data :layers])
+           {:keys [layer-id layer-path layer-type layer-visible layer layers canvas-data]}
+           (record/layer-context record)
 
-           ;; 图层信息
-           layer-path (when current-layer-id (util/find-layer-path current-layer-id layers))
-           layer (when layer-path (util/find-layer-by-path layer-path layers))
-           layer-type (when layer (:type layer))
-           layer-visible (when layer (:visible layer))
            layer-transform-inv (when layer (tool-util/layer-transform-inverse layer layers))
            layer-transform (when layer-transform-inv (KMath/mat2dInv layer-transform-inv))
 
@@ -97,7 +93,7 @@
                       :layer-event         layer-event
                       :viewport            viewport
                       :canvas-id           record-id
-                      :layer-id            current-layer-id
+                      :layer-id            layer-id
                       :layer-path          layer-path
                       :layer-type          layer-type
                       :layer-visible       layer-visible

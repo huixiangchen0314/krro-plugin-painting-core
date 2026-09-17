@@ -1,4 +1,4 @@
-(ns top.kzre.krro.plugin.painting.core.schedule.changes.composite
+(ns top.kzre.krro.plugin.painting.core.changes.composite
   "复合变化——组合多个异构 change。
 
    当两个 change 属于不同类型时——无法合并为单一类型——

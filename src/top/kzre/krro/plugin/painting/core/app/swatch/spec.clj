@@ -1,4 +1,4 @@
-(ns top.kzre.krro.plugin.painting.core.app.swatch
+(ns top.kzre.krro.plugin.painting.core.app.swatch.spec
   "色板 1-n 色块组.
   色块组 1-n 色块"
   (:require
