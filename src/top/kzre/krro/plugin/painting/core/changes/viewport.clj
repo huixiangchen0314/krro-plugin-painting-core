@@ -1,4 +1,4 @@
-(ns top.kzre.krro.plugin.painting.core.change.viewport
+(ns top.kzre.krro.plugin.painting.core.changes.viewport
   "视口变化——三种独立语义。
 
    Pan     平移——缓存可复用——最轻

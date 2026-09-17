@@ -1,8 +1,8 @@
-(ns top.kzre.krro.plugin.painting.core.change.raster-layer
+(ns top.kzre.krro.plugin.painting.core.changes.raster-layer
   (:require
    [top.kzre.krro.canvas.core.layer.util :as util]
    [top.kzre.krro.core.util.diff :as diff]
-   [top.kzre.krro.plugin.painting.core.change.composite :as composite]
+   [top.kzre.krro.plugin.painting.core.changes.composite :as composite]
    [top.kzre.krro.plugin.painting.core.oplog.protocol :as proto]
    [top.kzre.krro.plugin.painting.core.record :as record]
    [top.kzre.krro.plugin.painting.core.undo.core :as undo])
