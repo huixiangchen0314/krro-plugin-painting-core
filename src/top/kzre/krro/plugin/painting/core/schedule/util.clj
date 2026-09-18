@@ -116,19 +116,13 @@
 
 
 (defn change-dirty-pairs
-  "从 change 提取 [[tiles transform] ...]。
-   RasterLayerDirty → 从字段取
-   CompositeChange → 展开子 change 递归提取"
   [change]
   (cond
-    (instance? RasterLayerDirty change)
-    (let [{:keys [dirty-tiles dirty-transform]} change]
-      (if (and dirty-tiles dirty-transform)
-        (normalize-dirty-pairs dirty-tiles dirty-transform)
-        []))
-
     (instance? CompositeChange change)
-    (mapcat change-dirty-pairs (composite/changes change))
+    (mapcat change-dirty-pairs (:changes change))
+
+    (and (:dirty-tiles change) (:dirty-transform change))
+    (normalize-dirty-pairs (:dirty-tiles change) (:dirty-transform change))
 
     :else []))
 

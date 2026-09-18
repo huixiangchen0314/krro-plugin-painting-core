@@ -9,10 +9,7 @@
 ;; 光栅图层拷贝画布
 (defmethod clone-layer  :raster [layer]
   (let [canvas (:canvas layer)]
-    (assoc layer :canvas
-                 (doto (TiledCanvas. (.getTileSize canvas)
-                                     (.getDefaultPixel canvas))
-                   (.shareFrom canvas)))))
+    (assoc layer :canvas (.copy ^TiledCanvas canvas))))
 
 
 (defmethod clone-layer :group

@@ -1,5 +1,4 @@
-(ns top.kzre.krro.plugin.painting.core.schedule.vector-layer
-  "矢量图层渲染"
+(ns top.kzre.krro.plugin.painting.core.schedule.vector.core
   (:require
     [top.kzre.krro.canvas.vector.core :as vector-layer]
     [top.kzre.krro.core.util.computing-graph :as cg]
@@ -15,15 +14,19 @@
   (dependencies [_] [:context])
   (compute [this [{:keys [tile-size viewport-w viewport-h image-dirty-tiles]}]]
     (let [canvas (TiledCanvas. tile-size)]
-      (try
-        (vector-layer/render-to-canvas! vector-layer canvas
-                                        {:view-width  viewport-w
-                                         :view-height viewport-h
-                                         :dirty-tiles image-dirty-tiles})
-        (promise/resolved (layer-impl/make-layer (cg/node-id this) canvas))
-        (catch Throwable e
-          (.close canvas)
-          (throw e))))))
+      (->
+        (promise/spawn
+          (fn []
+            (vector-layer/render-to-canvas! vector-layer canvas
+                                            {:view-width  viewport-w
+                                             :view-height viewport-h
+                                             :dirty-tiles image-dirty-tiles})
+            (promise/resolved (layer-impl/make-layer (cg/node-id this) canvas))))
+        (promise/handle
+          (fn [v e]
+            (when e (try (.close canvas) (catch Throwable e (throw e))))
+            v)))
+      )))
 
 (defn make-raster-layer-node [vector-layer]
   (->VectorLayerNode vector-layer))

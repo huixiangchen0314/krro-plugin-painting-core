@@ -12,6 +12,9 @@
 (defn assoc-paths [layer paths]
   (assoc layer :paths paths))
 
+(defn assoc-path [layer path-id new-path]
+  (update layer :paths assoc path-id new-path))
+
 (defn update-paths [layer f & args]
   (apply update layer :paths f args))
 
