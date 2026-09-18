@@ -8,7 +8,7 @@
     [top.kzre.krro.curve.bezier2d.core :as bezier]
     [top.kzre.krro.plugin.painting.core.algo.anchor :as anchor]
     [top.kzre.krro.plugin.painting.core.algo.segment]
-    [top.kzre.krro.plugin.painting.core.edit.anchor-quadtree :as anchor-quadtree :refer [anchor-quadtree-interceptor]]
+    [top.kzre.krro.plugin.painting.core.edit.anchor-quadtree :as tree :refer [anchor-quadtree-interceptor]]
     [top.kzre.krro.plugin.painting.core.edit.common :as common]
     [top.kzre.krro.plugin.painting.core.edit.interceptors :refer [cleanup-tool-interceptor
                                                                   tool-context-interceptor]]
@@ -83,7 +83,7 @@
 
   (cleanup! [_ ctx]
     (when-let [canvas-id (get-in ctx [:coeffects :record-id])]
-      (swap! anchor-quadtree/anchor-quadtrees dissoc canvas-id)))
+      (tree/close canvas-id)))
 
   (overlay [_ {:keys [viewport layer layer-type layer-visible layer-transform]}]
     (when (= :vector layer-type)
@@ -215,7 +215,7 @@
                     new-layer (assoc layer :paths paths)
                     new-layers (util/replace-layer new-layer layers)
                     ]
-                (anchor-quadtree/update-anchors! record-id old-paths paths selected)
+                (tree/update-anchors! record-id old-paths paths selected)
                 {:record (-> record
                              (assoc-in [:canvas-data :layers] new-layers)
                              (assoc-in [:canvas-state :tool-data :last-layer-point] layer-event))
@@ -243,7 +243,7 @@
                      selected-set (:selected-anchors tool-data #{})
                      shift? (get-in event-map [:modifiers :shift] false)
                      threshold 10.0
-                     ^QuadTree  tree (get @anchor-quadtree/anchor-quadtrees record-id)
+                     ^QuadTree  tree (tree/tree record-id)
                      ^QuadTree$NearestResult result (.nearest tree (:x layer-event) (:y layer-event))]
                  (if (and result
                           (let [screen-pos (common/layer-point->screen
@@ -434,13 +434,13 @@
           (if (= 0 (:point-idx new-anchor))
             ;; 首部插入，路径全量更新
             (do
-              (anchor-quadtree/delete-path! record-id old-paths (:path-id anchor-backup))
-              (anchor-quadtree/insert-path! record-id new-paths (:path-id new-anchor)))
+              (tree/delete-path! record-id old-paths (:path-id anchor-backup))
+              (tree/insert-path! record-id new-paths (:path-id new-anchor)))
            (do
              ;; 尾巴插入仅更新末尾两个
              ;; TODO delete-anchors! FIX 可出现空指针异常
-             (anchor-quadtree/delete-anchors! record-id old-paths [anchor-backup])
-             (anchor-quadtree/insert-anchors! record-id new-paths [new-anchor second-active-anchor])))
+             (tree/delete-anchors! record-id old-paths [anchor-backup])
+             (tree/insert-anchors! record-id new-paths [new-anchor second-active-anchor])))
 
           {:record (-> record
                        (assoc-in [:canvas-state :tool-data] new-tool-data))

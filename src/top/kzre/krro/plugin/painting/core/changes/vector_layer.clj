@@ -172,6 +172,65 @@
     (let [{:keys [canvas-id]} record]
       (undo/record-canvas-edited! canvas-id layer-id))))
 
+
+;; ═══════════════════════════════════════════════
+;; VectorPathOrderChanged —— 路径顺序变化
+;; paths map 不变，只有 path-order 变
+;; ═══════════════════════════════════════════════
+
+(defrecord VectorPathOrderChanged
+  [layer-id old-order new-order
+   dirty-tiles dirty-transform]
+  AutoCloseable
+  (close [_] nil)
+
+  diff/IChange
+  (seeds [_] layer-id)
+  (empty-change? [_] (= old-order new-order))
+  (combine [this other] (composite/composite-change this other))
+
+  proto/IOperation
+  (realize [this record]
+    (let [{:keys [canvas-id]} record
+          {:keys [layer layers]} (record/layer-context record layer-id)
+          new-layer (assoc layer :path-order new-order)]
+      [(apply-layer-change record new-layer layers)
+       [[:render-canvas canvas-id this]]]))
+  ;; quadtree 无操作——锚点集合和坐标都没变
+
+  (record! [_ record]
+    (let [{:keys [canvas-id]} record]
+      (undo/record-canvas-edited! canvas-id layer-id))))
+
+;; ═══════════════════════════════════════════════
+;; VectorLayerPathAttrDirty —— 路径属性变化
+;; 样式、闭合状态等所有非几何属性
+;; ═══════════════════════════════════════════════
+
+(defrecord VectorLayerPathAttrChanged
+  [layer-id old-paths new-paths path-id
+   dirty-tiles dirty-transform]
+  AutoCloseable
+  (close [_] nil)
+
+  diff/IChange
+  (seeds [_] layer-id)
+  (empty-change? [_] (= old-paths new-paths))
+  (combine [this other] (composite/composite-change this other))
+
+  proto/IOperation
+  (realize [this record]
+    (let [{:keys [canvas-id]} record
+          {:keys [layer layers]} (record/layer-context record layer-id)
+          new-layer (pv/assoc-paths layer new-paths)]
+      [(apply-layer-change record new-layer layers)
+       [[:render-canvas canvas-id this]]]))
+  ;; quadtree 无操作——锚点位置和拓扑都没变
+
+  (record! [_ record]
+    (let [{:keys [canvas-id]} record]
+      (undo/record-canvas-edited! canvas-id layer-id))))
+
 ;; ═══════════════════════════════════════════════
 ;; VectorLayerPathsDirty —— 全量替换（回滚 / 导入）
 ;; ═══════════════════════════════════════════════

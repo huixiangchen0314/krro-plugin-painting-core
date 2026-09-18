@@ -9,12 +9,22 @@
 ;; 存储形态：{canvas-id {:layer-id <layer-id> :tree <quadtree>}}
 (defonce anchor-quadtrees (atom {}))
 
+(defn tree
+  "获取 canvas-id 对应的锚点四叉树对象。不存在返回 nil。"
+  [canvas-id]
+  (:tree (get @anchor-quadtrees canvas-id)))
+
+(defn close [canvas-id]
+  (swap! anchor-quadtrees dissoc canvas-id))
+
 (defmacro quadtree-fn
   "获取 canvas-id 对应的四叉树，若存在则调用 fn-sym，并将 tree 作为第一个参数插入。"
   [canvas-id fn-sym & args]
   `(when-let [entry# (get @anchor-quadtrees ~canvas-id)]
      (when-let [~'tree (:tree entry#)]
        (~fn-sym ~'tree ~@args))))
+
+
 
 (defn- build-for-layer
   [layer]
@@ -104,4 +114,4 @@
 (rf/reg-fx
   store/app-id :anchor-quadtree/close
   (fn [_ record-id]
-    (swap! anchor-quadtrees dissoc record-id)))
+    (close record-id)))
