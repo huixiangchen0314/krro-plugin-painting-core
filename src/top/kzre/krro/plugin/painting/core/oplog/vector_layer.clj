@@ -7,4 +7,5 @@
   store/app-id :oplog/replace-vector-layer-paths
   (fn [cofx [_ record-id layer-id canvas
              & {:keys [undo?]
-                :or {undo? false}}]]))
+                :or {undo? false}
+                :as ctx}]]))

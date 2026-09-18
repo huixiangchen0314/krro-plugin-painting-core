@@ -24,7 +24,7 @@
     (composite/composite-change this other))
 
   proto/IOperation
-  (realize [this record]
+  (realize [this record ctx]
     (let [{:keys [canvas-id layer layers]}
           (record/layer-context record layer-id)
           ^TiledCanvas dirty-canvas (:canvas layer)

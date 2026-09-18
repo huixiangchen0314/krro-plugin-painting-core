@@ -9,9 +9,12 @@
 (rf/reg-event-fx
   store/app-id :oplog/log
   (fn [{:keys [record]}
-       [_ record-id ^IOperation op & {:keys [undo?] :or {undo? false}}]]
+       [_ record-id ^IOperation op
+        {:keys [undo?]
+         :or {undo? false}
+         :as ctx}]]
     (try
-      (let [[new-record fx] (proto/realize op record)]
+      (let [[new-record fx] (proto/realize op record ctx)]
         (if undo?
           {:record new-record
            :fx     (conj (or fx []) [:oplog/record record-id op])}

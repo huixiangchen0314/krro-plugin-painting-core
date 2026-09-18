@@ -34,7 +34,7 @@
   (combine [this other] (composite/composite-change this other))
 
   proto/IOperation
-  (realize [this record]
+  (realize [this record _ctx]
     (let [{:keys [canvas-id layer layers]} (record/layer-context record layer-id)
           new-layer (pv/assoc-paths layer new-paths)
           by-path   (group-by :path-id anchors)
@@ -69,7 +69,7 @@
   (combine [this other] (composite/composite-change this other))
 
   proto/IOperation
-  (realize [this record]
+  (realize [this record _ctx]
     (let [{:keys [canvas-id]} record
           {:keys [layer layers]} (record/layer-context record layer-id)
           new-layer (pv/assoc-paths layer new-paths)
@@ -100,7 +100,7 @@
   (combine [this other] (composite/composite-change this other))
 
   proto/IOperation
-  (realize [this record]
+  (realize [this record _ctx]
     (let [{:keys [canvas-id]} record
           {:keys [layer layers]} (record/layer-context record layer-id)
           new-layer (pv/assoc-paths layer new-paths)
@@ -131,7 +131,7 @@
   (combine [this other] (composite/composite-change this other))
 
   proto/IOperation
-  (realize [this record]
+  (realize [this record _ctx]
     (let [{:keys [canvas-id layer layers]} (record/layer-context record layer-id)
           new-layer (pv/assoc-paths layer new-paths)
           path-id   (:id path)]
@@ -160,7 +160,7 @@
   (combine [this other] (composite/composite-change this other))
 
   proto/IOperation
-  (realize [this record]
+  (realize [this record _ctx]
     (let [{:keys [canvas-id layer layers]} (record/layer-context record layer-id)
           new-layer (pv/assoc-paths layer new-paths)]
       [(apply-layer-change record new-layer layers)
@@ -190,7 +190,7 @@
   (combine [this other] (composite/composite-change this other))
 
   proto/IOperation
-  (realize [this record]
+  (realize [this record _ctx]
     (let [{:keys [canvas-id]} record
           {:keys [layer layers]} (record/layer-context record layer-id)
           new-layer (assoc layer :path-order new-order)]
@@ -219,7 +219,7 @@
   (combine [this other] (composite/composite-change this other))
 
   proto/IOperation
-  (realize [this record]
+  (realize [this record _ctx]
     (let [{:keys [canvas-id]} record
           {:keys [layer layers]} (record/layer-context record layer-id)
           new-layer (pv/assoc-paths layer new-paths)]
@@ -247,7 +247,7 @@
   (combine [this other] (composite/composite-change this other))
 
   proto/IOperation
-  (realize [this record]
+  (realize [this record _ctx]
     (let [{:keys [canvas-id layer layers]} (record/layer-context record layer-id)
           new-layer  (pv/assoc-paths layer new-paths)
           new-layers (util/replace-layer new-layer layers)]

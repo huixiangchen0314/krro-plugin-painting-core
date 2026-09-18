@@ -9,12 +9,11 @@
 (rf/reg-event-fx
   store/app-id :oplog/replace-raster-layer-canvas
   (fn [cofx [_ record-id layer-id canvas
-             & {:keys [undo?]
-                :or {undo? false}}]]
+             & {:as ctx}]]
     (let [{:keys [layer layer-transform]}
           (record/layer-context (:record cofx) layer-id)
           layer-canvas (:canvas layer)
           dirties (into (set (.getTiles ^TiledCanvas layer-canvas))
                         (set (.getTiles ^TiledCanvas canvas)))
           op (change/make-raster-layer-dirty layer-id (.copy layer-canvas) canvas dirties layer-transform)]
-      {:dispatch [:oplog/log record-id op {:undo? undo?}]})))
+      {:dispatch [:oplog/log record-id op ctx]})))

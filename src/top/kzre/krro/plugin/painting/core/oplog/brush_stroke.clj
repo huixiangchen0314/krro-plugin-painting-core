@@ -11,13 +11,14 @@
   store/app-id :oplog/brush-stroke
   (fn [cofx [_ record-id layer-id stroke
              & {:keys [undo? canvas]
-                :or   {undo? false}}]]
+                :or   {undo? false}
+                :as ctx}]]
     (let [{:keys [layer layer-transform]}
           (record/layer-context (:record cofx) layer-id)
           base-canvas (or canvas (.copy (:canvas layer)))
           [rendered-canvas dirties] (brush-core/render-stroke base-canvas stroke)
           op (change/make-raster-layer-dirty layer-id base-canvas rendered-canvas
                                              dirties layer-transform)]
-      {:dispatch [:oplog/log record-id op {:undo? undo?}]})))
+      {:dispatch [:oplog/log record-id op ctx]})))
 
 
