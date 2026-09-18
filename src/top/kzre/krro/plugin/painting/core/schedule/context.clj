@@ -80,20 +80,35 @@
                                   viewport-w viewport-h)]
         (assoc ctx :view-dirty-tiles clipped)))))
 
-(defn assoc-image-dirty-tiles [ctx _old-ctx ]
-  (let [{:keys [view-dirty-tiles view-matrix tile-size
-                image-width image-height]} ctx
+(defn- transform-points-aabb
+  "对四个角点变换后取 AABB。"
+  [view-matrix image-width image-height]
+  (let [corners [[0 0]
+                 [image-width 0]
+                 [0 image-height]
+                 [image-width image-height]]
+        pts (map (fn [[x y]] (layer-util/transform-point view-matrix x y))
+                 corners)]
+    {:min-x (reduce min (map :x pts))
+     :min-y (reduce min (map :y pts))
+     :max-x (reduce max (map :x pts))
+     :max-y (reduce max (map :y pts))}))
 
-        ;; 裁剪到图像范围（若提供）
-        image-clipped-dirty-tiles
-        (if (and image-width image-height view-matrix)
-          (let [pmin (layer-util/transform-point view-matrix 0 0)
-                pmax (layer-util/transform-point view-matrix image-width image-height)]
+(defn assoc-image-dirty-tiles [ctx _old-ctx]
+  (let [{:keys [view-dirty-tiles view-matrix tile-size
+                image-width image-height]} ctx]
+    (if (and image-width image-height view-matrix)
+      (let [image-aabb (transform-points-aabb view-matrix image-width image-height)
+            image-clipped-dirty-tiles
             (LayerUtils/clipTilesAABB view-dirty-tiles tile-size
-                                      (:x pmin) (:y pmin)
-                                      (:x pmax) (:y pmax)))
-          view-dirty-tiles)]
-    (assoc ctx :image-dirty-tiles image-clipped-dirty-tiles)))
+                                      (:min-x image-aabb) (:min-y image-aabb)
+                                      (:max-x image-aabb) (:max-y image-aabb))]
+        (assoc ctx
+          :image-aabb image-aabb
+          :image-dirty-tiles image-clipped-dirty-tiles))
+      (assoc ctx
+        :image-aabb nil
+        :image-dirty-tiles view-dirty-tiles))))
 
 (defn assoc-mem-budget
   [ctx]
