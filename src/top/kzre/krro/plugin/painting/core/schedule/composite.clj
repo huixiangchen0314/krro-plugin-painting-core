@@ -141,7 +141,7 @@
   (mem-cost [_] 1024)
   (vmem-cost [_] 0)
   cg/INode
-  (node-id [_] (into [(context/context-key)] layer-ids))
+  (node-id [_] (into [:context] layer-ids))
   (dependencies [this] (cg/node-id this))
   (compute [this [ctx & layers]]
     (if (and (proto/caching? this)

@@ -7,6 +7,7 @@
   (:import
     (java.lang AutoCloseable)
     (top.kzre.krro.plugin.painting.core.oplog.protocol IOperation)))
+
 (rf/reg-fx
   store/app-id :oplog/record
   (fn [_ record-id ^IOperation op]

@@ -27,8 +27,7 @@
    canvas
    layers
    tile-size
-   dirty-tiles
-   dirty-transform
+   changes
    image-width
    image-height
    current-layer-id
@@ -38,7 +37,7 @@
   Mergable
   (merge [this other]
     (log/debug "merge scheduler task.")
-    ;; ── 释放 this 的克隆图层——每个单独捕获
+    ;; ── 释放 this 的克隆图层
     (when-let [old-cloned (:layers this)]
       (doseq [layer old-cloned]
         (try
@@ -46,21 +45,10 @@
           (catch Throwable t
             (log/error t "dispose cloned layer failed"
                        {:layer-id (:id layer)})))))
-
-    ;; ── viewport 变换 → 脏瓦片无法合并 → 全量
-    (let [viewport-changed? (not= (:viewport this) (:viewport other))]
-      (if viewport-changed?
-        (-> other
-            (assoc :dirty-tiles     nil)
-            (assoc :dirty-transform nil))
-        ;; ── 同 viewport——拼接——调度器内部处理多组
-        (-> other
-            (assoc :dirty-tiles
-                   (into (as-vec (:dirty-tiles this))
-                         (as-vec (:dirty-tiles other))))
-            (assoc :dirty-transform
-                   (into (as-vec (:dirty-transform this))
-                         (as-vec (:dirty-transform other)))))))))
+    ;; ── 合并 changes
+    (assoc other :changes
+                 (into (as-vec (:changes this))
+                       (as-vec (:changes other))))))
 
 (defn- release-layers! [layers]
   (doseq [layer layers]
@@ -74,7 +62,7 @@
          (reify CoalescedTask
            (run [_ {:keys [task-id
                            scheduler canvas
-                           layers tile-size dirty-tiles dirty-transform
+                           layers tile-size changes
                            image-width image-height current-layer-id
                            viewport viewport-w viewport-h]}]
              (try
@@ -82,8 +70,7 @@
                (promise/plet<
                  [result (proto/render! scheduler
                                         {:tile-size        tile-size
-                                         :dirty-tiles      dirty-tiles
-                                         :dirty-transform  dirty-transform
+                                         :changes          changes
                                          :image-width      image-width
                                          :image-height     image-height
                                          :current-layer-id current-layer-id
@@ -139,7 +126,7 @@
      - 被合并掉的旧任务 → Params/merge 释放
      - 执行完成的任务   → schedule-task/run 释放"
 
-  [task-id scheduler layers & {:keys [ tile-size]
+  [task-id scheduler layers & {:keys [tile-size]
                        :or {tile-size pc/global-tile-size}
                        :as opts}]
   (let [params  (map->Params

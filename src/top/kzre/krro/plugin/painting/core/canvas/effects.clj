@@ -34,10 +34,18 @@
 
 
 (rf/reg-fx
-  :krro.painting :render-canvas
-  (fn [_ record-id dirty-tiles transform]
-    (let [cd (pc/canvas-data! record-id)]
-      (hook/run-hook! :krro.painting/render-canvas-hook record-id cd dirty-tiles transform))))
+  store/app-id :render-canvas
+  (fn render-canvas [_ record-id changes & ignored]
+    (when ignored
+      (log/warn "deprecated render-canvas call!"))
+    (let [changes
+          (cond
+            (vector? changes) changes
+            (map? changes) [changes]
+            :else nil)]
+      (when (seq changes)
+        (let [cd (pc/canvas-data! record-id)]
+          (hook/run-hook! :krro.painting/render-canvas-hook record-id cd changes))) )))
 
 
 (rf/reg-fx

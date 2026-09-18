@@ -5,7 +5,8 @@
    [top.kzre.krro.plugin.painting.core.edit.interceptors :refer [tool-context-interceptor]]
    [top.kzre.krro.plugin.painting.core.edit.protocol :as p]
    [top.kzre.krro.plugin.painting.core.store :as store]
-   [top.kzre.krro.plugin.painting.core.viewport :as vp])
+   [top.kzre.krro.plugin.painting.core.viewport :as vp]
+   [top.kzre.krro.plugin.painting.core.changes.viewport :as viewport])
   (:import
    (top.kzre.krro.plugin.painting.core.edit.protocol IToolData)))
 
@@ -76,7 +77,7 @@
                      (when (and tool-data (satisfies? p/IToolData tool-data))
                        (p/overlay tool-data (:krro.painting/tool-context cofx)))
                      frame]
-                    [:render-canvas record-id nil nil]]})))))))
+                    [:render-canvas record-id (viewport/refreshed) ]]})))))))
 
 
 (rf/reg-event-fx
@@ -116,4 +117,4 @@
                (when (and tool-data (satisfies? p/IToolData tool-data))
                  (p/overlay tool-data (assoc ctx :viewport new-viewport)))
                frame]
-              [:render-canvas record-id nil nil]]}))))
+              [:render-canvas record-id [(viewport/refreshed)] ]]}))))

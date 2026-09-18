@@ -20,11 +20,12 @@
   diff/IChange
   (seeds [_] layer-id)
   (empty-change? [_] (empty? dirty-tiles))
-  (combine [this other] (composite/composite-change this other))
+  (combine [this other]
+    (composite/composite-change this other))
 
   proto/IOperation
   (realize [this record]
-    (let [{:keys [layer layers]}
+    (let [{:keys [canvas-id layer layers]}
           (record/layer-context record layer-id)
           ^TiledCanvas dirty-canvas (:canvas layer)
           new-layer (assoc layer :canvas (.copy new-canvas))
@@ -32,7 +33,7 @@
       (.close dirty-canvas)
       ;; [record fx-v]
       [(assoc-in record [:canvas-data :layers] new-layers)
-       [[:render-canvas this]]]))
+       [[:render-canvas canvas-id this]]]))
   (record! [_ {:keys [canvas-id]}]
     (when (nil? old-canvas)
       (throw (ex-info "cannot record operation without old-canvas"

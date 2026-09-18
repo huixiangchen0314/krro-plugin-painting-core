@@ -47,11 +47,13 @@
 ;; 构造器
 ;; ═══════════════════════════════════════════════
 
+(defn composite? [change]
+  (instance? CompositeChange change))
 
 (defn composite-change
   "从 change 集合构造复合 change。"
   [& cs]
-  (->CompositeChange (vec cs)))
+  (->CompositeChange (flatten (vec cs))))
 
 (defn empty-composite
   "空复合——单位元。"
@@ -61,17 +63,4 @@
 (defn changes [^CompositeChange change]
   (:changes change))
 
-;; ═══════════════════════════════════════════════
-;; 辅助——检查是否包含某类 change
-;; ═══════════════════════════════════════════════
 
-(defn contains-type?
-  "复合变化中是否包含指定类型的 change。
-   用于 migrate 里按需分支——比如 '有 ViewportPan 吗'。"
-  [^CompositeChange composite type]
-  (boolean (some #(instance? type %) (:changes composite))))
-
-(defn find-type
-  "复合变化中第一个指定类型的 change——没有返回 nil。"
-  [^CompositeChange composite type]
-  (first (filter #(instance? type %) (:changes composite))))

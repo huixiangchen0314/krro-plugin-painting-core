@@ -8,13 +8,17 @@
   (:import
     (top.kzre.krro.brush Stroke)))
 
+(defonce ^:private transaction-kind* ::brush-stroke)
+
+(defn kind [] transaction-kind*)
+
 (defrecord BrushStrokeTransaction
   [^Stroke stroke
    layer-backup
    ^int rendered-event-count]
 
   tx/ITransaction
-  (kind [_] :brush-stroke)
+  (kind [_] (kind))
 
   (begin [_ _ record]
     (let [{:keys [layer]} (record/layer-context record)
@@ -59,4 +63,4 @@
                   :undo? false]
        :fx [[:tool/set-command-enabled true]]})))
 
-(tx/reg-transaction :brush-stroke (->BrushStrokeTransaction nil nil 0))
+(tx/reg-transaction (kind) (->BrushStrokeTransaction nil nil 0))

@@ -1,18 +1,15 @@
 (ns top.kzre.krro.plugin.painting.core.edit.brush
   (:require
-    [top.kzre.krro.core.reframe.core :as rf]
-    [top.kzre.krro.core.reframe.transaction :as tx :refer [transaction-interceptor]]
-    [top.kzre.krro.plugin.painting.core.edit.interceptors :refer [cleanup-tool-interceptor
-                                                                  tool-context-interceptor]]
-    [top.kzre.krro.plugin.painting.core.store :as store]
-    ;; 加载即注册 :brush-stroke 事务
-    [top.kzre.krro.plugin.painting.core.transactions.brush-stroke])
+   [top.kzre.krro.core.reframe.core :as rf]
+   [top.kzre.krro.core.reframe.transaction :as tx :refer [transaction-interceptor]]
+   [top.kzre.krro.plugin.painting.core.edit.interceptors :refer [cleanup-tool-interceptor
+                                                                 tool-context-interceptor
+                                                                 tool-context-key]]
+   [top.kzre.krro.plugin.painting.core.store :as store]
+   [top.kzre.krro.plugin.painting.core.transactions.brush-stroke :as tx-brush-stroke])
   (:import
-    (top.kzre.colorutils.color RGB)))
+   (top.kzre.colorutils.color RGB)))
 
-;; ─────────────────────────────────────────────────────────────
-;; 光标 overlay —— 纯 UI 渲染，与事务状态无关
-;; ─────────────────────────────────────────────────────────────
 
 (defn- cursor-overlay
   [{:keys [viewport event]}]
@@ -23,9 +20,6 @@
                :type   :circle
                :color  (RGB/rgba 1 0 0 1)}]]))
 
-;; ─────────────────────────────────────────────────────────────
-;; press —— 起笔：校验 + 开启事务
-;; ─────────────────────────────────────────────────────────────
 
 (rf/reg-event-fx
   store/app-id :brush-tool/press
@@ -33,7 +27,7 @@
    (tool-context-interceptor)
    (transaction-interceptor)]
   (fn [cofx [_ _ _ _]]
-    (let [{:keys [layer-id layer]} (:krro.painting/tool-context cofx)]
+    (let [{:keys [layer-id layer]} (get cofx (tool-context-key))]
       (cond
         (nil? layer-id)
         {:fx [[:warn "No active layer!"]]}
@@ -42,37 +36,27 @@
         {:fx [[:warn "Brush tool is only used for raster layer!"]]}
 
         :else
-        {:transaction [(tx/begin-transaction :brush-stroke)]}))))
+        {:transaction [(tx/begin-transaction (tx-brush-stroke/kind))]}))))
 
-;; ─────────────────────────────────────────────────────────────
-;; drag —— 拖拽：只发 operate 指令 + 光标 overlay
-;; ─────────────────────────────────────────────────────────────
 
 (rf/reg-event-fx
   store/app-id :brush-tool/drag
   [(tool-context-interceptor)
    (transaction-interceptor)]
   (fn [cofx [_ _ _ frame]]
-    (let [ctx (:krro.painting/tool-context cofx)]
+    (let [ctx (get cofx (tool-context-key))]
       {:transaction [(tx/transaction-operation
-                       :brush-stroke :drag
+                       (tx-brush-stroke/kind) :drag
                        :layer-event (:layer-event ctx))]
-       :fx          [[:tool/flush-overlay (cursor-overlay ctx) frame]]})))
+       :fx [[:tool/flush-overlay (cursor-overlay ctx) frame]]})))
 
-;; ─────────────────────────────────────────────────────────────
-;; release —— 收笔：提交事务
-;; ─────────────────────────────────────────────────────────────
 
 (rf/reg-event-fx
   store/app-id :brush-tool/release
   [(tool-context-interceptor)
    (transaction-interceptor)]
   (fn [_cofx [_ _ _ _]]
-    {:transaction [(tx/commit-transaction :brush-stroke)]}))
-
-;; ─────────────────────────────────────────────────────────────
-;; move —— 悬停 / 中断：回滚（幂等）+ 空光标 overlay
-;; ─────────────────────────────────────────────────────────────
+    {:transaction [(tx/commit-transaction (tx-brush-stroke/kind))]}))
 
 (rf/reg-event-fx
   store/app-id :brush-tool/move
@@ -80,5 +64,5 @@
    (tool-context-interceptor)
    (transaction-interceptor)]
   (fn [cofx [_ _ _ frame]]
-    (let [ctx (:krro.painting/tool-context cofx)]
-      {:fx          [[:tool/flush-overlay (cursor-overlay ctx) frame]]})))
+    (let [ctx (get cofx (tool-context-key))]
+      {:fx [[:tool/flush-overlay (cursor-overlay ctx) frame]]})))

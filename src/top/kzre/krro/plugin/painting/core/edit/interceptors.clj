@@ -27,6 +27,7 @@
           ;; 无旧数据，直接放行
           context)))}))
 
+(defn tool-context-key [] :krro.painting/tool-context)
 
 (defn tool-context-interceptor
   "为工具事件提供标准化的上下文数据，包括画布、图层、视口和坐标转换。
@@ -87,7 +88,7 @@
            ]
        (-> context
            (assoc-in [:coeffects :record] updated-record)
-           (assoc-in [:coeffects :krro.painting/tool-context]
+           (assoc-in [:coeffects (tool-context-key)]
                      {:event               event-map
                       :canvas-event        canvas-event
                       :layer-event         layer-event

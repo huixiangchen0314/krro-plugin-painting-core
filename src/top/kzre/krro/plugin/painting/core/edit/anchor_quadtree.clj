@@ -1,7 +1,6 @@
 (ns top.kzre.krro.plugin.painting.core.edit.anchor-quadtree
   (:require [top.kzre.krro.canvas.core.layer.util :as util]
-            [top.kzre.krro.plugin.painting.core.algo.anchor-quadtree :as anchor-quadtree])
-  (:import (top.kzre.krro.canvas.core QuadTree)))
+            [top.kzre.krro.plugin.painting.core.algo.anchor-quadtree :as anchor-quadtree]))
 
 ;; 锚点四叉树加速结构
 (defonce anchor-quadtrees (atom {}))

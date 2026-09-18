@@ -4,19 +4,18 @@
    [top.kzre.krro.canvas.core.layer.util :as layer-util]
    [top.kzre.krro.core.util.computing-graph :as cg]
    [top.kzre.krro.plugin.painting.core.schedule.util :as util]
+   [top.kzre.krro.plugin.painting.core.changes.viewport]
    [top.kzre.krro.plugin.painting.core.viewport :as vp]
    [top.kzre.krro.core.util.promise :as promise])
   (:import
-   (top.kzre.krro.canvas.core.layer LayerUtils)
-   (top.kzre.krro.util.math KMath)))
+    (top.kzre.krro.canvas.core.layer LayerUtils)
+    (top.kzre.krro.plugin.painting.core.changes.viewport ViewportRefreshed)
+    (top.kzre.krro.util.math KMath)))
 
-(defonce ^:private context-key* ::context)
-
-(defn context-key [] context-key*)
 
 (defrecord ContextNode [ctx]
   cg/INode
-  (node-id [_] (context-key))
+  (node-id [_] :context)
   (dependencies [_] #{})
   (compute [_ _] (promise/resolved ctx)))
 
@@ -24,41 +23,17 @@
   (->ContextNode ctx))
 
 (defn diff-info [old-ctx new-ctx]
-  (if old-ctx
-    {:same-viewport? (= (:viewport old-ctx) (:viewport new-ctx))}
-    {:same-viewport? false}))
+  (merge
+    (if old-ctx
+      {:same-viewport? (= (:viewport old-ctx) (:viewport new-ctx))}
+      {:same-viewport? false})
+    {:has-change?    (boolean (seq (:changes new-ctx)))}))
 
 (defn assoc-view-matrix [ctx old-ctx same-viewport?]
   (if same-viewport?
     (assoc ctx :view-matrix (:view-matrix old-ctx))
     (assoc ctx :view-matrix (vp/viewport->mat2d (:viewport ctx)))))
 
-(defn- normalize-dirty-pairs
-  "把 dirty-tiles / dirty-transform 规范化为配对序列。
-   支持：
-     - 单个值：dirty-tiles 是集合，dirty-transform 是矩阵
-     - 向量：dirty-tiles 和 dirty-transform 一一配对
-     - 混合：dirty-tiles 是向量，dirty-transform 是单个（共享）
-   返回 [[tiles transform] ...]"
-  [dirty-tiles dirty-transform]
-  (cond
-    ;; 都为空 → 空配对
-    (or (nil? dirty-tiles) (nil? dirty-transform))
-    []
-
-    ;; dirty-tiles 是向量（多组）
-    (and (vector? dirty-tiles)
-         (vector? dirty-transform)
-         (= (count dirty-tiles) (count dirty-transform)))
-    (mapv vector dirty-tiles dirty-transform)
-
-    ;; dirty-tiles 是向量，transform 共享
-    (vector? dirty-tiles)
-    (mapv (fn [t] [t dirty-transform]) dirty-tiles)
-
-    ;; 单个
-    :else
-    [[dirty-tiles dirty-transform]]))
 
 (defn assoc-view-dirty-tiles
   "计算视口脏瓦片。
@@ -73,15 +48,14 @@
   [ctx _old-ctx]
   (let [{:keys [tile-size
                 view-matrix viewport-w viewport-h
-                dirty-tiles dirty-transform]} ctx]
+                change]} ctx]
 
-    ;; ── 特判：任一为 nil → 全视口脏
-    (if (or (nil? dirty-tiles) (nil? dirty-transform))
+    (if  (util/contains-change? change ViewportRefreshed)
       (assoc ctx :view-dirty-tiles
                  (set (LayerUtils/canvasTiles tile-size viewport-w viewport-h)))
 
       ;; ── 正常路径：逐组计算
-      (let [pairs (normalize-dirty-pairs dirty-tiles dirty-transform)
+      (let [pairs (util/change-dirty-pairs change)
 
             all-view-tiles
             (reduce
@@ -126,9 +100,18 @@
     :max-vmem (* 1024 1024 1024)      ;; 1 GB
     ))
 
+(defn normalize-changes
+  "合并 changes 序列 成 单个 composite"
+  [new-ctx]
+  (let [changes (:changes new-ctx)]
+    (-> new-ctx
+        (dissoc :changes)
+        (assoc :change (util/normalize-changes changes)))))
+
 (defn diff
   [old-ctx new-ctx {:keys [same-viewport?]}]
   (-> new-ctx
+      (normalize-changes)
       (assoc-view-matrix old-ctx same-viewport?)
       (assoc-view-dirty-tiles old-ctx)
       (assoc-image-dirty-tiles old-ctx)
