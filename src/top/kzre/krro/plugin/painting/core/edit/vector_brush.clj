@@ -1,7 +1,7 @@
 (ns top.kzre.krro.plugin.painting.core.edit.vector-brush
   (:require [top.kzre.krro.brush.vector :as vec-brush]
             [top.kzre.krro.canvas.core.layer.util :as util]
-            [top.kzre.krro.core.reframe :as rf]
+            [top.kzre.krro.core.reframe.core :as rf]
             [top.kzre.krro.curve.bezier2d.core :as bezier]
             [top.kzre.krro.plugin.painting.core.brush.core :as brush]
             [top.kzre.krro.plugin.painting.core.edit.interceptors :refer [cleanup-tool-interceptor]]

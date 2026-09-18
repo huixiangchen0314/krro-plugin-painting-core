@@ -5,7 +5,9 @@
             [top.kzre.krro.plugin.painting.core.canvas.core]
             [top.kzre.krro.plugin.painting.core.layer.core]
           [top.kzre.krro.plugin.painting.core.changes.core]
+            [top.kzre.krro.plugin.painting.core.schedule.core]
             [top.kzre.krro.plugin.painting.core.oplog.core]
+
             [top.kzre.krro.plugin.painting.core.tool.registry]
             [top.kzre.krro.plugin.painting.core.edit.core]
             [top.kzre.krro.plugin.painting.core.project.canvas :as pc]

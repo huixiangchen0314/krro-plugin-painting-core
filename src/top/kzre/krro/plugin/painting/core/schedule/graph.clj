@@ -2,16 +2,15 @@
   (:require
     [top.kzre.krro.canvas.core.layer.group :as group]
     [top.kzre.krro.canvas.core.layer.path :as path]
+    [top.kzre.krro.canvas.core.layer.util :as util]
     [top.kzre.krro.core.core :as kcc]
     [top.kzre.krro.core.util.computing-graph :as cg]
     [top.kzre.krro.core.util.diff :as diff]
     [top.kzre.krro.plugin.painting.core.schedule.composite :as composite]
     [top.kzre.krro.plugin.painting.core.schedule.context :as context]
     [top.kzre.krro.plugin.painting.core.schedule.protocol :as proto]
-    [top.kzre.krro.plugin.painting.core.schedule.raster-layer :as raster-layer]
     [top.kzre.krro.plugin.painting.core.schedule.result :as result]
-    [top.kzre.krro.plugin.painting.core.schedule.util :as schedule.util]
-    [top.kzre.krro.canvas.core.layer.util :as util])
+    [top.kzre.krro.plugin.painting.core.schedule.util :as schedule.util])
   (:import
    (top.kzre.krro.core.util.computing_graph ComputingGraph)
    (top.kzre.krro.core.util.diff IDiff)))
@@ -41,11 +40,7 @@
            返回 {:nodes [...] :root node}"
           (fn [atom _] (:type atom)))
 
-(defmethod build-leaf :raster
-  [atom _]
-  (let [node (raster-layer/make-raster-layer-node atom)]
-    {:nodes [node]
-     :root  node}))
+
 
 (defmethod build-leaf :default
   [atom _]

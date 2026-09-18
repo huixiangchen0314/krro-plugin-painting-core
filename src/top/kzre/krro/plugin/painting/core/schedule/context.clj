@@ -25,8 +25,10 @@
 (defn diff-info [old-ctx new-ctx]
   (merge
     (if old-ctx
-      {:same-viewport? (= (:viewport old-ctx) (:viewport new-ctx))}
-      {:same-viewport? false})
+      {:same-viewport? (= (:viewport old-ctx) (:viewport new-ctx))
+       :same-subpixel? (= (:subpixel? old-ctx) (:subpixel? new-ctx))}
+      {:same-viewport? false
+       :same-subpixel? false})
     {:has-change?    (boolean (seq (:changes new-ctx)))}))
 
 (defn assoc-view-matrix [ctx old-ctx same-viewport?]
@@ -108,6 +110,12 @@
         (dissoc :changes)
         (assoc :change (util/normalize-changes changes)))))
 
+
+(defn ensure-default [ctx]
+  (cond-> ctx
+          (some? (:subpixel? ctx))
+          (assoc :subpixel? false)))
+
 (defn diff
   [old-ctx new-ctx {:keys [same-viewport?]}]
   (-> new-ctx
@@ -115,5 +123,6 @@
       (assoc-view-matrix old-ctx same-viewport?)
       (assoc-view-dirty-tiles old-ctx)
       (assoc-image-dirty-tiles old-ctx)
-      (assoc-mem-budget)))
+      (assoc-mem-budget)
+      (ensure-default)))
 
