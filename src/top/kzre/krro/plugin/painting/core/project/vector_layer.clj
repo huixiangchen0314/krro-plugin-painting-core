@@ -2,7 +2,8 @@
   "矢量图层数据持久化与激活。
    矢量数据为纯 EDN 描述，无需侧表。激活/钝化直接返回图层。"
   (:require
-    [top.kzre.krro.plugin.painting.core.project.canvas :as canvas]))
+    [top.kzre.krro.canvas.vector.core :as vector-core]
+    [top.kzre.krro.plugin.painting.core.project.canvas :as pc]))
 
 (defn paths
   "返回图层的路径映射 {path-id path-data}。"
@@ -12,28 +13,44 @@
 (defn assoc-paths [layer paths]
   (assoc layer :paths paths))
 
-(defn assoc-path [layer path-id new-path]
-  (update layer :paths assoc path-id new-path))
-
-(defn update-paths [layer f & args]
-  (apply update layer :paths f args))
+(defn path-tiles
+  "返回路径在全局瓦片大小下覆盖的瓦片"
+  [path]
+  (vector-core/path-tiles path pc/global-tile-size))
 
 (defn path-order
   "返回图层的路径顺序（向量）。"
   [layer]
   (:path-order layer []))
 
-(defn path-count
-  "返回图层中的路径数量。"
-  [layer]
-  (count (paths layer)))
 
-(defn path-exists?
-  "检查指定路径 ID 是否存在于图层中。"
+(defn fresh-path-id []
+  (keyword (str "path-" (gensym))))
+
+(defn add-path
+  ([layer path]
+   (add-path layer (fresh-path-id) path))
+  ([layer path-id path]
+   {:pre [(some? path-id)]}
+   (-> layer
+       (update :paths assoc path-id path)
+       (update :path-order conj path-id))))
+
+
+(defn remove-path
   [layer path-id]
-  (contains? (paths layer) path-id))
+  (-> layer
+      (update :paths dissoc path-id)
+      (update :path-order (fn [order] (vec (remove #{path-id} order))))))
 
-(defmethod canvas/persistable-layer :vector [layer]
+(defn save-path
+  [layer path-id path]
+  (let [ps (paths layer)]
+    (if (get ps path-id)
+      (update layer :paths assoc path-id path)
+      (add-path layer path-id path))))
+
+(defmethod pc/persistable-layer :vector [layer]
   (-> layer
     (update :paths
             (fn [paths]
@@ -41,8 +58,8 @@
                               [path-id (dissoc path :arc-params)])
                             paths))))))
 
-(defmethod canvas/persistable-layer! :vector [layer _canvas-id]
-  (canvas/persistable-layer layer))
+(defmethod pc/persistable-layer! :vector [layer _canvas-id]
+  (pc/persistable-layer layer))
 
-(defmethod canvas/active-layer! :vector [layer _canvas-id]
+(defmethod pc/active-layer! :vector [layer _canvas-id]
   layer)

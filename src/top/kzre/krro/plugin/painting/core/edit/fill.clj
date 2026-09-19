@@ -2,7 +2,7 @@
   "填充工具（re-frame 事件驱动）"
   (:require
     [top.kzre.krro.canvas.core.layer.util :as util]
-    [top.kzre.krro.core.reframe :as rf]
+    [top.kzre.krro.core.reframe.core :as rf]
     [top.kzre.krro.plugin.painting.core.brush.core :as brush]
     [top.kzre.krro.plugin.painting.core.edit.interceptors :refer [cleanup-tool-interceptor]]
     [top.kzre.krro.plugin.painting.core.store :as store]

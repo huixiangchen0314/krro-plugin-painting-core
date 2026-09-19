@@ -10,6 +10,7 @@
   (:import
    (top.kzre.colorutils.color RGB)))
 
+;; 移出edit 包，edit 只保留ui 状态机
 
 (defn- cursor-overlay
   [{:keys [viewport event]}]
@@ -26,7 +27,7 @@
   [(cleanup-tool-interceptor)
    (tool-context-interceptor)
    (transaction-interceptor)]
-  (fn [cofx [_ _ _ _]]
+  (fn [cofx _]
     (let [{:keys [layer-id layer]} (get cofx (tool-context-key))]
       (cond
         (nil? layer-id)
@@ -55,7 +56,7 @@
   store/app-id :brush-tool/release
   [(tool-context-interceptor)
    (transaction-interceptor)]
-  (fn [_cofx [_ _ _ _]]
+  (fn [_ _]
     {:transaction [(tx/commit-transaction (tx-brush-stroke/kind))]}))
 
 (rf/reg-event-fx

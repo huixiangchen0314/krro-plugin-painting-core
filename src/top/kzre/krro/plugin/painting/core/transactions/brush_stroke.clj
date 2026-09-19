@@ -27,11 +27,10 @@
       [(->BrushStrokeTransaction stroke backup 0)
        {:fx [[:tool/set-command-enabled false]]}]))
 
-  (operate [this op-kind kwargs record]
+  (operate [this op-kind {:keys [layer-event]} record]
     (case op-kind
       :drag
-      (let [{:keys [layer-event]} kwargs
-            {:keys [canvas-id layer-id]} (record/layer-context record)
+      (let [{:keys [canvas-id layer-id]} (record/layer-context record)
             pevent     (stroke/->pointer-event layer-event)
             new-stroke (.append stroke pevent)]
         (if (> (.size new-stroke) (.size stroke))
@@ -46,7 +45,7 @@
           [this {:fx []}]))
       [this {:fx []}]))
 
-  (commit [_ _kwargs record]
+  (commit [_ _ record]
     (if (and stroke (> (.size stroke) 0))
       (let [{:keys [canvas-id layer-id]} (record/layer-context record)
             canvas-backup (:canvas layer-backup)]
@@ -56,7 +55,7 @@
          :fx [[:tool/set-command-enabled true]]})
       {:fx [[:tool/set-command-enabled true]]}))
 
-  (rollback [_ _ctx record]
+  (rollback [_ _ record]
     (let [{:keys [canvas-id layer-id]} (record/layer-context record)
           canvas-backup (:canvas layer-backup)]
       {:dispatch [:oplog/replace-raster-layer-canvas canvas-id layer-id canvas-backup

@@ -5,7 +5,8 @@
     [top.kzre.krro.canvas.core.layer.core :as lc]
     [top.kzre.krro.core.core :as kcc]
     [top.kzre.krro.core.project :as proj]
-    [top.kzre.krro.core.rdb :refer [defschema]])
+    [top.kzre.krro.core.rdb :refer [defschema]]
+    [top.kzre.krro.core.core :as krro])
   (:import
    (java.util UUID)))
 
@@ -38,8 +39,6 @@
              ::vertical-mirror-center
              ::tiling-enabled]))
 
-;; 定义记录以便自定义编解码.
-;; 定义记录以便自定义编解码
 (defrecord CanvasData
   [id                                   ;; 必需，keyword?
    width                                ;; 必需，number?
@@ -153,31 +152,27 @@
 
 (defmethod active-layer! :default [layer _canvas-id] layer)
 
+(defonce ^:private canvas-data-resource-key ::canvas-data)
 
-(def canvas-codec-plugin-def
-  {:type     :krro.plugin/resource-codec
-   :id       :krro.painting/canvas-codec
-   :resource :krro.painting/canvas-data
-   :pred     #(instance? CanvasData % )
-   :encoder  (fn [c _ctx]
-               (let [id (:id c)
-                     encoded-layers (mapv #(persistable-layer! % id) (:layers c))]
-                 {:krro/type :krro.painting/canvas-data
-                  :id id
-                  :width  (:width c)
-                  :height (:height c)
-                  :layers encoded-layers
-                  :current-layer-id (:current-layer-id c)}))
-   ;; 解码时候自己负责恢复句柄
-   :decoder  (fn [m]
-               (let [id (:id m)
-                     w (:width m)
-                     h (:height m)
-                     decoded-layers (mapv #(active-layer! % id) (:layers m))]
-                 (map->CanvasData {:id id :width w :height h :layers decoded-layers
-                                   :current-layer-id (:current-layer-id m)})))})
-
-
+(krro/reg-resource
+  canvas-data-resource-key
+  CanvasData
+  (fn [^CanvasData canvas _ctx]
+    (let [id (:id canvas)
+          encoded-layers (mapv #(persistable-layer! % id) (:layers canvas))]
+      {:krro/type canvas-data-resource-key
+       :id id
+       :width  (:width canvas)
+       :height (:height canvas)
+       :layers encoded-layers
+       :current-layer-id (:current-layer-id canvas)}))
+  (fn [m]
+    (let [id (:id m)
+          w (:width m)
+          h (:height m)
+          decoded-layers (mapv #(active-layer! % id) (:layers m))]
+      (map->CanvasData {:id id :width w :height h :layers decoded-layers
+                        :current-layer-id (:current-layer-id m)}))))
 
 ;; 其他低级查询
 (defn layers-by-id

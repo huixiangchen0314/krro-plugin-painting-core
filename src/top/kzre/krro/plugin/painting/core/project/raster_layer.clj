@@ -19,7 +19,8 @@
            :primary-key :id
            :not-null [:canvas-id :data]
            :foreign-keys [{:column :canvas-id
-                           :references {:table :krro.painting/canvas :column :id}
+                           :references {:table :krro.painting/canvas
+                                        :column :id}
                            :validator (fn [raster-row canvas-row]
                                         (let [layers (:layers canvas-row)]
                                           (some? (lc/find-layer (:id raster-row) layers))))
