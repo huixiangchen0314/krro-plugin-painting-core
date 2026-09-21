@@ -35,17 +35,6 @@
       {:dispatch [:oplog/log canvas-id op ctx]})))
 
 (rf/reg-event-fx
-  store/app-id :oplog/vector-path-updated
-  (fn [cofx [_ canvas-id layer-id path-id new-path & {:as ctx}]]
-    (let [{:keys [layer layer-transform]} (record/layer-context (:record cofx) layer-id)
-          dirty-paths (pv/paths layer)
-          op (change/make-vector-path-geometry-changed
-               layer-id path-id
-               (get dirty-paths path-id)
-               new-path layer-transform)]
-      {:dispatch [:oplog/log canvas-id op ctx]})))
-
-(rf/reg-event-fx
   store/app-id :oplog/vector-layer-paths-dirty
   (fn [cofx [_ canvas-id layer-id old-paths new-paths & {:as ctx}]]
     (let [{:keys [layer-transform]} (record/layer-context (:record cofx) layer-id)

@@ -55,7 +55,7 @@
         [new-t
          {:dispatch
           [:oplog/vector-stroke
-           canvas-id layer-id  stroke path-style
+           canvas-id layer-id new-stroke path-style
            :path-id stroke-path-id
            :undo? false]
           :fx [[:tool/set-command-enabled false]]}])
