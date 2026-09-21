@@ -7,7 +7,7 @@
          {:dab          {:type :circle
                          :mask-type :hard}
           ;; 前景色
-          :color        [0.2 0.3 0.56 0.65]
+          :color        [0.2 0.8 0.56 0.65]
           ;; 动力学映射
           :dynamics     {:radius [{:sensor :pressure :curve :linear :min 0.5 :max 2.0 :mode :multiply}]}
           ;; DAB 间距

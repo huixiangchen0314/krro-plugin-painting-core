@@ -10,9 +10,7 @@
 (rf/reg-event-fx
   store/app-id :oplog/brush-stroke
   (fn [cofx [_ record-id layer-id stroke
-             & {:keys [undo? canvas]
-                :or   {undo? false}
-                :as ctx}]]
+             & {:keys [canvas] :as ctx}]]
     (let [{:keys [layer layer-transform]}
           (record/layer-context (:record cofx) layer-id)
           base-canvas (or canvas (.copy (:canvas layer)))

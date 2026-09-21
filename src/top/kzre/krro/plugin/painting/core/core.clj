@@ -3,6 +3,7 @@
             [top.kzre.krro.plugin.painting.core.canvas.core]
             [top.kzre.krro.plugin.painting.core.changes.core]
             [top.kzre.krro.plugin.painting.core.edit.core]
+            [top.kzre.krro.plugin.painting.core.session.core]
             [top.kzre.krro.plugin.painting.core.layer.core]
             [top.kzre.krro.plugin.painting.core.oplog.core]
             [top.kzre.krro.plugin.painting.core.ops.undo :as undo]

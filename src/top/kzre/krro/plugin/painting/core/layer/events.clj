@@ -5,18 +5,12 @@
     [top.kzre.krro.canvas.perspective.core :as perspective]
     [top.kzre.krro.canvas.raster.core :as raster]
     [top.kzre.krro.canvas.vector.core :as vector]
-    [top.kzre.krro.core.reframe :as rf]
+    [top.kzre.krro.core.reframe.core :as rf]
     [top.kzre.krro.plugin.painting.core.canvas.events :as events]
-    [top.kzre.krro.plugin.painting.core.layer.util :as util]
     [top.kzre.krro.plugin.painting.core.project.canvas :as pc]
+    [top.kzre.krro.plugin.painting.core.record :as record]
     [top.kzre.krro.plugin.painting.core.state :as state]
     [top.kzre.krro.plugin.painting.core.store :as store]))
-
-(defn insert-layer-at
-  "在 record 的 canvas-data 中按指定路径插入图层。
-   返回更新后的 record。"
-  [record path layer]
-  (update record :canvas-data util/insert-layer-at path layer))
 
 
 ;; 新建空白光栅图层
@@ -32,8 +26,8 @@
           layer-id (:id new-layer)]
       {:record
        (-> record
-           (insert-layer-at path new-layer)
-           (events/set-current-layer layer-id)
+           (record/insert-layer-at-path path new-layer)
+           (record/set-current-layer layer-id)
            (events/set-selected-layer layer-id))
        :fx [[:save-raster-data-fx record-id layer-id]        ;; 创建光栅数据（I/O）
             [:record-raster-layer-added record-id layer-id]  ;; undo/redo 记录
@@ -51,8 +45,8 @@
           layer-id (:id new-layer)]
       {:record
        (-> record
-           (insert-layer-at path new-layer)
-           (events/set-current-layer layer-id)
+           (record/insert-layer-at-path path new-layer)
+           (record/set-current-layer layer-id)
            (events/set-selected-layer layer-id))
        :fx
        [[:record-canvas-edited record-id]
@@ -69,8 +63,8 @@
           new-layer (perspective/make-perspective-layer)
           layer-id (:id new-layer)
           new-record (-> record
-                         (insert-layer-at path new-layer)
-                         (events/set-current-layer layer-id)
+                         (record/insert-layer-at-path path new-layer)
+                         (record/set-current-layer layer-id)
                          (events/set-selected-layer layer-id))]
       {:record new-record
        :fx [[:record-perspective-layer-added record-id layer-id]  ;; undo 记录

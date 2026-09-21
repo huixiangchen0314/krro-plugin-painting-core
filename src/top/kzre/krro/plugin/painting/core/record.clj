@@ -1,13 +1,10 @@
 (ns top.kzre.krro.plugin.painting.core.record
   (:require
     [clojure.spec.alpha :as s]
-    [top.kzre.krro.curve.bezier2d.spec :as-alias bezier]
-    [top.kzre.krro.plugin.painting.core.edit.falloff :as falloff]
-    [top.kzre.krro.plugin.painting.core.edit.snap :as snap]
-    [top.kzre.krro.plugin.painting.core.edit.spec :as edit]
+    [top.kzre.krro.canvas.core.layer.path :as path]
+    [top.kzre.krro.curve.bezier2d.spec :as bezier]
     [top.kzre.krro.plugin.painting.core.project.canvas :as pc]
     [top.kzre.krro.plugin.painting.core.store :as store]
-    [top.kzre.krro.canvas.core.layer.path :as path]
     [top.kzre.krro.plugin.painting.core.tool.util :as tool-util])
   (:import (top.kzre.krro.util.math KMath)))
 
@@ -16,14 +13,6 @@
 
 ;; =============================== 项目数据 =====================================
 (s/def ::canvas-data ::pc/canvas-data)
-
-;; =============================== 应用全局数据(从 app.clj/session.clj 合并） ==================================
-;;变换轴心点
-(s/def ::pivot-center ::edit/pivot-center)
-(s/def ::snap-options (s/nilable ::snap/snap-options))
-;; 衰减编辑选项
-(s/def ::falloff-options (s/nilable ::falloff/falloff-options))
-
 
 ;; ================================= 应用运行时数据 ====================================
 (s/def ::cursor-position ::bezier/point)
@@ -35,9 +24,7 @@
                    ::canvas-state
                    ]
           :opt-un [::cursor-position
-                   ::pivot-center
-                   ::snap-options
-                   ::falloff-options]))
+]))
 
 
 (def record store/record)
@@ -76,6 +63,14 @@
 
 (defn tiling-enabled [record]
   (get-in record [:canvas-data :tiling-enabled] false))
+
+(defn insert-layer-at-path
+  [record path layer]
+  (update record :canvas-data pc/insert-layer-at-path path layer))
+
+(defn set-current-layer
+  [record layer-id]
+  (assoc-in record [:canvas-data :current-layer-id] layer-id))
 
 
 (defn layer-context [record & [target-layer-id]]

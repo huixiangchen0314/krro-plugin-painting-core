@@ -11,6 +11,8 @@
 ;; 固定 app-id，所有画布共享同一个应用实例（事件/订阅定义隔离于该 app-id）
 (defonce app-id :krro.painting)
 
+(defn appid [] app-id)
+
 ;; 记录每个画布 store 的注销函数，key 为 canvas-id
 (defonce ^:private store-registry (atom {}))
 

@@ -1,23 +1,25 @@
 (ns top.kzre.krro.plugin.painting.core.algo.anchor
   (:require
-   [top.kzre.krro.canvas.vector.core :as vector-core]
-   [top.kzre.krro.plugin.painting.core.algo.path :as path]
-   [top.kzre.krro.curve.bezier2d.core :as bezier])
+   [top.kzre.krro.canvas.vector.anchor :as anchor]
+   [top.kzre.krro.canvas.vector.core :as cv]
+   [top.kzre.krro.curve.bezier2d.core :as bezier]
+   [top.kzre.krro.plugin.painting.core.algo.path :as path])
   (:import
-   (top.kzre.curve.bezier2d
-    ArcLengthUtils
-    Curve
-    CurveExtrusionUtils
-    Pair
-    TableMapping)))
+    (top.kzre.curve.bezier2d
+      ArcLengthUtils
+      Curve
+      CurveExtrusionUtils
+      Pair
+      TableMapping)
+    (top.kzre.krro.canvas.vector.anchor Anchor AnchorTranslation)))
 
-(defrecord Anchor [path-id point-idx])
+
 
 (defn all-anchors
   "返回路径中所有锚点的列表（Anchor 记录）。"
   [paths path-id]
-  (let [points (get-in paths [path-id :bezier-curve :points])]
-    (mapv (fn [idx] (->Anchor path-id idx)) (range (count points)))))
+  (let [points (get-in paths [path-id :curve :points])]
+    (mapv (fn [idx] (anchor/->Anchor path-id idx)) (range (count points)))))
 
 (defn path-containing-anchor
   "从路径映射 paths 中查找包含 anchor 的路径数据。
@@ -30,8 +32,8 @@
   [paths ^Anchor anchor]
   (when-let [path (path-containing-anchor paths anchor)]
     (let [curve (case (:path-type path)
-                  :bezier (:bezier-curve path)
-                  :catmull-rom (:cr-curve path)
+                  :bezier (:curve path)
+                  :catmull-rom (:curve path)
                   nil)]
       (when curve
         (let [points (:points curve)
@@ -47,12 +49,12 @@
        (reduce
          (fn [acc [path-id anchors]]
            (let [path (get paths path-id)
-                 stroke-width (vector-core/max-path-width path)
+                 stroke-width (cv/max-path-width path)
                  half-width (/ stroke-width 2)
                  ;; 计算该路径所有锚点的 AABB，基于每个锚点的 point-idx
                  ;; 对每个锚点单独计算 AABB 并合并
                  path-aabb
-                 (when-let [curve (:bezier-curve path)]
+                 (when-let [curve (:curve path)]
                    (if (> half-width 0)
                      (reduce (fn [acc2 {:keys [point-idx]}]
                                (let [aabb (bezier/aabb curve point-idx)
@@ -75,7 +77,7 @@
          new-aabb (aabb path2 anchors)]
      (bezier/merge-aabb old-aabb new-aabb))))
 
-(defn translate-anchors
+(defn- translate-anchors*
   "移动锚点，返回新路径和更新的 aabb"
   [paths anchors dx dy]
   (let [anchor-groups (group-by :path-id anchors)
@@ -85,14 +87,25 @@
             (if-let [path (get acc path-id)]
               (let [idxs (mapv :point-idx anchors)
                     ;; TODO catmull-rom 分支
-                    old-curve (:bezier-curve path)
+                    old-curve (:curve path)
                     new-curve (apply bezier/translate old-curve dx dy idxs)]
-                (assoc acc path-id (assoc path :bezier-curve new-curve)))
+                (assoc acc path-id (assoc path :curve new-curve)))
               acc))
           paths
           anchor-groups)]
     {:paths new-paths
      :aabb (aabb paths new-paths anchors)}))
+
+(defn translate-anchors
+  "移动一组锚点。"
+  [paths anchors dx dy]
+  (translate-anchors* paths anchors dx dy))
+
+(defn translate-anchor
+  "移动单个锚点。"
+  [paths ^AnchorTranslation trans]
+  (let [{:keys [anchor dx dy]} trans]
+    (translate-anchors* paths [anchor] dx dy)))
 
 
 (defn median-point
@@ -112,7 +125,7 @@
   "判断锚点是否为路径的端点（首点或尾点）"
   [paths ^Anchor anchor]
   (when-let [path (get paths (:path-id anchor))]
-    (let [curve (:bezier-curve path)
+    (let [curve (:curve path)
           points (:points curve)
           idx (:point-idx anchor)]
       (and (not (:closed curve))
@@ -142,7 +155,7 @@
                                    (dissoc :width-samples :arc-params :t-params)
                                    (assoc :width-type :fixed))]
                   [(assoc paths-acc path-id new-path)
-                   (into aabb-anchors-acc (all-anchors paths path-id))])
+                   (into aabb-anchors-acc (cv/all-anchors paths path-id))])
 
                 (:point-width :t-width)
                 (let [path (path/ensure-width-type path width-type)
@@ -192,7 +205,7 @@
   "挤出后，计算原锚点的新索引。起点挤出时索引从 0 变为 1；终点挤出时索引不变。"
   [anchor is-start?]
   (if is-start?
-    (->Anchor (:path-id anchor) 1)
+    (anchor/->Anchor  (:path-id anchor) 1)
     anchor))
 
 (defn extrude-anchor
@@ -202,7 +215,7 @@
   (when (end-anchor? paths anchor)
     (let [path-id (:path-id anchor)
           path (get paths path-id)
-          curve-edn (:bezier-curve path)
+          curve-edn (:curve path)
           idx (:point-idx anchor)
           is-start? (zero? idx)
           width-type (path/path-width-type path)
@@ -220,7 +233,7 @@
           (case width-type
             :fixed
             (-> path
-                (assoc :bezier-curve new-curve-edn)
+                (assoc :curve new-curve-edn)
                 (dissoc :width-samples :arc-params :t-params))
 
             :point-width
@@ -230,7 +243,7 @@
                                 (into [width] old-samples)
                                 (into old-samples [width]))]
               (-> path
-                  (assoc :bezier-curve new-curve-edn)
+                  (assoc :curve new-curve-edn)
                   (assoc :width-samples (vec new-samples))
                   (assoc :arc-params arc-params)
                   (dissoc :t-params)))
@@ -242,7 +255,7 @@
                                 (into [width] old-samples)
                                 (into old-samples [width]))]
               (-> path
-                  (assoc :bezier-curve new-curve-edn)
+                  (assoc :curve new-curve-edn)
                   (assoc :width-samples (vec new-samples))
                   (assoc :t-params t-params)
                   (assoc :arc-params arc-params)))
@@ -253,8 +266,8 @@
 
           new-paths (assoc paths path-id new-path)
           new-anchor (if is-start?
-                       (->Anchor path-id 0)
-                       (->Anchor path-id (dec new-num-points)))
+                       (anchor/->Anchor  path-id 0)
+                       (anchor/->Anchor  path-id (dec new-num-points)))
           updated-anchor (active-anchor-after-extrude anchor is-start?)]
       {:paths new-paths
        :aabb (aabb new-paths [new-anchor])

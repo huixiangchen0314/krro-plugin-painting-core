@@ -17,11 +17,12 @@
     [top.kzre.krro.plugin.painting.core.project.vector-layer :as pv]
     [top.kzre.krro.plugin.painting.core.render :as render]
     [top.kzre.krro.plugin.painting.core.store :as store]
-    [top.kzre.krro.plugin.painting.core.viewport :as vp])
+    [top.kzre.krro.plugin.painting.core.viewport :as vp]
+    [top.kzre.krro.canvas.vector.core :as canvas.vector])
   (:import
     (top.kzre.colorutils.color RGB)
     (top.kzre.krro.canvas.core QuadTree QuadTree$NearestResult)
-    (top.kzre.krro.plugin.painting.core.algo.anchor Anchor)
+    (top.kzre.krro.canvas.vector.anchor Anchor)
     (top.kzre.krro.plugin.painting.core.algo.segment Segment)
     (top.kzre.krro.util.math KMath)
     (top.kzre.krro.util.tile TiledCanvas)))
@@ -88,8 +89,8 @@
   (overlay [_ {:keys [viewport layer layer-type layer-visible layer-transform]}]
     (when (= :vector layer-type)
       (if layer-visible
-        (let [paths (:paths layer)
-              path-order (:path-order layer [])
+        (let [paths (canvas.vector/paths layer)
+              path-order (canvas.vector/path-order layer)
               selected-set (or selected-anchors #{})
               ]
           (when (seq path-order)
@@ -138,7 +139,7 @@
               (mapcat
                 (fn [path-id]
                   (let [path (get paths path-id)
-                        curve (:bezier-curve path)
+                        curve (:curve path)
                         points (:points curve)]
                     (map-indexed
                       (fn [idx point]
@@ -361,7 +362,7 @@
                        curr-distance (Math/hypot dx dy)
                        width-delta (* (- curr-distance last-screen-distance) sensitivity)
                        {:keys [paths aabb]} (anchor/adjust-widths old-paths selected-anchors width-delta)
-                       new-layer (pv/assoc-paths layer paths)
+                       new-layer (assoc layer :paths paths)
                        new-layers (util/replace-layer new-layer layers)
                        new-tool-data
                        (-> tool-data
@@ -469,7 +470,7 @@
                        {:keys [paths aabb anchor new-anchor]} (anchor/extrude-anchor old-paths focus-anchor layer-event)]
                    (when paths
                      (let [all-aabb (bezier/merge-aabb old-aabb aabb)
-                           new-layer (pv/assoc-paths layer paths)
+                           new-layer (assoc layer :paths paths)
                            new-layers (util/replace-layer new-layer layers)
                            new-tool-data
                            (-> tool-data

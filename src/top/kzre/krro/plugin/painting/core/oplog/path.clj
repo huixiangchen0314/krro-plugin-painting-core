@@ -1,4 +1,4 @@
-(ns top.kzre.krro.plugin.painting.core.oplog.vector-layer
+(ns top.kzre.krro.plugin.painting.core.oplog.path
   "矢量路径 oplog 事件。
 
    三个事件：
@@ -13,7 +13,7 @@
      - vector 已在事务里渲染（stroke → path）——这里只做打包"
   (:require
     [top.kzre.krro.core.reframe.core :as rf]
-    [top.kzre.krro.plugin.painting.core.changes.vector-layer :as change]
+    [top.kzre.krro.plugin.painting.core.changes.path :as change]
     [top.kzre.krro.plugin.painting.core.project.vector-layer :as pv]
     [top.kzre.krro.plugin.painting.core.record :as record]
     [top.kzre.krro.plugin.painting.core.store :as store]))
@@ -39,7 +39,7 @@
   (fn [cofx [_ canvas-id layer-id path-id new-path & {:as ctx}]]
     (let [{:keys [layer layer-transform]} (record/layer-context (:record cofx) layer-id)
           dirty-paths (pv/paths layer)
-          op (change/make-vector-path-updated
+          op (change/make-vector-path-geometry-changed
                layer-id path-id
                (get dirty-paths path-id)
                new-path layer-transform)]

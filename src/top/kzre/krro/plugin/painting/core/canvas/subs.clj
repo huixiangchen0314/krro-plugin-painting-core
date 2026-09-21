@@ -1,6 +1,6 @@
 (ns top.kzre.krro.plugin.painting.core.canvas.subs
   "画布相关的反应式订阅定义"
-  (:require [top.kzre.krro.core.reframe :as rf]
+  (:require [top.kzre.krro.core.reframe.core :as rf]
             [top.kzre.krro.plugin.painting.core.store :as store]))
 
 (rf/reg-sub

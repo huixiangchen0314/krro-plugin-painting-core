@@ -2,11 +2,11 @@
   "笔刷笔触事务"
   (:require
     [top.kzre.krro.core.reframe.transaction :as tx]
-    [top.kzre.krro.plugin.painting.core.layer.clone :as clone]
-    [top.kzre.krro.plugin.painting.core.record :as record]
+   [top.kzre.krro.plugin.painting.core.layer.clone :as clone]
+   [top.kzre.krro.plugin.painting.core.record :as record]
     [top.kzre.krro.plugin.painting.core.tool.stroke :as stroke])
   (:import
-    (top.kzre.krro.brush Stroke)))
+   (top.kzre.krro.brush Stroke)))
 
 (defonce ^:private transaction-kind* ::brush-stroke)
 
@@ -23,7 +23,8 @@
   (begin [_ _ record]
     (let [{:keys [layer]} (record/layer-context record)
           stroke (stroke/make-stroke)
-          backup (clone/clone-layer layer)]
+          backup (clone/clone-layer layer)
+          ]
       [(->BrushStrokeTransaction stroke backup 0)
        {:fx [[:tool/set-command-enabled false]]}]))
 
@@ -58,7 +59,7 @@
   (rollback [_ _ record]
     (let [{:keys [canvas-id layer-id]} (record/layer-context record)
           canvas-backup (:canvas layer-backup)]
-      {:dispatch [:oplog/replace-raster-layer-canvas canvas-id layer-id canvas-backup
+      {:dispatch [:oplog/raster-layer-canvas-dirty canvas-id layer-id canvas-backup
                   :undo? false]
        :fx [[:tool/set-command-enabled true]]})))
 

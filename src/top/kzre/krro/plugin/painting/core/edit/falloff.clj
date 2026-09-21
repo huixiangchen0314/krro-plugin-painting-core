@@ -29,6 +29,6 @@
                    ::curve-preset]      ;; 衰减曲线预设
           :opt-un [::custom-curve       ;; 自定义曲线（当 preset 为 nil/:custom 或其他非法值时使用）
                    ::falloff-space      ;; 衰减形状，默认 :sphere
-                   ::connected-only     ;; 仅相连项（Alt+O），通过拓扑连接传递
+                   ::connected-only     ;; 仅相连项，通过拓扑连接传递
                    ::radius             ;; 影响半径
                    ::radius-step]))     ;; 半径精度/步进

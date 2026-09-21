@@ -8,7 +8,6 @@
     [java.util Set]
     (top.kzre.krro.canvas.core.layer LayerUtils)
     (top.kzre.krro.plugin.painting.core.changes.composite CompositeChange)
-    (top.kzre.krro.plugin.painting.core.changes.raster_layer RasterLayerDirty)
     (top.kzre.krro.plugin.painting.core.schedule.protocol ILayer)
     (top.kzre.krro.util.math KMath)
     [top.kzre.krro.util.tile CanvasUtils]))

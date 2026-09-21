@@ -1,25 +1,10 @@
 (ns top.kzre.krro.plugin.painting.core.canvas.events
   "画布相关的事件处理器"
   (:require
-   [top.kzre.krro.canvas.core.layer.util :as util]
-   [top.kzre.krro.core.reframe :as rf]
-   [top.kzre.krro.plugin.painting.core.store :as store])
-  (:import
-    (top.kzre.krro.util.math KMath)))
+    [top.kzre.krro.core.reframe.core :as rf]
+    [top.kzre.krro.plugin.painting.core.record :as record]
+    [top.kzre.krro.plugin.painting.core.store :as store]))
 
-(defn set-current-layer
-  [record layer-id]
-  (assoc-in record [:canvas-data :current-layer-id] layer-id))
-
-(defn compute-layer-transform
-  [record layer-id]
-  (let [layers (get-in record [:canvas-data :layers])
-        layer (util/find-layer layer-id layers)
-        trans (util/layer-transform layer layers)
-        trans-inv (KMath/mat2dInv trans)]
-    (-> record
-        (assoc-in [:canvas-state :layer-transform] trans)
-        (assoc-in [:canvas-state :layer-transform-inv] trans-inv))))
 
 (defn set-selected-layer
   [record layer-id]
@@ -45,7 +30,7 @@
 
 ;; 日志
 (rf/reg-event-fx
-  :krro.painting :log-layers
+  store/app-id :log-layers
   (fn [cofx [_ record-id]]                         ;; 解构事件向量
     (let [record (:record cofx)
           layers (-> record :canvas-data :layers)]
@@ -54,7 +39,7 @@
 
 ;; 单选
 (rf/reg-event-fx
-  :krro.painting :select-layer
+  store/app-id :select-layer
   (fn [cofx [_ record-id layer-id]]
     (let [cd (:canvas-data (:record cofx))]
       (if (= (:current-layer-id cd) layer-id)
@@ -62,17 +47,16 @@
         (let [state (:canvas-state record-id)
               dirty-tiles (:dirty-tiles state)]
           {:record (-> (:record cofx)
-                       (set-current-layer layer-id)
-                       (compute-layer-transform layer-id)
+                       (record/set-current-layer layer-id)
                        (set-selected-layer layer-id)
                        (clear-dirty-tiles))
-           :fx [[:render-canvas record-id dirty-tiles]      ;; 画布重绘
-                [:rerender-canvas-frame-fx record-id]         ;; UI 刷新
-                ]})))))
+           :fx     [[:render-canvas record-id dirty-tiles]      ;; 画布重绘
+                    [:rerender-canvas-frame-fx record-id]         ;; UI 刷新
+                    ]})))))
 
 ;; 多选
 (rf/reg-event-fx
-  :krro.painting :multi-select-layer
+  store/app-id :multi-select-layer
   (fn [cofx [_ record-id layer-id]]
     (let [new-record (append-selected-layer (:record cofx) layer-id)]
       {:record new-record

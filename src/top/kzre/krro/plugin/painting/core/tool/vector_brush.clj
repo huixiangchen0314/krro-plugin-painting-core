@@ -18,7 +18,7 @@
   [backup-layer path-data path-id]
   (let [curve-edn (bezier/curve->edn (:curve path-data))
         new-path {:path-type :bezier
-                  :bezier-curve curve-edn
+                  :curve curve-edn
                   :style {:stroke {:color (RGB/rgba 0.6 0 0 1)
                                    :width 50
                                    :cap :round

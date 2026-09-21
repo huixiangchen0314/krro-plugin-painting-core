@@ -17,7 +17,8 @@
    [top.kzre.krro.plugin.painting.core.layer.clone :as clone]
    [top.kzre.krro.plugin.painting.core.project.vector-layer :as pv]
    [top.kzre.krro.plugin.painting.core.record :as record]
-   [top.kzre.krro.plugin.painting.core.tool.stroke :as stroke])
+   [top.kzre.krro.plugin.painting.core.tool.stroke :as stroke]
+   [top.kzre.krro.canvas.vector.core :as canvas.vector])
   (:import
     (top.kzre.curve.bezier2d ArcLengthUtils Curve TableMapping)
    (top.kzre.krro.brush Stroke)))
@@ -35,7 +36,7 @@
   (let [arc-params (TableMapping/uniformSParams
                       (ArcLengthUtils/buildArcLengthParams curve (double-array t-params)))]
     {:path-type     :bezier
-     :bezier-curve  (bezier/curve->edn curve)
+     :curve  (bezier/curve->edn curve)
      :style         style
      :t-params      t-params
      :width-samples width-samples
@@ -58,10 +59,11 @@
 
   (begin [_ {:keys [style]} record]
     (let [{:keys [layer]} (record/layer-context record)]
+      ;; 事务是本地相关的，如果要支持远程会话，再开reframe
       [(->VectorStrokeTransaction
          (stroke/make-stroke)
          (clone/clone-layer layer)
-         (pv/fresh-path-id)
+         (canvas.vector/fresh-path-id)
          style)
        {:fx [[:tool/set-command-enabled false]]}]))
 

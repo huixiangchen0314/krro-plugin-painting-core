@@ -46,7 +46,7 @@
 
 
 (defn point-t-params [path]
-  (let [num-points (count (get-in path [:bezier-curve :points]))]
+  (let [num-points (count (get-in path [:curve :points]))]
     (uniform-t-params num-points)))
 
 
@@ -55,9 +55,9 @@
    如果参数是 delay，则只在需要时 deref。"
   [path width-type & {:keys [t-params width-samples arc-params _width-curve compute-arc?]
                       :or {compute-arc? false}}]
-  (let [num-points (count (get-in path [:bezier-curve :points]))
+  (let [num-points (count (get-in path [:curve :points]))
         default-width (get-in path [:style :stroke :width] 1.0)
-        curve-edn (:bezier-curve path)]
+        curve-edn (:curve path)]
     (case width-type
       :fixed
       (if (get-in path [:style :stroke :width])

@@ -11,7 +11,7 @@
     (top.kzre.krro.util.tile TiledCanvas)))
 
 (defrecord RasterLayerDirty
-  [ layer-id ^TiledCanvas old-canvas ^TiledCanvas new-canvas dirty-tiles dirty-transform]
+  [layer-id ^TiledCanvas old-canvas ^TiledCanvas new-canvas dirty-tiles dirty-transform]
   AutoCloseable
   (close [_]
     (when old-canvas (.close old-canvas))

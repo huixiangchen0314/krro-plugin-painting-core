@@ -7,7 +7,7 @@
 
 
 (rf/reg-event-fx
-  store/app-id :oplog/replace-raster-layer-canvas
+  store/app-id :oplog/raster-layer-canvas-dirty
   (fn [cofx [_ record-id layer-id canvas
              & {:as ctx}]]
     (let [{:keys [layer layer-transform]}

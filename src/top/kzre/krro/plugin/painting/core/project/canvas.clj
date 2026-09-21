@@ -3,10 +3,10 @@
   (:require
     [clojure.spec.alpha :as s]
     [top.kzre.krro.canvas.core.layer.core :as lc]
-    [top.kzre.krro.core.core :as kcc]
     [top.kzre.krro.core.project :as proj]
+    [top.kzre.krro.core.core :as kcc]
     [top.kzre.krro.core.rdb :refer [defschema]]
-    [top.kzre.krro.core.core :as krro])
+    [top.kzre.krro.canvas.core.layer.path :as path])
   (:import
    (java.util UUID)))
 
@@ -91,7 +91,10 @@
      (kcc/insert! :krro.painting/canvas (assoc cd :id id))
      cd)))
 
-
+(defn insert-layer-at-path
+  [^CanvasData cd path layer]
+  (update cd :layers
+          (fn [layers] (path/insert-layer layers path layer))))
 
 (defn delete-canvas!
   "删除画布，相关资源由 rdb 负责级联删除."
@@ -154,7 +157,7 @@
 
 (defonce ^:private canvas-data-resource-key ::canvas-data)
 
-(krro/reg-resource
+(kcc/reg-resource
   canvas-data-resource-key
   CanvasData
   (fn [^CanvasData canvas _ctx]
