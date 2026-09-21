@@ -16,6 +16,9 @@
   [path]
   (canvas.vector/path-tiles path pc/global-tile-size))
 
+(defn seg-tiles [path idx]
+  (canvas.vector/seg-tiles path idx pc/global-tile-size))
+
 ;; project.vector-layer
 (defn anchor-tiles
   "锚点两侧段的瓦片集合。
@@ -36,4 +39,5 @@
 
 (defmethod pc/active-layer! :vector [layer _canvas-id]
   layer)
+
 

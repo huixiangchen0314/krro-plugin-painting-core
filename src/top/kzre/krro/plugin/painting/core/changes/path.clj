@@ -1,55 +1,65 @@
 (ns top.kzre.krro.plugin.painting.core.changes.path
   "路径领域的变更对象。
 
-   本 ns 处理**空间**上的变化——位置、拓扑、结构、顺序，以及**只影响渲染
-   但不影响锚点**的属性变化。
+    处理**路径自身关注点**的变化——位置、拓扑、结构、顺序，
+    以及**非几何属性**（样式 / 闭合 / 手柄 / 连续性等）的变化。
 
-   手柄 / 连续性 / 宽度等独立领域语义的变更在各自的 ns。
+    手柄与连续性虽然数据形态相似（都改手柄向量），但都是
+    **路径的非几何属性**——它们不影响锚点在 quadtree 中的位置——
+    因此和样式 / 闭合归为同一个 change 类型：`VectorPathAttrChanged`。
 
-   ## 变更清单（10 个）
+    宽度是**独立关注点**——数据形态是 `width-samples` / `t-params`——
+    在 `changes/width` ns。
 
-   集合不变 · 几何（影响锚点）：
-     VectorAnchorPositionsChanged —— 锚点位置变化（细粒度 quadtree）
-     VectorPathGeometryChanged    —— 单 path 几何变化（通用）
-     VectorAnchorInserted         —— 锚点插入（拓扑 +）
-     VectorAnchorDeleted          —— 锚点删除（拓扑 -）
-     VectorPathsGeometryChanged   —— 跨路径原子几何变化
+    ## 变更清单（10 个）
 
-   集合不变 · 属性（不影响锚点——quadtree 不动）：
-     VectorLayerPathAttrChanged   —— 单 path 属性变化
-                                     如样式 / 闭合状态等 —— 只影响渲染
+    集合不变 · 几何（影响锚点位置——quadtree 必须更新）：
+      VectorAnchorPositionsChanged —— 锚点位置变化（细粒度 quadtree）
+      VectorPathGeometryChanged    —— 单 path 几何变化（通用）
+      VectorAnchorInserted         —— 锚点插入（拓扑 +）
+      VectorAnchorDeleted          —— 锚点删除（拓扑 -）
+      VectorPathsGeometryChanged   —— 跨路径原子几何变化
 
-   集合不变 · 顺序：
-     VectorPathOrderChanged       —— path-order 变化（quadtree 不动）
+    集合不变 · 非几何属性（quadtree 不动）：
+      VectorPathAttrChanged        —— 样式 / 闭合 / 手柄 / 连续性等
+                                      （只影响渲染，不影响锚点位置）
 
-   集合变化 · 单 path：
-     VectorPathAdded              —— 单 path 新增
-     VectorPathRemoved            —— 单 path 删除
+    集合不变 · 顺序（quadtree 不动）：
+      VectorPathOrderChanged       —— path-order 变化
 
-   全量（唯一例外）：
-     VectorLayerPathsDirty        —— 全量替换（回滚 / 导入）
+    集合变化 · 单 path：
+      VectorPathAdded              —— 单 path 新增
+      VectorPathRemoved            —— 单 path 删除
 
-   ## 分类判据
+    全量（唯一例外）：
+      VectorLayerPathsDirty        —— 全量替换（回滚 / 导入）
 
-   几何 vs 属性——按「是否影响锚点在 quadtree 中的位置」分：
-     几何 —— 锚点位置 / 拓扑变 → quadtree 必须更新
-     属性 —— 锚点位置 / 拓扑不变，只影响渲染 → quadtree 不动
+    ## 分类判据
 
-   ## 设计原则
+    几何 vs 属性——按「是否影响锚点在 quadtree 中的位置」分：
+      几何 —— 锚点位置 / 拓扑变 → quadtree 必须更新
+      属性 —— 锚点位置 / 拓扑不变，只影响渲染 → quadtree 不动
 
-   - **change 只携带 record 里取不到的变化数据**——旧数据 realize 时从 record 取；
-     唯一例外是 VectorLayerPathsDirty（全量语义需要 old + new）。
-   - **change 名描述数据形态变化**——不写「谁被编辑了」，写「什么数据变了」。
-   - **脏瓦片在 make- 构造器内计算**——调用方只提供领域语义。
-   - **脏瓦片 = 旧 ∪ 新**——不脏画面的唯一保证。
-   - **位置变化用 anchor-tiles，拓扑变化用 path-tiles**——idx 稳定 vs 漂移。
-   - **容器参数在前，领域对象在后**——`[layer-id paths... anchor ... dirty-transform]`。
-   - **Anchor 携带 path-id 时不重复字段**。
+    手柄 / 连续性属于属性——它们改的是手柄向量或约束字段——
+    锚点位置 `:x :y` 不变——quadtree 无操作。
 
-   ## 双维度正交
+    ## 设计原则
 
-   每个 change 在 (数据形态, quadtree 副作用) 二元组上唯一——没有可合并的。
-   这保证了缓存失效的精确性——change 类型的粒度 = 缓存失效的粒度。"
+    - **change 只携带 record 里取不到的变化数据**——旧数据 realize 时从 record 取；
+      唯一例外是 VectorLayerPathsDirty（全量语义需要 old + new）。
+    - **change 名描述数据形态变化**——不写「谁被编辑了」，写「什么数据变了」。
+    - **脏瓦片在 make- 构造器内计算**——调用方只提供领域语义。
+    - **脏瓦片 = 旧 ∪ 新**——不脏画面的唯一保证。
+    - **位置 / 手柄 / 连续性用 anchor-tiles（锚点两侧段）；
+      path 级属性用 path-tiles（整条 path）**——按变化范围选。
+    - **容器参数在前，领域对象在后**——`[layer-id paths... anchor ... dirty-transform]`。
+    - **Anchor 携带 path-id 时不重复字段**。
+
+    ## 双维度正交
+
+    每个 change 在 (数据形态, quadtree 副作用) 二元组上唯一——没有可合并的。
+    这保证了缓存失效的精确性——change 类型的粒度 = 缓存失效的粒度。
+    "
   (:require
     [top.kzre.krro.canvas.core.layer.util :as util]
     [top.kzre.krro.canvas.vector.core :as canvas.vector]
@@ -343,29 +353,37 @@
       (undo/record-canvas-edited! canvas-id))))
 
 ;; ═══════════════════════════════════════════════
-;; VectorLayerPathAttrChanged —— 单 path 属性变化
-;; 只携带 path-id + 新 path；旧 path 从 record 取
-;; 语义：几何/拓扑不变，仅属性变 —— quadtree 不动
+;; VectorPathAttrChanged —— 路径非几何属性变化
+;; 涵盖：样式 / 闭合 / 手柄 / 连续性等
+;; 数据形态：paths-changed + anchors（anchors 为上下文——空表示 path 级变化）
+;; quadtree 无操作——锚点位置不变
 ;; ═══════════════════════════════════════════════
 
-(defrecord VectorLayerPathAttrChanged
-  [layer-id path-id path dirty-tiles dirty-transform]
+(defrecord VectorPathsAttrChanged
+  [layer-id
+   paths-changed       ; {path-id new-path} —— 只有变化的 path
+   anchors             ; [Anchor ...] —— 变化的锚点集合；
+   ;   空 vector 表示 path 级变化（样式 / 闭合）
+   ;   非空表示锚点级变化（手柄 / 连续性）
+   dirty-tiles dirty-transform]
   AutoCloseable
   (close [_] nil)
 
   diff/IChange
   (seeds [_] layer-id)
-  (empty-change? [_] false)
+  (empty-change? [_] (empty? paths-changed))
   (combine [this other] (composite/composite-change this other))
 
   proto/IOperation
   (realize [this record _ctx]
     (let [{:keys [canvas-id layer layers]} (record/layer-context record layer-id)
-          new-layer (canvas.vector/save-path layer path-id path)]
+          old-paths (pv/paths layer)
+          new-paths (merge old-paths paths-changed)
+          new-layer (assoc layer :paths new-paths)]
       [(assoc-in record [:canvas-data :layers]
                  (util/replace-layer new-layer layers))
        [[:render-canvas canvas-id this]]]))
-  ;; quadtree 无操作——锚点位置和拓扑都没变
+  ;; quadtree 无操作——非几何变化不影响锚点位置
 
   (record! [_ record]
     (let [{:keys [canvas-id]} record]
@@ -506,18 +524,36 @@
   (->VectorPathOrderChanged layer-id new-order
                             dirty-tiles dirty-transform))
 
-(defn make-vector-layer-path-attr-changed
-  "单 path 属性变化。
-   old-path —— 用于算脏瓦片；不存入 record。
-   new-path —— 存入 record。"
+(defn make-vector-anchors-attr-changed
+  "锚点级非几何属性变化（手柄 / 连续性等）。
+   old-paths —— 旧 paths（算旧段瓦片）
+   new-paths —— 新 paths（算新段瓦片 + 提取 paths-changed）
+   anchors   —— [Anchor ...]，属性变化的锚点集合
+   脏瓦片 —— 每个变化锚点两侧段的旧 ∪ 新。"
+  [layer-id old-paths new-paths anchors dirty-transform]
+  (let [changed-ids   (into #{} (map :path-id anchors))
+        paths-changed (select-keys new-paths changed-ids)
+        dirty-tiles   (into #{}
+                            (mapcat (fn [a]
+                                      (into (or (pv/anchor-tiles old-paths a) #{})
+                                            (or (pv/anchor-tiles new-paths a) #{}))))
+                            anchors)]
+    (->VectorPathsAttrChanged layer-id paths-changed anchors
+                             dirty-tiles dirty-transform)))
+
+(defn make-vector-path-attr-changed
+  "path 级非几何属性变化（样式 / 闭合等）。
+   old-path —— 旧 path（算旧瓦片）
+   new-path —— 新 path（算新瓦片）
+   脏瓦片 —— 整条 path 的旧 ∪ 新（属性变化可能影响整条渲染）。"
   [layer-id path-id old-path new-path dirty-transform]
   {:pre [(some? new-path)]}
   (let [dirty-tiles (if old-path
                       (into (pv/path-tiles new-path)
                             (pv/path-tiles old-path))
                       (pv/path-tiles new-path))]
-    (->VectorLayerPathAttrChanged layer-id path-id new-path
-                                  dirty-tiles dirty-transform)))
+    (->VectorPathsAttrChanged layer-id {path-id new-path} []
+                             dirty-tiles dirty-transform)))
 
 (defn make-vector-layer-paths-dirty
   [layer-id old-paths new-paths dirty-tiles dirty-transform]
