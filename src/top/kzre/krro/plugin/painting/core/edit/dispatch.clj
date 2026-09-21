@@ -1,6 +1,6 @@
 (ns top.kzre.krro.plugin.painting.core.edit.dispatch
   (:require
-   [top.kzre.krro.core.reframe :as rf]
+   [top.kzre.krro.core.reframe.core :as rf]
    [top.kzre.krro.plugin.painting.core.edit.anchor :as anchor]
    [top.kzre.krro.plugin.painting.core.edit.interceptors :refer [cleanup-tool-interceptor]]
    [top.kzre.krro.plugin.painting.core.record :as record]

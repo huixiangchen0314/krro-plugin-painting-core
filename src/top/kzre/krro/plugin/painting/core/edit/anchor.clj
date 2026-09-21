@@ -1,31 +1,35 @@
 (ns top.kzre.krro.plugin.painting.core.edit.anchor
   (:require
-    [taoensso.timbre :as log]
-    [taoensso.tufte :refer [p profile]]
-    [top.kzre.krro.canvas.core.layer.util :as util]
-    [top.kzre.krro.core.custom :as custom]
-    [top.kzre.krro.core.reframe :as rf]
-    [top.kzre.krro.curve.bezier2d.core :as bezier]
-    [top.kzre.krro.plugin.painting.core.algo.anchor :as anchor]
-    [top.kzre.krro.plugin.painting.core.algo.segment]
-    [top.kzre.krro.plugin.painting.core.edit.anchor-quadtree :as tree :refer [anchor-quadtree-interceptor]]
-    [top.kzre.krro.plugin.painting.core.edit.common :as common]
-    [top.kzre.krro.plugin.painting.core.edit.interceptors :refer [cleanup-tool-interceptor
-                                                                  tool-context-interceptor]]
-    [top.kzre.krro.plugin.painting.core.edit.protocol :as p]
-    [top.kzre.krro.plugin.painting.core.project.canvas :as pc]
-    [top.kzre.krro.plugin.painting.core.project.vector-layer :as pv]
-    [top.kzre.krro.plugin.painting.core.render :as render]
-    [top.kzre.krro.plugin.painting.core.store :as store]
-    [top.kzre.krro.plugin.painting.core.viewport :as vp]
-    [top.kzre.krro.canvas.vector.core :as canvas.vector])
+   [taoensso.timbre :as log]
+   [taoensso.tufte :refer [p profile]]
+   [top.kzre.krro.canvas.core.layer.util :as util]
+   [top.kzre.krro.canvas.vector.core :as canvas.vector]
+   [top.kzre.krro.canvas.vector.core :as cv]
+   [top.kzre.krro.core.custom :as custom]
+   [top.kzre.krro.core.reframe :as rf]
+   [top.kzre.krro.core.reframe.transaction :as tx :refer [transaction-interceptor]]
+   [top.kzre.krro.curve.bezier2d.core :as bezier]
+   [top.kzre.krro.plugin.painting.core.algo.anchor :as anchor]
+   [top.kzre.krro.plugin.painting.core.algo.segment]
+   [top.kzre.krro.plugin.painting.core.edit.anchor-quadtree :as tree :refer [anchor-quadtree-interceptor]]
+   [top.kzre.krro.plugin.painting.core.edit.common :as common]
+   [top.kzre.krro.plugin.painting.core.edit.interceptors :refer [cleanup-tool-interceptor
+                                                                 get-tool-context
+                                                                 tool-context-interceptor]]
+   [top.kzre.krro.plugin.painting.core.edit.protocol :as p]
+   [top.kzre.krro.plugin.painting.core.project.canvas :as pc]
+   [top.kzre.krro.plugin.painting.core.project.vector-layer :as pv]
+   [top.kzre.krro.plugin.painting.core.render :as render]
+   [top.kzre.krro.plugin.painting.core.store :as store]
+   [top.kzre.krro.plugin.painting.core.transactions.anchor-extrude-modal :as anchor-extrude-modal]
+   [top.kzre.krro.plugin.painting.core.viewport :as vp])
   (:import
-    (top.kzre.colorutils.color RGB)
-    (top.kzre.krro.canvas.core QuadTree QuadTree$NearestResult)
-    (top.kzre.krro.canvas.vector.anchor Anchor)
-    (top.kzre.krro.plugin.painting.core.algo.segment Segment)
-    (top.kzre.krro.util.math KMath)
-    (top.kzre.krro.util.tile TiledCanvas)))
+   (top.kzre.colorutils.color RGB)
+   (top.kzre.krro.canvas.core QuadTree QuadTree$NearestResult)
+   (top.kzre.krro.canvas.vector.anchor Anchor)
+   (top.kzre.krro.plugin.painting.core.algo.segment Segment)
+   (top.kzre.krro.util.math KMath)
+   (top.kzre.krro.util.tile TiledCanvas)))
 
 (custom/defcustom :krro.painting.anchor/adjust-width-sensitivity
                   0.1
@@ -43,7 +47,7 @@
            })
 
 (defrecord AnchorState [mode                                ;; 操作模式
-                        boolean modal                       ;; 模态编辑
+                       ^boolean modal                       ;; 模态编辑
                         ^Anchor active-anchor               ;; 活动的锚点
                         ^Anchor second-active-anchor        ;; 次要活动锚点
                         ^Anchor anchor-backup               ;; 备份锚点
@@ -383,34 +387,37 @@
   store/app-id :anchor/enter-extrude-anchor-modal
   [(cleanup-tool-interceptor AnchorState :factory (fn [_] (make-anchor-state)))
    (tool-context-interceptor)
-   (anchor-quadtree-interceptor)]
+   (anchor-quadtree-interceptor)
+   (transaction-interceptor)]
   (fn [cofx _]
-    (profile
-      {:id :anchor/enter-extrude-anchor-modal}
-      (p :anchor/enter-extrude-anchor-modal
-         (let [ctx (:krro.painting/tool-context cofx)
-               {:keys [ layer layer-type]} ctx]
-           (if (= :vector layer-type)
-             ;; 宽度调整
-             (let [record (:record cofx)
-                   paths (pv/paths layer)
-                   tool-data (get-in record [:canvas-state :tool-data])
-                   {:keys [active-anchor]} tool-data]
-               (if active-anchor
-                 (if (anchor/end-anchor? paths active-anchor)
-                   (let [new-tool-data
-                         (-> tool-data
-                             (assoc :layer-backup layer)
-                             (assoc :second-active-anchor nil)
-                             (assoc :anchor-backup nil)
-                             (assoc :mode :extrude-anchor)
-                             (assoc :modal true))]
-                     {:record (-> record
-                                  (assoc-in [:canvas-state :tool-data] new-tool-data))
-                      :fx [[:message ":anchor/enter-adjust-width-modal"]]})
-                   {:fx [[:warn "active anchor is not in end"]]})
-                 {:fx [[:warn "No active anchor"]]}))
-             {:fx [[:warn (str "Anchor tool is invalid for" layer-type)]]}))))))
+    (let [ctx (get-tool-context cofx)
+          {:keys [layer layer-type layer-event]} ctx
+          tool-data (get-in (:record cofx) [:canvas-state :tool-data])
+          {:keys [active-anchor]} tool-data
+          paths     (cv/paths layer)]
+      (cond
+
+        (not= :vector layer-type)
+        {:fx [[:warn (str "Anchor tool is invalid for " layer-type)]]}
+
+        (nil? active-anchor)
+        {:fx [[:warn "No active anchor"]]}
+
+        (not (anchor/end-anchor? paths active-anchor))
+        {:fx [[:warn "Active anchor is not an endpoint"]]}
+
+        (some? (tx/current cofx))
+        {:fx [[:warn "Transaction already exists!"]]}
+
+        :else
+        {:record (-> (:record cofx)
+                     (assoc-in [:canvas-state :tool-data :mode]  :extrude-anchor)
+                     (assoc-in [:canvas-state :tool-data :modal] true))
+         :transaction
+         [(tx/begin-transaction
+            (anchor-extrude-modal/kind)
+            :end-anchor active-anchor
+            :layer-event layer-event)]}))))
 
 ;; 退出锚点挤出模态
 (rf/reg-event-fx

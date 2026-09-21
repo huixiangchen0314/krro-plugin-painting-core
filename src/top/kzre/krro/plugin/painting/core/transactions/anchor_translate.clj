@@ -2,11 +2,9 @@
   "锚点移动事务"
   (:require
     [top.kzre.krro.core.reframe.transaction :as tx]
-    [top.kzre.krro.plugin.painting.core.algo.anchor :refer [Anchor]]
     [top.kzre.krro.plugin.painting.core.layer.clone :as clone]
     [top.kzre.krro.plugin.painting.core.project.vector-layer :as pv]
-    [top.kzre.krro.plugin.painting.core.record :as record])
-  (:import (top.kzre.krro.canvas.vector.anchor Anchor)))
+    [top.kzre.krro.plugin.painting.core.record :as record]))
 
 (defonce ^:private kind* ::anchor-translate)
 

@@ -362,7 +362,6 @@
 (defrecord VectorPathsAttrChanged
   [layer-id
    paths-changed       ; {path-id new-path} —— 只有变化的 path
-   anchors             ; [Anchor ...] —— 变化的锚点集合；
    ;   空 vector 表示 path 级变化（样式 / 闭合）
    ;   非空表示锚点级变化（手柄 / 连续性）
    dirty-tiles dirty-transform]
@@ -538,7 +537,7 @@
                                       (into (or (pv/anchor-tiles old-paths a) #{})
                                             (or (pv/anchor-tiles new-paths a) #{}))))
                             anchors)]
-    (->VectorPathsAttrChanged layer-id paths-changed anchors
+    (->VectorPathsAttrChanged layer-id paths-changed
                              dirty-tiles dirty-transform)))
 
 (defn make-vector-path-attr-changed
@@ -552,7 +551,7 @@
                       (into (pv/path-tiles new-path)
                             (pv/path-tiles old-path))
                       (pv/path-tiles new-path))]
-    (->VectorPathsAttrChanged layer-id {path-id new-path} []
+    (->VectorPathsAttrChanged layer-id {path-id new-path}
                              dirty-tiles dirty-transform)))
 
 (defn make-vector-layer-paths-dirty

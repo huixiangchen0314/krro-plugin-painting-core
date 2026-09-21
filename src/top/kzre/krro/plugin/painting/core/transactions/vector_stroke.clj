@@ -11,42 +11,21 @@
    rollback：
      - 从 layer-backup 全量恢复"
   (:require
-   [top.kzre.krro.brush.vector :as vec-brush]
-   [top.kzre.krro.core.reframe.transaction :as tx]
-   [top.kzre.krro.curve.bezier2d.core :as bezier]
-   [top.kzre.krro.plugin.painting.core.layer.clone :as clone]
-   [top.kzre.krro.plugin.painting.core.project.vector-layer :as pv]
-   [top.kzre.krro.plugin.painting.core.record :as record]
-   [top.kzre.krro.plugin.painting.core.tool.stroke :as stroke]
-   [top.kzre.krro.canvas.vector.core :as canvas.vector])
+    [top.kzre.krro.canvas.vector.core :as cv]
+    [top.kzre.krro.core.reframe.transaction :as tx]
+    [top.kzre.krro.plugin.painting.core.layer.clone :as clone]
+    [top.kzre.krro.plugin.painting.core.project.vector-layer :as pv]
+    [top.kzre.krro.plugin.painting.core.record :as record]
+    [top.kzre.krro.plugin.painting.core.tool.stroke :as stroke])
   (:import
-    (top.kzre.curve.bezier2d ArcLengthUtils Curve TableMapping)
-   (top.kzre.krro.brush Stroke)))
+    (top.kzre.krro.brush Stroke)))
 
 (defonce ^:private transaction-kind* ::vector-stroke)
 (defn kind [] transaction-kind*)
 
-
 (defn- append-point
   [^Stroke stroke layer-event]
   (.append stroke (stroke/->pointer-event layer-event)))
-
-(defn- vector-stroke->bezier-path
-  [{:keys [^Curve curve width-samples t-params]} style]
-  (let [arc-params (TableMapping/uniformSParams
-                      (ArcLengthUtils/buildArcLengthParams curve (double-array t-params)))]
-    {:path-type     :bezier
-     :curve  (bezier/curve->edn curve)
-     :style         style
-     :t-params      t-params
-     :width-samples width-samples
-     :arc-params    arc-params}))
-
-(defn- render-stroke-to-path
-  [stroke style]
-  (when-let [result (vec-brush/render-vector-stroke (.getStroke stroke))]
-    (vector-stroke->bezier-path result style)))
-
 
 (defrecord VectorStrokeTransaction
   [^Stroke stroke
@@ -63,44 +42,36 @@
       [(->VectorStrokeTransaction
          (stroke/make-stroke)
          (clone/clone-layer layer)
-         (canvas.vector/fresh-path-id)
+         (cv/fresh-path-id)
          style)
        {:fx [[:tool/set-command-enabled false]]}]))
 
   (operate [this op-kind {:keys [layer-event]} record]
     (case op-kind
       :drag
-      (let [new-stroke (append-point stroke layer-event)]
-        (or
-          (when (> (.size new-stroke) (.size stroke))
-            (let [{:keys [canvas-id layer-id]} (record/layer-context record)
-                  new-path   (render-stroke-to-path new-stroke path-style)
-                  new-t      (assoc this :stroke new-stroke)]
-              (if new-path
-                [new-t
-                 {:dispatch
-                  [:oplog/vector-path-updated
-                   canvas-id layer-id stroke-path-id new-path
-                   :undo? true]}]
-                [new-t {}])))
-          [this {}]))
+      (let [new-stroke (append-point stroke layer-event)
+            {:keys [canvas-id layer-id]} (record/layer-context record)
+            new-t      (assoc this :stroke new-stroke)]
+        [new-t
+         {:dispatch
+          [:oplog/vector-stroke
+           canvas-id layer-id  stroke path-style
+           :path-id stroke-path-id
+           :undo? false]
+          :fx [[:tool/set-command-enabled false]]}])
       (throw (ex-info "unknown op-kind for transaction vector-stroke" {:op-kind op-kind}))))
 
   (commit [_ _ record]
-    (let [{:keys [canvas-id layer-id]} (record/layer-context record)
-          new-path   (when (> (.size stroke) 0)
-                       (render-stroke-to-path stroke path-style))]
-      (if new-path
-        {:dispatch
-         [:oplog/vector-path-updated
-          canvas-id layer-id stroke-path-id new-path
-          :undo? true]
-         :fx [[:tool/set-command-enabled true]]}
-        {:fx [[:tool/set-command-enabled true]]})))
+    (let [{:keys [canvas-id layer-id]} (record/layer-context record)]
+      {:dispatch
+       [:oplog/vector-stroke
+        canvas-id layer-id  stroke path-style
+        :path-id stroke-path-id
+        :undo? true]
+       :fx [[:tool/set-command-enabled true]]}))
 
   (rollback [_ _ record]
-    (let [{:keys [canvas-id layer-id layer]}
-          (record/layer-context record)]
+    (let [{:keys [canvas-id layer-id layer]} (record/layer-context record)]
       {:dispatch [:oplog/vector-layer-paths-dirty
                   canvas-id layer-id
                   (pv/paths layer)
@@ -109,4 +80,4 @@
        :fx [[:tool/set-command-enabled true]]})))
 
 (tx/reg-transaction (kind)
-                    (->VectorStrokeTransaction nil nil nil nil))
+                    (map->VectorStrokeTransaction {}))
