@@ -63,7 +63,11 @@
     [composited (promise/spawn
                   (fn []
                     (render/render
-                      (mapv util/->raster-layer layers)
+                      (mapv
+                        (fn [l]
+                          {:pre [(some? l)]}
+                          (util/->raster-layer l) )
+                        layers)
                       {:tile-size        tile-size
                        :view-width       viewport-w
                        :view-height      viewport-h

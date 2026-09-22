@@ -13,8 +13,8 @@
   (:require
     [top.kzre.krro.canvas.vector.core :as cv]
     [top.kzre.krro.core.reframe.transaction :as tx]
+    [top.kzre.krro.plugin.painting.core.transactions.vector-layer :as tx.vector-layer]
     [top.kzre.krro.plugin.painting.core.layer.clone :as clone]
-    [top.kzre.krro.plugin.painting.core.project.vector-layer :as pv]
     [top.kzre.krro.plugin.painting.core.record :as record]
     [top.kzre.krro.plugin.painting.core.tool.stroke :as stroke])
   (:import
@@ -71,13 +71,7 @@
        :fx [[:tool/set-command-enabled true]]}))
 
   (rollback [_ _ record]
-    (let [{:keys [canvas-id layer-id layer]} (record/layer-context record)]
-      {:dispatch [:oplog/vector-layer-paths-dirty
-                  canvas-id layer-id
-                  (pv/paths layer)
-                  (pv/paths layer-backup)
-                  :undo? false]
-       :fx [[:tool/set-command-enabled true]]})))
+    (tx.vector-layer/rollback-effect record layer-backup)))
 
 (tx/reg-transaction (kind)
                     (map->VectorStrokeTransaction {}))

@@ -3,12 +3,14 @@
 
    begin 原地挤出（新锚点在端点位置）——operate 平移新锚点——commit 打 undo 标记。"
   (:require
-    [taoensso.timbre :as log]
-    [top.kzre.krro.canvas.vector.core :as cv]
-    [top.kzre.krro.core.reframe.transaction :as tx]
-    [top.kzre.krro.plugin.painting.core.record :as record])
+   [taoensso.timbre :as log]
+   [top.kzre.krro.canvas.vector.core :as cv]
+   [top.kzre.krro.core.reframe.transaction :as tx]
+   [top.kzre.krro.plugin.painting.core.record :as record]
+   [top.kzre.krro.plugin.painting.core.transactions.vector-layer :as tx.vector-layer])
   (:import
-    (top.kzre.krro.canvas.vector.anchor Anchor)))
+   (top.kzre.krro.canvas.vector.anchor Anchor)))
+
 
 (defonce ^:private kind* ::anchor-extrude-modal)
 (defn kind [] kind*)
@@ -21,7 +23,9 @@
   tx/ITransaction
   (kind [_] (kind))
 
-  (begin [this {:keys [anchor]} record]
+  (begin [this {:keys [anchor layer-event]} record]
+    {:pre [(some? anchor)
+           (some? layer-event)]}
     (let [{:keys [canvas-id layer-id layer]} (record/layer-context record)
           paths   (cv/paths layer)
           path-id (:path-id anchor)]
@@ -50,7 +54,7 @@
               is-start?  (zero? (:point-idx anchor))
               new-idx    (if is-start? 0 n)
               new-anchor (cv/->Anchor path-id new-idx)
-              end-point  (cv/anchor-point paths anchor)]
+              end-point  (select-keys layer-event [:x :y])]
           [(assoc this
              :layer-backup layer
              :end-anchor   anchor
@@ -89,15 +93,8 @@
                   :undo? true]
        :fx [[:tool/set-command-enabled true]]}))
 
-  (rollback [this _ record]
-    (let [{:keys [canvas-id layer-id layer]} (record/layer-context record)
-          {layer-backup :layer-backup} this]
-      {:dispatch [:oplog/vector-layer-paths-dirty
-                  canvas-id layer-id
-                  (cv/paths layer)
-                  (cv/paths layer-backup)
-                  :undo? false]
-       :fx [[:tool/set-command-enabled true]]})))
+  (rollback [_ _ record]
+    (tx.vector-layer/rollback-effect record layer-backup)))
 
 (tx/reg-transaction (kind)
                     (map->AnchorExtrudeModalTransaction {}))

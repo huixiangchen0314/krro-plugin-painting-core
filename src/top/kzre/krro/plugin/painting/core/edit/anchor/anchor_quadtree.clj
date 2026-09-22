@@ -1,4 +1,4 @@
-(ns top.kzre.krro.plugin.painting.core.edit.anchor-quadtree
+(ns top.kzre.krro.plugin.painting.core.edit.anchor.anchor-quadtree
   (:require
     [top.kzre.krro.canvas.core.layer.util :as util]
     [top.kzre.krro.core.reframe.core :as rf]
@@ -23,8 +23,6 @@
   `(when-let [entry# (get @anchor-quadtrees ~canvas-id)]
      (when-let [~'tree (:tree entry#)]
        (~fn-sym ~'tree ~@args))))
-
-
 
 (defn- build-for-layer
   [layer]

@@ -7,10 +7,10 @@
     [top.kzre.krro.plugin.painting.core.edit.vector-brush]
     [top.kzre.krro.plugin.painting.core.edit.commands]
     [top.kzre.krro.plugin.painting.core.edit.fill]
-    [top.kzre.krro.plugin.painting.core.edit.anchor]
+    [top.kzre.krro.plugin.painting.core.edit.anchor.core]
    [top.kzre.krro.plugin.painting.core.edit.move]))
 
-
+;; 静态分派表
 (defmethod dispatch/tool-event :move
   [_ event-map]
   (case (:type event-map)
@@ -51,6 +51,7 @@
     :press :fill-tool/press
     nil))
 
+;; 锚点拖动为固定分派
 (defmethod dispatch/tool-event :anchor-translate
   [_ event-map]
   (case (:type event-map)

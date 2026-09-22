@@ -1,13 +1,14 @@
 (ns top.kzre.krro.plugin.painting.core.schedule.scheduler-impl
   (:require
-   [top.kzre.krro.core.util.computing-graph :as cg]
-   [top.kzre.krro.core.util.promise :as promise]
-   [top.kzre.krro.plugin.painting.core.schedule.context :as context]
-   [top.kzre.krro.plugin.painting.core.schedule.evaluate :as evaluate]
-   [top.kzre.krro.plugin.painting.core.schedule.graph :as graph]
-   [top.kzre.krro.plugin.painting.core.schedule.layer-impl]
-   [top.kzre.krro.plugin.painting.core.schedule.protocol :as proto]
-   [top.kzre.krro.plugin.painting.core.schedule.result :as result])
+    [taoensso.timbre :as log]
+    [top.kzre.krro.core.util.computing-graph :as cg]
+    [top.kzre.krro.core.util.promise :as promise]
+    [top.kzre.krro.plugin.painting.core.schedule.context :as context]
+    [top.kzre.krro.plugin.painting.core.schedule.evaluate :as evaluate]
+    [top.kzre.krro.plugin.painting.core.schedule.graph :as graph]
+    [top.kzre.krro.plugin.painting.core.schedule.layer-impl]
+    [top.kzre.krro.plugin.painting.core.schedule.protocol :as proto]
+    [top.kzre.krro.plugin.painting.core.schedule.result :as result])
   (:import
     (java.lang AutoCloseable)
     (top.kzre.krro.core.util.computing_graph ComputingGraph)
@@ -45,7 +46,7 @@
   proto/IRenderScheduler
   (set-layers! [_ layers]
     (swap! state-atom assoc :layers layers))
-  (render! [_ ctx]
+  (render! [this ctx]
     (swap! state-atom diff! ctx)
     (let [{:keys [graph layers context]} @state-atom
           {:keys [tile-size view-dirty-tiles]} context]
@@ -63,7 +64,15 @@
                 (cond
                   (instance? AutoCloseable v) (.close v)
                   :else nil))
-              result))))
+              result)))
+            (promise/handle
+              ;; 注意，计算图无法在异常路径为内部保证，内部自己保证异常路径安全
+              (fn [v e]
+                (when e
+                  (log/error e
+                             {:scheduler this
+                              :layers layers}))
+                v)))
         {:canvas
          (doto
            (TiledCanvas. tile-size)

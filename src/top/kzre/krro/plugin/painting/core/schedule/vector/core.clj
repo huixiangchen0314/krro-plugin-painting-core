@@ -4,7 +4,8 @@
     [top.kzre.krro.core.util.computing-graph :as cg]
     [top.kzre.krro.core.util.promise :as promise]
     [top.kzre.krro.plugin.painting.core.schedule.graph :as graph]
-    [top.kzre.krro.plugin.painting.core.schedule.layer-impl :as layer-impl])
+    [top.kzre.krro.plugin.painting.core.schedule.layer-impl :as layer-impl]
+    [taoensso.timbre :as log])
   (:import
     (top.kzre.krro.util.tile TiledCanvas)))
 
@@ -24,11 +25,20 @@
             (promise/resolved (layer-impl/make-layer (cg/node-id this) canvas))))
         (promise/handle
           (fn [v e]
-            (when e (try (.close canvas) (catch Throwable e (throw e))))
+            (when e
+              (log/error "vector layer render railed"
+                         e
+                         {:node-id (cg/node-id this)
+                          :layer vector-layer})
+              (try (.close canvas)
+                   (catch Throwable _
+                     (throw e))))
             v)))
       )))
 
 (defn make-raster-layer-node [vector-layer]
+  {:pre [(some? vector-layer)
+         (= :vector (:type vector-layer))]}
   (->VectorLayerNode vector-layer))
 
 (defmethod graph/build-leaf :vector

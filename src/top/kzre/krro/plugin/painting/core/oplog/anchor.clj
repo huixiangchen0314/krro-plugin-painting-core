@@ -41,7 +41,7 @@
     (let [{:keys [layer layer-transform]} (record/layer-context (:record cofx) layer-id)
           old-paths (cv/paths layer)
           new-paths (cv/translate-anchors old-paths anchors dx dy)
-          op        (change/make-vector-anchor-positions-changed
+          op        (apply change/make-vector-anchor-positions-changed
                       layer-id old-paths new-paths layer-transform
                       anchors)]
       {:dispatch [:oplog/log canvas-id op ctx]})))
@@ -111,10 +111,12 @@
                          layer-id old-paths layer-transform
                          :saved {path-id new-path})]
           {:dispatch [:oplog/log canvas-id op ctx]})
-        (log/info "anchor-extrude: end-anchor is not an endpoint"
-                  {:canvas-id  canvas-id
-                   :layer-id   layer-id
-                   :end-anchor end-anchor})))))
+        (do
+          (log/info "anchor-extrude: end-anchor is not an endpoint"
+                    {:canvas-id  canvas-id
+                     :layer-id   layer-id
+                     :end-anchor end-anchor})
+          nil)))))
 
 (rf/reg-event-fx
   store/app-id :oplog/anchor-weld

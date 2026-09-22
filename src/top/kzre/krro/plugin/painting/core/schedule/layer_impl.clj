@@ -31,4 +31,7 @@
   ([id canvas transform visible] (make-layer id canvas transform visible 1.0 :normal))
   ([id canvas transform visible opacity ] (make-layer id canvas transform visible opacity :normal))
   ([id canvas transform visible opacity blend-mode]
+   {:pre [(some? id)
+          (some? canvas)
+          (boolean? visible)]}
    (->Layer id canvas transform visible opacity blend-mode)))

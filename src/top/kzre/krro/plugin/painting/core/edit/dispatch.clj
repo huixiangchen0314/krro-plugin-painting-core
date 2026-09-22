@@ -1,11 +1,11 @@
 (ns top.kzre.krro.plugin.painting.core.edit.dispatch
   (:require
-   [top.kzre.krro.core.reframe.core :as rf]
-   [top.kzre.krro.plugin.painting.core.edit.anchor :as anchor]
-   [top.kzre.krro.plugin.painting.core.edit.interceptors :refer [cleanup-tool-interceptor]]
-   [top.kzre.krro.plugin.painting.core.record :as record]
-   [top.kzre.krro.plugin.painting.core.store :as store]
-   [top.kzre.krro.plugin.painting.core.edit.protocol :as p]))
+    [top.kzre.krro.core.reframe.core :as rf]
+    [top.kzre.krro.plugin.painting.core.edit.anchor.state :as anchor.state]
+    [top.kzre.krro.plugin.painting.core.edit.interceptors :refer [cleanup-tool-interceptor]]
+    [top.kzre.krro.plugin.painting.core.edit.protocol :as p]
+    [top.kzre.krro.plugin.painting.core.record :as record]
+    [top.kzre.krro.plugin.painting.core.store :as store]))
 
 (defmulti tool-event
   (fn [current-tool event-map]
@@ -29,7 +29,7 @@
                    ;; 先尝试基于状态的分派
                    (when (and tool
                               (satisfies? p/IToolData tool))
-                     (p/dispatch-event tool event-map))
+                     (p/dispatch-event tool event-map cofx))
                    ;; 再进行基于配置的分派
                    (tool-event current-tool event-map))]
         {:dispatch [event-id record-id event-map frame]}
@@ -43,6 +43,6 @@
      (-> (:record cofx)
          (assoc-in [:canvas-state :tool-data]
                    (case tool-id
-                     :anchor-translate (anchor/make-anchor-state)
+                     :anchor-translate (anchor.state/make-anchor-state)
                      nil))
          (assoc-in [:canvas-state :current-tool] tool-id))}))

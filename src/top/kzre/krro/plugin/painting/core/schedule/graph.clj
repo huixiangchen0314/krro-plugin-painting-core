@@ -38,7 +38,9 @@
                ctx  —— 上下文
 
            返回 {:nodes [...] :root node}"
-          (fn [atom _] (:type atom)))
+          (fn [atom _]
+            {:pre [some? atom]}
+            (:type atom)))
 
 
 

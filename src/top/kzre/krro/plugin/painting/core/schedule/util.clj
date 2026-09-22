@@ -61,6 +61,7 @@
   [^ILayer layer
    & {:keys [backend]
       :or {backend :default}}]
+  {:pre [(some? layer)]}
   {:id         (proto/layer-id layer)
    :type       :raster
    :opacity    (proto/opacity layer)

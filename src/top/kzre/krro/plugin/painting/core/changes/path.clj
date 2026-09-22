@@ -17,7 +17,6 @@
     [top.kzre.krro.canvas.core.layer.util :as util]
     [top.kzre.krro.canvas.vector.core :as cv]
     [top.kzre.krro.core.util.diff :as diff]
-    [top.kzre.krro.plugin.painting.core.algo.anchor]
     [top.kzre.krro.plugin.painting.core.changes.composite :as composite]
     [top.kzre.krro.plugin.painting.core.oplog.protocol :as proto]
     [top.kzre.krro.plugin.painting.core.project.vector-layer :as pv]
@@ -42,18 +41,13 @@
   proto/IOperation
   (realize [this record _ctx]
     (let [{:keys [canvas-id layer layers]} (record/layer-context record layer-id)
-          old-paths (pv/paths layer)
-          new-paths (merge old-paths paths-changed)
-          new-layer (assoc layer :paths new-paths)
-          by-path   (group-by :path-id anchors)
-          quadtree-fx
-          (mapv (fn [[path-id path-anchors]]
-                  [:anchor-quadtree/update-anchors canvas-id path-id
-                   (get old-paths path-id) (get new-paths path-id) path-anchors])
-                by-path)]
+          old-paths (cv/paths layer)
+          new-layer (cv/save-paths layer paths-changed)
+          new-paths (cv/paths new-layer)]
       [(assoc-in record [:canvas-data :layers]
                  (util/replace-layer new-layer layers))
-       (into [[:render-canvas canvas-id this]] quadtree-fx)]))
+       [[:render-canvas canvas-id this]
+        [:anchor-quadtree/update-anchors canvas-id old-paths new-paths anchors]]]))
 
   (record! [_ record]
     (let [{:keys [canvas-id]} record]
@@ -77,35 +71,32 @@
   proto/IOperation
   (realize [this record _ctx]
     (let [{:keys [canvas-id layer layers]} (record/layer-context record layer-id)
-          old-paths         (cv/paths layer)
-          ;; ─── 走库 API——维护 :path-order ───
-          layer-after-del   (reduce cv/delete-path layer deleted)
-          new-layer         (reduce (fn [l [id path]]
-                                      (cv/save-path l id path))
-                                    layer-after-del
-                                    saved)
+          old-paths (cv/paths layer)
+          new-layer (-> layer
+                        (cv/delete-paths deleted)
+                        (cv/save-paths saved))
           new-paths         (cv/paths new-layer)
+          added-ids         (into #{} (remove #(contains? old-paths %)) (keys saved))
+          updated-ids       (into #{} (filter #(contains? old-paths %)) (keys saved))
+          quadtree-fx
+          (concat
+            ;; added —— 插入新子树
+            (mapv (fn [id]
+                    [:anchor-quadtree/insert-path canvas-id new-paths id])
+                  added-ids)
+            ;; deleted —— 删旧子树
+            (mapv (fn [id]
+                    [:anchor-quadtree/delete-path canvas-id old-paths id])
+                  deleted)
+            ;; updated —— 删旧 + 插新
+            (mapcat (fn [id]
+                      [[:anchor-quadtree/delete-path canvas-id old-paths id]
+                       [:anchor-quadtree/insert-path canvas-id new-paths id]])
+                    updated-ids))
           quadtree-fx
           (if full?
-            ;; 全量——重建整棵树
             [[:anchor-quadtree/rebuild canvas-id layer-id new-paths]]
-            ;; 差量——三路分派
-            (let [added-ids   (into #{} (remove #(contains? old-paths %)) (keys saved))
-                  updated-ids (into #{} (filter #(contains? old-paths %)) (keys saved))]
-              (concat
-                ;; added —— 插入新子树
-                (mapv (fn [id]
-                        [:anchor-quadtree/insert-path canvas-id id (get saved id)])
-                      added-ids)
-                ;; deleted —— 删旧子树（old 从 record 取）
-                (mapv (fn [id]
-                        [:anchor-quadtree/delete-path canvas-id id (get old-paths id)])
-                      deleted)
-                ;; updated —— 删旧 + 插新
-                (mapcat (fn [id]
-                          [[:anchor-quadtree/delete-path canvas-id id (get old-paths id)]
-                           [:anchor-quadtree/insert-path canvas-id id (get saved id)]])
-                        updated-ids))))]
+            quadtree-fx)]
       [(assoc-in record [:canvas-data :layers]
                  (util/replace-layer new-layer layers))
        (into [[:render-canvas canvas-id this]] quadtree-fx)]))

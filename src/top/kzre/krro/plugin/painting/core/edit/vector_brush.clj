@@ -13,7 +13,7 @@
 
 (defrecord VectorBrushState [stroke layer-backup layer-transform layer-transform-inv]
   p/IToolData
-  (dispatch-event [_ event-map] )
+  (dispatch-event [_ event-map cofx] )
   ;; 工具状态不该持有非托管数据，事务持有
   (cleanup! [_ _] nil)
   (overlay [_ _] []))
