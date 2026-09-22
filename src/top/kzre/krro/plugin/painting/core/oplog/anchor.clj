@@ -13,6 +13,7 @@
 
    所有事件产出的 change 都在 changes/path —— 不感知曲线类型。"
   (:require
+    [taoensso.timbre :as log]
     [top.kzre.krro.canvas.vector.core :as cv]
     [top.kzre.krro.core.reframe.core :as rf]
     [top.kzre.krro.plugin.painting.core.changes.path :as change]
@@ -25,20 +26,25 @@
 ;; 几何 —— 锚点位置变化
 ;; ═══════════════════════════════════════════════
 
+;; TODO:
+;;   1. 取 layer / old-paths
+;;   2. 若 :falloff-opts 存在 → 在 path-ids 范围内算 affected（按距离加权）
+;;      否则 → affected = anchors（统一位移）
+;;   3. 应用位移 → new-paths
+;;   4. change/make-vector-anchor-positions-changed
+;;   5. dispatch :oplog/log
 (rf/reg-event-fx
   store/app-id :oplog/anchor-translate
   (fn [cofx [_ canvas-id layer-id anchors dx dy
-             & {:keys [path-ids
-                       snap-opts falloff-opts pivot-opts]
+             & {:keys [path-ids snap-opts falloff-opts pivot-opts]
                 :as ctx}]]
-    ;; TODO:
-    ;;   1. 取 layer / old-paths
-    ;;   2. 若 :falloff-opts 存在 → 在 path-ids 范围内算 affected（按距离加权）
-    ;;      否则 → affected = anchors（统一位移）
-    ;;   3. 应用位移 → new-paths
-    ;;   4. change/make-vector-anchor-positions-changed
-    ;;   5. dispatch :oplog/log
-    ))
+    (let [{:keys [layer layer-transform]} (record/layer-context (:record cofx) layer-id)
+          old-paths (cv/paths layer)
+          new-paths (cv/translate-anchors old-paths anchors dx dy)
+          op        (change/make-vector-anchor-positions-changed
+                      layer-id old-paths new-paths layer-transform
+                      anchors)]
+      {:dispatch [:oplog/log canvas-id op ctx]})))
 
 (rf/reg-event-fx
   store/app-id :oplog/anchor-rotate
@@ -94,13 +100,21 @@
              & {:keys [point]
                 :as ctx}]]
     (let [{:keys [layer layer-transform]} (record/layer-context (:record cofx) layer-id)
-          paths (cv/paths layer)
-          new-anchor-point (or point (cv/anchor-point paths end-anchor))
-          new-paths (cv/extrude-anchor paths end-anchor new-anchor-point)
-          op (change/make-vector-paths-geometry-changed
-               layer-id paths new-paths layer-transform
-               :saved #{(:path-id end-anchor)})]
-      {:dispatch [:oplog/log canvas-id op ctx]})))
+          old-paths (cv/paths layer)
+          new-point (or point (cv/anchor-point old-paths end-anchor))
+          result    (cv/extrude-anchor old-paths end-anchor new-point)]
+      (if result
+        (let [{:keys [paths]} result
+              path-id  (:path-id end-anchor)
+              new-path (get paths path-id)
+              op       (change/make-vector-paths-geometry-changed
+                         layer-id old-paths layer-transform
+                         :saved {path-id new-path})]
+          {:dispatch [:oplog/log canvas-id op ctx]})
+        (log/info "anchor-extrude: end-anchor is not an endpoint"
+                  {:canvas-id  canvas-id
+                   :layer-id   layer-id
+                   :end-anchor end-anchor})))))
 
 (rf/reg-event-fx
   store/app-id :oplog/anchor-weld

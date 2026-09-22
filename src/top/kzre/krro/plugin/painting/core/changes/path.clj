@@ -173,7 +173,7 @@
    new-paths —— 新 paths（算新位置瓦片）
    anchors   —— [Anchor ...]，变化的锚点集合
    脏瓦片 —— 每个锚点旧位置 ∪ 新位置两侧段的并集"
-  [layer-id old-paths new-paths anchors dirty-transform]
+  [layer-id old-paths new-paths dirty-transform & anchors ]
   (let [changed-ids   (into #{} (map :path-id anchors))
         paths-changed (select-keys new-paths changed-ids)
         dirty-tiles   (into #{}
