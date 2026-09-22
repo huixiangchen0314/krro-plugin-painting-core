@@ -4,7 +4,8 @@
    [top.kzre.krro.plugin.painting.core.edit.protocol :as p]
    [top.kzre.krro.plugin.painting.core.record :as record]
    [top.kzre.krro.plugin.painting.core.tool.util :as tool-util]
-   [top.kzre.krro.plugin.painting.core.viewport :as vp])
+   [top.kzre.krro.plugin.painting.core.viewport :as vp]
+   [top.kzre.krro.core.reframe.transaction :as tx])
   (:import
    (top.kzre.krro.util.math KMath)))
 
@@ -88,6 +89,8 @@
                                 (assoc-in [:canvas-state :last-press-time] now)
                                 (assoc-in [:canvas-state :second-last-press-time] last-press-time))
                             :else record)
+
+           tx (tx/current cofx)
            ]
        (-> context
            (assoc-in [:coeffects :record] updated-record)
@@ -106,6 +109,9 @@
                       :layer-transform-inv layer-transform-inv
                       :layers              layers
                       :click-count         click-count
-                      :canvas-data         canvas-data}))))})
+                      :canvas-data         canvas-data
+                      :transaction         tx
+                      :transaction-kind   (when tx (tx/kind tx))
+                      }))))})
 
 

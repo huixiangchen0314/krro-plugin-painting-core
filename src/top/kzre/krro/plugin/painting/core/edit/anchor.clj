@@ -90,7 +90,8 @@
     (when-let [canvas-id (get-in ctx [:coeffects :record-id])]
       (tree/close canvas-id)))
 
-  (overlay [_ {:keys [viewport layer layer-type layer-visible layer-transform]}]
+  (overlay [_ {:keys [transaction transaction-kind
+                      viewport layer layer-type layer-visible layer-transform]}]
     (when (= :vector layer-type)
       (if layer-visible
         (let [paths (canvas.vector/paths layer)

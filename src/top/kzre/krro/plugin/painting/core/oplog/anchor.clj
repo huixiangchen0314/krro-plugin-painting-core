@@ -13,7 +13,10 @@
 
    所有事件产出的 change 都在 changes/path —— 不感知曲线类型。"
   (:require
+    [top.kzre.krro.canvas.vector.core :as cv]
     [top.kzre.krro.core.reframe.core :as rf]
+    [top.kzre.krro.plugin.painting.core.changes.path :as change]
+    [top.kzre.krro.plugin.painting.core.record :as record]
     [top.kzre.krro.plugin.painting.core.store :as store])
   (:import
     (top.kzre.krro.canvas.vector.anchor Anchor)))
@@ -90,10 +93,14 @@
   (fn [cofx [_ canvas-id layer-id end-anchor
              & {:keys [point]
                 :as ctx}]]
-    ;; TODO:
-    ;;   point 缺省时 = end-anchor 的当前位置（原地挤出）
-    ;;   调 v/extrude-anchor → change/make-vector-anchor-inserted
-    ))
+    (let [{:keys [layer layer-transform]} (record/layer-context (:record cofx) layer-id)
+          paths (cv/paths layer)
+          new-anchor-point (or point (cv/anchor-point paths end-anchor))
+          new-paths (cv/extrude-anchor paths end-anchor new-anchor-point)
+          op (change/make-vector-paths-geometry-changed
+               layer-id paths new-paths layer-transform
+               :saved #{(:path-id end-anchor)})]
+      {:dispatch [:oplog/log canvas-id op ctx]})))
 
 (rf/reg-event-fx
   store/app-id :oplog/anchor-weld

@@ -31,17 +31,16 @@
 
 (rf/reg-event-fx
   store/app-id :oplog/vector-stroke
-  (fn [cofx [_ canvas-id layer-id  ^Stroke stroke style
+  (fn [cofx [_ canvas-id layer-id ^Stroke stroke style
              & {:keys [path-id]
-                :or {path-id (cv/fresh-path-id)}
-                :as ctx}]]
+                :or   {path-id (cv/fresh-path-id)}
+                :as   ctx}]]
     (when (> (.size stroke) 2)
-      (let [new-path (render-stroke-to-path stroke style)]
-        (when new-path
-          (let [{:keys [layer layer-transform]} (record/layer-context (:record cofx) layer-id)
-                dirty-paths (cv/paths layer)
-                op (change/make-vector-path-geometry-changed
-                     layer-id path-id
-                     (get dirty-paths path-id)
-                     new-path layer-transform)]
-            {:dispatch [:oplog/log canvas-id op ctx]}))))))
+      (when-let [new-path (render-stroke-to-path stroke style)]
+        (let [{:keys [layer layer-transform]} (record/layer-context
+                                                (:record cofx) layer-id)
+              old-paths (cv/paths layer)
+              op        (change/make-vector-paths-geometry-changed
+                          layer-id old-paths layer-transform
+                          :saved {path-id new-path})]
+          {:dispatch [:oplog/log canvas-id op ctx]})))))
