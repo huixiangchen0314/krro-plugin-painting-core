@@ -20,6 +20,7 @@
    selected-anchors                    ;; 被选择的锚点x
    selected-paths                      ;; 被选择的路径，用于控制锚点 overlay 显示
    ^Anchor hover-anchor                ;; 光标悬浮在的锚点
+   ;; 用于立即拖动的触发
    last-layer-point
    ]
   p/IToolData

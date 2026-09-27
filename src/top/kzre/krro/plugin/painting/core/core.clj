@@ -1,5 +1,6 @@
 (ns top.kzre.krro.plugin.painting.core.core
   (:require [top.kzre.krro.core.plugin :as plugin]
+            [top.kzre.krro.canvas.gl.core]
             [top.kzre.krro.plugin.painting.core.canvas.core]
             [top.kzre.krro.plugin.painting.core.changes.core]
             [top.kzre.krro.plugin.painting.core.edit.core]

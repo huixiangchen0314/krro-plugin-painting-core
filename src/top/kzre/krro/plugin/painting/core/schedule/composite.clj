@@ -57,7 +57,8 @@
    返回 Promise 在合成完成时以 composited 画布完成。"
   [node layers
    {:keys [view-matrix viewport-h viewport-w
-           tile-size image-width image-height image-dirty-tiles]
+           tile-size image-width image-height image-dirty-tiles
+           gl-composite-context]
     :as ctx}]
   (promise/plet
     [composited (promise/spawn
@@ -65,8 +66,7 @@
                     (render/render
                       (mapv
                         (fn [l]
-                          {:pre [(some? l)]}
-                          (util/->raster-layer l) )
+                          (util/->raster-layer l :backend :gl) )
                         layers)
                       {:tile-size        tile-size
                        :view-width       viewport-w
@@ -74,8 +74,10 @@
                        :view-matrix      view-matrix
                        :dirty-tiles      image-dirty-tiles
                        :image-width      image-width
-                       :image-height     image-height})))]
-    (swap! (:state-atom node) update-cache composited ctx)
+                       :image-height     image-height
+                       :gl-composite-context gl-composite-context})))]
+    ;; 缓存gl
+    ;(swap! (:state-atom node) update-cache composited ctx)
     (layer-impl/make-layer
       (composite-viewport-id node)
       composited)))
@@ -86,7 +88,8 @@
   "
   [node layers
    {:keys [view-matrix viewport-h viewport-w
-           tile-size image-width image-height image-dirty-tiles]}]
+           tile-size image-width image-height image-dirty-tiles
+           gl-composite-context]}]
   (let [{:keys [cache]} @(:state-atom node)
         old-view-matrix (:view-matrix cache)
         ^TiledCanvas old-canvas (:canvas cache)
@@ -111,7 +114,8 @@
               :view-width       viewport-w
               :view-height      viewport-h
               :image-width      image-width
-              :image-height     image-height})))]
+              :image-height     image-height
+              :gl-composite-context gl-composite-context})))]
       ;; 更新缓存缓存
       (.mergeCanvas old-canvas composited)
       (.close composited)
@@ -151,7 +155,7 @@
     (if (and (proto/caching? this)
              (proto/cached? this))
       ;; 命中缓存,在旧视口空间合成
-      (composite-layers-cached this layers ctx)
+      (composite-layers this layers ctx)
       ;; ── 未命中——合成 → 更新缓存 ──
       (composite-layers this layers ctx))))
 

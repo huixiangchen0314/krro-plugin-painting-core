@@ -41,7 +41,7 @@
                          (tx-vector-stroke/kind)
                          :style
                          {:stroke {:color (brush/get-global-brush-color)
-                                   :width 15
+                                   :width 30
                                    :cap   :round
                                    :join  :round}})]}))))
 

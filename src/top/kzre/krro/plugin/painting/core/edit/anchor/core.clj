@@ -2,6 +2,8 @@
   (:require
     [top.kzre.krro.plugin.painting.core.edit.anchor.state]
     [top.kzre.krro.plugin.painting.core.edit.anchor.anchor]
+    [top.kzre.krro.plugin.painting.core.edit.anchor.immediate]
     [top.kzre.krro.plugin.painting.core.edit.anchor.anchor-quadtree]
     [top.kzre.krro.plugin.painting.core.edit.anchor.width-adjust-modal]
-    [top.kzre.krro.plugin.painting.core.edit.anchor.extrude-anchor-modal]))
+    [top.kzre.krro.plugin.painting.core.edit.anchor.anchor-extrude-modal]
+    [top.kzre.krro.plugin.painting.core.edit.anchor.commands]))

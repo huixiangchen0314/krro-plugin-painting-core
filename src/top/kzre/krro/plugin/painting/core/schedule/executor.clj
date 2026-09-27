@@ -2,6 +2,7 @@
   "执行环境准备"
   (:require
     [taoensso.timbre :as log]
+    [top.kzre.krro.canvas.core.layer.render.download :as download]
     [top.kzre.krro.core.util.promise :as promise]
     [top.kzre.krro.plugin.painting.core.layer.clone :as clone]
     [top.kzre.krro.plugin.painting.core.layer.dispose :as dispose]
@@ -80,12 +81,13 @@
                  (let [diff-canvas     (:canvas result)
                        clipped-dirties (:dirty-tiles result)]
                    (try
-                     (when clipped-dirties
-                       (.deleteTiles canvas clipped-dirties))
+                     (promise/await (download/download! diff-canvas))
+
+                     (.deleteTiles canvas clipped-dirties)
                      (.mergeCanvas canvas diff-canvas)
                      canvas
                      (finally
-                       (.safeClear diff-canvas)))
+                       (.close diff-canvas)))
                    ;; 成功路径释放
                    (release-layers! layers)
                    canvas))

@@ -29,6 +29,7 @@
                        (assoc-in [:canvas-state :tool-data :last-layer-point] layer-event)) })
         {:fx [[:warn (str "Anchor tool is invalid for " layer-type)]]}))))
 
+;; TODO 使用oplog, 逻辑派发出去
 ;; drag 是立即应用
 (rf/reg-event-fx
   store/app-id :anchor-translate/drag

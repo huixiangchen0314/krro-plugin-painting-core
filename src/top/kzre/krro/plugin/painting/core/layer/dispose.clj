@@ -8,7 +8,7 @@
 (defmethod dispose-layer :raster
  [layer]
  (when-let [^TiledCanvas canvas (:canvas layer)]
-   (.clear canvas)))
+   (.close canvas)))
 
 (defmethod dispose-layer :group
   [layer]

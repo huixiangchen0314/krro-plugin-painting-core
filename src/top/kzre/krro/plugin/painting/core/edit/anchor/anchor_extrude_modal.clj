@@ -1,4 +1,4 @@
-(ns top.kzre.krro.plugin.painting.core.edit.anchor.extrude-anchor-modal
+(ns top.kzre.krro.plugin.painting.core.edit.anchor.anchor-extrude-modal
   (:require
     [top.kzre.krro.core.reframe.core :as rf]
     [top.kzre.krro.core.reframe.transaction :as tx :refer [transaction-interceptor]]
