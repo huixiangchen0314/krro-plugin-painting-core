@@ -102,63 +102,13 @@
 (defn  ^:deprecated invalidate-canvas-dirty! [canvas-id]
   (swap! canvas-runtimes assoc-in [canvas-id :dirty-tiles] nil))
 
+;; TODO 该来清理代码了
+;; 转空实现
 (defn  ^:deprecated render-canvas!
-  "渲染当前画布所有图层到目标画布（TiledCanvas）。
-   dirty-tiles 语义：
-     nil        → 全图刷新（清空整个画布并重绘所有图层）
-     非空集合   → 只清除脏瓦片对应区域，然后重绘所有图层
-     空集合     → 无脏区域，直接返回，不做任何操作
-   渲染完成后将 dirty-tiles 重置为空集合（表示已同步）。"
   ([canvas-id]
-   (let [rt (ensure-runtime! canvas-id)
-         canvas (:preview-canvas rt)]
-     (render-canvas! canvas-id canvas)))
+   )
   ([canvas-id ^TiledCanvas dest]
-   (when-let [cd (pc/canvas-data! canvas-id)]
-     (let [layers (:layers ^CanvasData cd)
-           w (:width ^CanvasData cd)
-           h (:height ^CanvasData cd)
-           tile-size (.getTileSize dest)
-           rt (canvas-runtime canvas-id)
-           dirty-tiles (:dirty-tiles rt)]
-       (cond
-         ;; 全图刷新：清除画布所有瓦片，然后重绘
-         (nil? dirty-tiles)
-         (do
-           (let [result (promise/await
-                           (canv/render-layers! layers
-                                                :tile-size pc/global-tile-size
-                                                :view-width w
-                                                :view-height h))
-                 diff-canvas (:canvas result)
-                 clipped-dirties (:dirty-tiles result)]
-
-             (.deleteTiles dest ^Set clipped-dirties)
-             (.mergeCanvas dest diff-canvas)
-             (.clear diff-canvas))
-           (swap! canvas-runtimes assoc-in [canvas-id :dirty-tiles] #{}))
-
-         ;; 增量更新：脏瓦片为空集合，直接返回
-         (empty? dirty-tiles)
-         nil
-
-         ;; 有脏瓦片：先删除脏瓦片（相当于清空该区域），再重绘所有图层
-         :else
-         (do
-           (let [result (promise/await
-                          (canv/render-layers! layers
-                                               :view-matrix util/identity-matrix
-                                               :view-width w
-                                               :view-height h
-                                               :view-dirty-tiles (CanvasUtils/clipTiles dirty-tiles tile-size w h)
-                                               :tile-size pc/global-tile-size))
-                 diff-canvas (:canvas result)
-                 clipped-dirties (:dirty-tiles result)]
-
-             (.deleteTiles dest ^Set clipped-dirties)
-             (.mergeCanvas dest diff-canvas)
-             (.clear diff-canvas))
-           (swap! canvas-runtimes assoc-in [canvas-id :dirty-tiles] #{})))))))
+   ))
 
 (defn  ^:deprecated ensure-runtime!
   ([canvas-id]

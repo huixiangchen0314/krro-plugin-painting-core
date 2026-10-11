@@ -1,26 +1,28 @@
 (ns top.kzre.krro.plugin.painting.core.schedule.scheduler-impl
   (:require
-   [taoensso.timbre :as log]
+   [top.kzre.krro.canvas.core.layer.render.merge :as merge]
+   [top.kzre.krro.canvas.gl.composite.merge :as gl.merge]
    [top.kzre.krro.core.util.computing-graph :as cg]
-   [top.kzre.krro.core.util.promise :as promise :refer [plet]]
+   [top.kzre.krro.core.util.promise :as promise]
+   [top.kzre.krro.plugin.painting.core.project.canvas :as pc]
    [top.kzre.krro.plugin.painting.core.schedule.context :as context]
    [top.kzre.krro.plugin.painting.core.schedule.evaluate :as evaluate]
    [top.kzre.krro.plugin.painting.core.schedule.graph :as graph]
    [top.kzre.krro.plugin.painting.core.schedule.layer-impl]
    [top.kzre.krro.plugin.painting.core.schedule.protocol :as proto]
-   [top.kzre.krro.plugin.painting.core.schedule.result :as result]
-   [top.kzre.krro.plugin.painting.core.project.canvas :as pc])
+   [top.kzre.krro.plugin.painting.core.schedule.result :as result])
   (:import
-    (java.lang AutoCloseable)
-    (top.kzre.colorutils.color RGB)
-    (top.kzre.krro.canvas.gl GLExecutors)
-    (top.kzre.krro.canvas.gl.composite GLCompositeContextBuilder)
-    (top.kzre.krro.canvas.gl.resource NoGLTexturePool PixelFormat)
-    (top.kzre.krro.canvas.gl.tile GLRgba8AtlasFactory GLTiledTextureLayout)
-    (top.kzre.krro.core.util.computing_graph ComputingGraph)
-    (top.kzre.krro.util.tile TiledCanvas)))
+   (java.lang AutoCloseable)
+   (top.kzre.colorutils.color RGB)
+   (top.kzre.krro.canvas.gl GLExecutors)
+   (top.kzre.krro.canvas.gl.composite GLCompositeContextBuilder)
+   (top.kzre.krro.canvas.gl.resource NoGLTexturePool PixelFormat)
+   (top.kzre.krro.canvas.gl.tile GLRgba8AtlasFactory GLTiledTextureLayout)
+   (top.kzre.krro.core.util.computing_graph ComputingGraph)
+   (top.kzre.krro.util.tile TiledCanvas)))
 
-
+;; 使用 gl 合并fn
+(alter-var-root #'merge/*merge-layers* (constantly (gl.merge/gl-merge-layers-fn)))
 
 (defrecord SchedulerState [^ComputingGraph graph
                            layers
