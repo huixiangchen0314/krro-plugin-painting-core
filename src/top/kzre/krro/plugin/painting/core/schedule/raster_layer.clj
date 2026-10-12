@@ -3,7 +3,8 @@
     [top.kzre.krro.core.util.computing-graph :as cg]
     [top.kzre.krro.core.util.promise :as promise]
     [top.kzre.krro.plugin.painting.core.schedule.graph :as graph]
-    [top.kzre.krro.plugin.painting.core.schedule.protocol :as proto]))
+    [top.kzre.krro.plugin.painting.core.schedule.protocol :as proto])
+  (:import (java.lang AutoCloseable)))
 
 
 ;; 将光栅图层适配为原始输入节点
@@ -23,7 +24,11 @@
   (node-id [_] (proto/layer-id layer))
   (dependencies [_] #{})
   (compute [_ _]
-    (promise/resolved layer)))
+    (promise/resolved layer))
+  (release [_ result]
+    ;(when (instance? AutoCloseable result)
+    ;  (.close ^AutoCloseable result))
+    ))
 
 (defn make-raster-layer-node [raster-layer]
   (->RasterLayerNode (->RasterLayer raster-layer)))

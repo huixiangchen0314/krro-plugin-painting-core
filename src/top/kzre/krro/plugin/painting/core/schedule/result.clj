@@ -32,8 +32,10 @@
   (node-id [_] (result-key))
   (dependencies [_] [dep-id])
   (compute [_ [input]]
+    ;; TODO result 不该直接依赖上个计算结果的值
     ;; 更新缓存
-    (promise/resolved input)))
+    (promise/resolved input))
+  (release [_ _]))
 
 (defn make-result-node [^INode node]
   (->ResultNode (cg/node-id node) (atom (make-state))))

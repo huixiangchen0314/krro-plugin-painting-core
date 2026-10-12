@@ -2,6 +2,7 @@
   "执行环境准备"
   (:require
     [taoensso.timbre :as log]
+    [taoensso.tufte :refer [p profile]]
     [top.kzre.krro.canvas.core.layer.render.download :as download]
     [top.kzre.krro.core.util.promise :as promise]
     [top.kzre.krro.plugin.painting.core.layer.clone :as clone]
@@ -9,12 +10,17 @@
     [top.kzre.krro.plugin.painting.core.project.canvas :as pc]
     [top.kzre.krro.plugin.painting.core.schedule.protocol :as proto])
   (:import
-    (java.util.concurrent Executors ExecutorService ThreadFactory TimeUnit)
+    (java.util.concurrent
+      ExecutorService
+      Executors
+      ThreadFactory
+      TimeUnit)
     (top.kzre.krro.core.util
       CoalescedTask
       ExecutorServiceAsyncAdapter
       LatestTaskRunner
-      Mergable)))
+      Mergable)
+    (top.kzre.krro.util.tile TiledCanvas)))
 
 (defn- as-vec
   "把单组脏参数规范化为向量。
@@ -68,30 +74,38 @@
                            viewport viewport-w viewport-h]}]
              (try
                (proto/set-layers! scheduler layers)
-               (promise/plet<
-                 [result (proto/render! scheduler
-                                        {:tile-size        tile-size
-                                         :changes          changes
-                                         :image-width      image-width
-                                         :image-height     image-height
-                                         :current-layer-id current-layer-id
-                                         :viewport         viewport
-                                         :viewport-w       viewport-w
-                                         :viewport-h       viewport-h})]
-                 (let [diff-canvas     (:canvas result)
-                       clipped-dirties (:dirty-tiles result)]
-                   (try
-                     (promise/await (download/download! diff-canvas))
+               (profile
+                 {:id :run-schedule-task}
+                 (p :run-schedule-task
+                   (promise/plet<
+                     [result (proto/render! scheduler
+                                            {:tile-size        tile-size
+                                             :changes          changes
+                                             :image-width      image-width
+                                             :image-height     image-height
+                                             :current-layer-id current-layer-id
+                                             :viewport         viewport
+                                             :viewport-w       viewport-w
+                                             :viewport-h       viewport-h})]
+                     (let [^TiledCanvas diff-canvas (:canvas result)
+                           clipped-dirties (:dirty-tiles result)]
+                       (try
+                         (profile
+                           {:id :download-diff-canvas
+                            :data {:tile-count
+                                   (.size (.getTiles diff-canvas))}}
+                           (p :download-diff-canvas
+                              (promise/await (download/download!
+                                               diff-canvas))))
 
-                     (.deleteTiles canvas clipped-dirties)
-                     (.mergeCanvas canvas diff-canvas)
-                     canvas
-                     (finally
-                       (.close diff-canvas)))
-                   ;; 成功路径释放
-                   (release-layers! layers)
-                   canvas))
-
+                         (.deleteTiles canvas clipped-dirties)
+                         (.mergeCanvas canvas diff-canvas)
+                         canvas
+                         (finally
+                           (.close diff-canvas)))
+                       ;; 成功路径释放
+                       (release-layers! layers)
+                       canvas))))
                (catch Throwable t
                  ;; 同步阶段失败——set-layers! 或 plet> 自身构造失败
                  (log/error t "schedule task sync setup failed"

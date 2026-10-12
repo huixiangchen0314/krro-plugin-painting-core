@@ -17,7 +17,8 @@
   cg/INode
   (node-id [_] :context)
   (dependencies [_] #{})
-  (compute [_ _] (promise/resolved ctx)))
+  (compute [_ _] (promise/resolved ctx))
+  (release [_ result]))
 
 (defn make-context-node [ctx]
   (->ContextNode ctx))

@@ -3,8 +3,10 @@
    [top.kzre.krro.canvas.core.layer.transform :as trans]
    [top.kzre.krro.plugin.painting.core.changes.composite :as composite]
    [top.kzre.krro.plugin.painting.core.changes.raster-layer]
-   [top.kzre.krro.plugin.painting.core.schedule.protocol :as proto])
+   [top.kzre.krro.plugin.painting.core.schedule.protocol :as proto]
+   [taoensso.timbre :as log])
   (:import
+    (java.lang AutoCloseable)
     [java.util Set]
     (top.kzre.krro.canvas.core.layer LayerUtils)
     (top.kzre.krro.plugin.painting.core.changes.composite CompositeChange)
@@ -135,3 +137,16 @@
       (if (composite/composite? change)
         (some #(instance? clz %) (composite/changes change))
         (instance? clz change)))))
+
+(defn close-safely
+  [closeables]
+  (if (seq closeables)
+    (doseq [v closeables]
+      (try
+        (when (instance? AutoCloseable v)
+          (.close v))
+        (catch Throwable t
+          (log/error t "painting schedule safe-close failed")
+          )))
+    (when (instance? AutoCloseable closeables)
+      (.close closeables))))

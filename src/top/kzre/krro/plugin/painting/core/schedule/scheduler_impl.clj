@@ -1,36 +1,37 @@
 (ns top.kzre.krro.plugin.painting.core.schedule.scheduler-impl
   (:require
-   [top.kzre.krro.canvas.core.layer.render.merge :as merge]
-   [top.kzre.krro.canvas.gl.composite.merge :as gl.merge]
-   [top.kzre.krro.core.util.computing-graph :as cg]
-   [top.kzre.krro.core.util.promise :as promise]
-   [top.kzre.krro.plugin.painting.core.project.canvas :as pc]
-   [top.kzre.krro.plugin.painting.core.schedule.context :as context]
-   [top.kzre.krro.plugin.painting.core.schedule.evaluate :as evaluate]
-   [top.kzre.krro.plugin.painting.core.schedule.graph :as graph]
-   [top.kzre.krro.plugin.painting.core.schedule.layer-impl]
-   [top.kzre.krro.plugin.painting.core.schedule.protocol :as proto]
-   [top.kzre.krro.plugin.painting.core.schedule.result :as result])
+    [top.kzre.krro.canvas.core.layer.render.merge :as merge]
+    [top.kzre.krro.canvas.gl.composite.merge :as gl.merge]
+    [top.kzre.krro.core.util.computing-graph :as cg]
+    [top.kzre.krro.core.util.promise :as promise]
+    [top.kzre.krro.plugin.painting.core.project.canvas :as pc]
+    [top.kzre.krro.plugin.painting.core.schedule.context :as context]
+    [top.kzre.krro.plugin.painting.core.schedule.evaluate :as evaluate]
+    [top.kzre.krro.plugin.painting.core.schedule.graph :as graph]
+    [top.kzre.krro.plugin.painting.core.schedule.layer-impl]
+    [top.kzre.krro.plugin.painting.core.schedule.protocol :as proto]
+    [top.kzre.krro.plugin.painting.core.schedule.result :as result]
+    [top.kzre.krro.plugin.painting.core.schedule.util :as util])
   (:import
    (java.lang AutoCloseable)
    (top.kzre.colorutils.color RGB)
    (top.kzre.krro.canvas.gl GLExecutors)
-   (top.kzre.krro.canvas.gl.composite GLCompositeContextBuilder)
+   (top.kzre.krro.canvas.gl.composite GLCompositeContext GLCompositeContextBuilder)
    (top.kzre.krro.canvas.gl.resource NoGLTexturePool PixelFormat)
    (top.kzre.krro.canvas.gl.tile GLRgba8AtlasFactory GLTiledTextureLayout)
    (top.kzre.krro.core.util.computing_graph ComputingGraph)
    (top.kzre.krro.util.tile TiledCanvas)))
 
-;; 使用 gl 合并fn
-(alter-var-root #'merge/*merge-layers* (constantly (gl.merge/gl-merge-layers-fn)))
+(defrecord SchedulerConfig
+  [^GLCompositeContext gl-composite-context])
 
 (defrecord SchedulerState [^ComputingGraph graph
                            layers
                            context
                            gl-composite-context])
-(defn make-state []
-  (map->SchedulerState {}))
 
+(defn- make-state []
+  (map->SchedulerState {}))
 
 (defn ensure-gl-composite-context!
   "确保 state-atom 里的 :gl-composite-context 就绪。
@@ -44,7 +45,7 @@
     (promise/resolved state-atom)
     (let [tile-size pc/global-tile-size
           executor  (GLExecutors/offscreen)
-          layout    (GLTiledTextureLayout. 8 (int tile-size) 4)
+          layout    (GLTiledTextureLayout/square 8 (int tile-size) 4)
           tex-pool  (NoGLTexturePool. executor)
           factory   (GLRgba8AtlasFactory. layout tex-pool)]
       (-> (GLCompositeContextBuilder.)
@@ -80,7 +81,8 @@
     (assoc state :graph new-graph
                  :context new-ctx)))
 
-(defrecord RenderScheduler [state-atom]
+(defrecord RenderScheduler
+  [config state-atom]
   proto/IRenderScheduler
   (set-layers! [_ layers]
     (swap! state-atom assoc :layers layers))
@@ -98,11 +100,11 @@
                     (promise/fmap
                       (fn [computed]
                         (let [layer (get computed (result/result-key))
-                              result {:canvas (.copy (proto/canvas layer))
-                                      :dirty-tiles view-dirty-tiles}]
-                          (doseq [v (vals computed)]
-                            (when (instance? AutoCloseable v)
-                              (.close v)))
+                              result
+                              {:canvas (.copy (proto/canvas layer))
+                               :dirty-tiles view-dirty-tiles}]
+                          ;; 保险起见的最终清理清理
+                          (util/close-safely (vals computed))
                           result))))
                 (promise/resolved
                   {:canvas
@@ -125,5 +127,7 @@
 
 (defn make-scheduler
   "基于画布构建渲染调度器，注意该画布所有权被转移到调度器身上了"
-  []
-  (->RenderScheduler  (atom (make-state))))
+  ([]
+   (make-scheduler (map->SchedulerConfig {})))
+  ([^SchedulerConfig config]
+   (->RenderScheduler config (atom (make-state)))))

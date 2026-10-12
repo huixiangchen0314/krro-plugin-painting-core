@@ -1,16 +1,17 @@
 (ns top.kzre.krro.plugin.painting.core.schedule.composite
   "通用合成节点"
   (:require
-   [top.kzre.krro.canvas.core.layer.render.core :as render]
-   [top.kzre.krro.core.util.computing-graph :as cg]
-   [top.kzre.krro.core.util.promise :as promise]
-   [top.kzre.krro.plugin.painting.core.schedule.cache :as cache]
-   [top.kzre.krro.plugin.painting.core.schedule.context :as context]
-   [top.kzre.krro.plugin.painting.core.schedule.util :as util]
-   [top.kzre.krro.plugin.painting.core.schedule.layer-impl :as layer-impl]
-   [clojure.set :as set]
-   [top.kzre.krro.plugin.painting.core.schedule.protocol :as proto]
-   [taoensso.timbre :as log])
+    [top.kzre.krro.canvas.core.layer.render.core :as render]
+    [top.kzre.krro.canvas.gl.composite.merge :as gl.merge]
+    [top.kzre.krro.core.util.computing-graph :as cg]
+    [top.kzre.krro.core.util.promise :as promise]
+    [top.kzre.krro.plugin.painting.core.schedule.cache :as cache]
+    [top.kzre.krro.plugin.painting.core.schedule.context :as context]
+    [top.kzre.krro.plugin.painting.core.schedule.util :as util]
+    [top.kzre.krro.plugin.painting.core.schedule.layer-impl :as layer-impl]
+    [clojure.set :as set]
+    [top.kzre.krro.plugin.painting.core.schedule.protocol :as proto]
+    [taoensso.timbre :as log])
   (:import
     [java.lang AutoCloseable]
     (top.kzre.krro.canvas.core.layer LayerUtils)
@@ -75,6 +76,7 @@
                        :dirty-tiles      image-dirty-tiles
                        :image-width      image-width
                        :image-height     image-height
+                       :merge-fn (gl.merge/gl-merge-layers-fn)
                        :gl-composite-context gl-composite-context})))]
     ;; 缓存gl
     ;(swap! (:state-atom node) update-cache composited ctx)
@@ -105,7 +107,7 @@
            ;;在旧空间合成
            (render/render
              (mapv (fn [l]
-                     (let [layer (util/->raster-layer l)]
+                     (let [layer (util/->raster-layer l :backend :gl)]
                        (update layer :transform
                                (fn [matrix] (KMath/mat2dMul to-old-view-matrix matrix))))) layers)
              {:tile-size        tile-size
@@ -115,6 +117,7 @@
               :view-height      viewport-h
               :image-width      image-width
               :image-height     image-height
+              :merge-fn (gl.merge/gl-merge-layers-fn)
               :gl-composite-context gl-composite-context})))]
       ;; 更新缓存缓存
       (.mergeCanvas old-canvas composited)
@@ -157,7 +160,11 @@
       ;; 命中缓存,在旧视口空间合成
       (composite-layers this layers ctx)
       ;; ── 未命中——合成 → 更新缓存 ──
-      (composite-layers this layers ctx))))
+      (composite-layers this layers ctx)))
+  (release [_ result]
+    ;(when (instance? AutoCloseable result)
+    ;  (.close ^AutoCloseable result))
+    ))
 
 (defn make-composite-node [layer-nodes]
   (->CompositeNode  (mapv #(cg/node-id %) layer-nodes)

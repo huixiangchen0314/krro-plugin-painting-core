@@ -1,18 +1,23 @@
 (ns top.kzre.krro.plugin.painting.core.schedule.vector.core
   (:require
-    [top.kzre.krro.canvas.vector.core :as vector-layer]
-    [top.kzre.krro.core.util.computing-graph :as cg]
-    [top.kzre.krro.core.util.promise :as promise]
-    [top.kzre.krro.plugin.painting.core.schedule.graph :as graph]
-    [top.kzre.krro.plugin.painting.core.schedule.layer-impl :as layer-impl]
-    [taoensso.timbre :as log])
+   [taoensso.timbre :as log]
+   [top.kzre.krro.canvas.vector.core :as vector-layer]
+   [top.kzre.krro.core.util.computing-graph :as cg]
+   [top.kzre.krro.core.util.promise :as promise]
+   [top.kzre.krro.plugin.painting.core.schedule.graph :as graph]
+   [top.kzre.krro.plugin.painting.core.schedule.layer-impl :as layer-impl])
   (:import
-    (top.kzre.krro.util.tile TiledCanvas)))
+   [java.lang AutoCloseable]
+   (top.kzre.krro.util.tile TiledCanvas)))
 
 (defrecord VectorLayerNode [vector-layer]
   cg/INode
   (node-id [_] (:id vector-layer))
   (dependencies [_] [:context])
+  (release [_ result]
+    ;(when (instance? AutoCloseable result)
+    ;  (.close ^AutoCloseable result))
+    )
   (compute [this [{:keys [tile-size viewport-w viewport-h image-dirty-tiles]}]]
     (let [canvas (TiledCanvas. tile-size)]
       (->
