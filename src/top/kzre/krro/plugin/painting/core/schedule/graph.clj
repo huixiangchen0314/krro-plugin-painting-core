@@ -222,7 +222,9 @@
                      每个 above 段只贡献自己的 root（最顶层节点）
                      组内部递归产生的 above-nodes 完整保留"
   ^ComputingGraph
-  [layers {:keys [view-matrix current-layer-id] :as ctx}]
+  [layers
+   {:keys [backdrop] :as scheduler}
+   {:keys [view-matrix current-layer-id] :as ctx}]
   (let [ctx-node     (context/make-context-node ctx)
         composed     (schedule.util/compose-transform layers view-matrix)
         throughed    (pass-though composed)

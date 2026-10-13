@@ -139,14 +139,11 @@
         (instance? clz change)))))
 
 (defn close-safely
-  [closeables]
-  (if (seq closeables)
-    (doseq [v closeables]
-      (try
-        (when (instance? AutoCloseable v)
-          (.close v))
-        (catch Throwable t
-          (log/error t "painting schedule safe-close failed")
-          )))
-    (when (instance? AutoCloseable closeables)
-      (.close closeables))))
+  [& closeables]
+  (doseq [v closeables]
+    (try
+      (when (instance? AutoCloseable v)
+        (.close ^AutoCloseable v))
+      (catch Throwable t
+        (log/error t "painting schedule safe-close failed")
+        ))))

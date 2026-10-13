@@ -57,13 +57,6 @@
                  (into (as-vec (:changes this))
                        (as-vec (:changes other))))))
 
-(defn- release-layers! [layers]
-  (doseq [layer layers]
-    (try
-      (dispose/dispose-layer layer)
-      (catch Throwable t
-        (log/error t "dispose cloned layer failed"
-                   {:layer-id (:id layer)})))))
 
 (defonce ^:private schedule-task
          (reify CoalescedTask
@@ -72,46 +65,39 @@
                            layers tile-size changes
                            image-width image-height current-layer-id
                            viewport viewport-w viewport-h]}]
-             (try
-               (proto/set-layers! scheduler layers)
-               (profile
-                 {:id :run-schedule-task}
-                 (p :run-schedule-task
-                   (promise/plet<
-                     [result (proto/render! scheduler
-                                            {:tile-size        tile-size
-                                             :changes          changes
-                                             :image-width      image-width
-                                             :image-height     image-height
-                                             :current-layer-id current-layer-id
-                                             :viewport         viewport
-                                             :viewport-w       viewport-w
-                                             :viewport-h       viewport-h})]
-                     (let [^TiledCanvas diff-canvas (:canvas result)
-                           clipped-dirties (:dirty-tiles result)]
-                       (try
-                         (profile
-                           {:id :download-diff-canvas
-                            :data {:tile-count
-                                   (.size (.getTiles diff-canvas))}}
-                           (p :download-diff-canvas
-                              (promise/await (download/download!
-                                               diff-canvas))))
+             ;; 所有权转移给调度器
+             (proto/set-layers! scheduler layers)
+             (profile
+               {:id :run-schedule-task}
+               (p :run-schedule-task
+                  (promise/plet<
+                    [result (proto/render! scheduler
+                                           {:tile-size        tile-size
+                                            :changes          changes
+                                            :image-width      image-width
+                                            :image-height     image-height
+                                            :current-layer-id current-layer-id
+                                            :viewport         viewport
+                                            :viewport-w       viewport-w
+                                            :viewport-h       viewport-h})]
+                    (let [^TiledCanvas
+                          diff-canvas (:canvas result)
+                          clipped-dirties (:dirty-tiles result)]
+                      (try
+                        (profile
+                          {:id :download-diff-canvas
+                           :data {:tile-count
+                                  (.size (.getTiles diff-canvas))}}
+                          (p :download-diff-canvas
+                             (promise/await (download/download!
+                                              diff-canvas))))
 
-                         (.deleteTiles canvas clipped-dirties)
-                         (.mergeCanvas canvas diff-canvas)
-                         canvas
-                         (finally
-                           (.close diff-canvas)))
-                       ;; 成功路径释放
-                       (release-layers! layers)
-                       canvas))))
-               (catch Throwable t
-                 ;; 同步阶段失败——set-layers! 或 plet> 自身构造失败
-                 (log/error t "schedule task sync setup failed"
-                            {:task-id task-id})
-                 (release-layers! layers)
-                 nil)))))
+                        (.deleteTiles canvas clipped-dirties)
+                        (.mergeCanvas canvas diff-canvas)
+                        canvas
+                        (finally
+                          (.close diff-canvas)))
+                      canvas)))))))
 
 (defonce ^:private ^ExecutorService schedule-exec-pool
          (Executors/newSingleThreadExecutor

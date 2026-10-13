@@ -36,6 +36,5 @@
     ;; 更新缓存
     (promise/resolved input))
   (release [_ _]))
-
 (defn make-result-node [^INode node]
   (->ResultNode (cg/node-id node) (atom (make-state))))
