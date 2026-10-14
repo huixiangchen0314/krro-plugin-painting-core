@@ -3,7 +3,6 @@
   (:require
     [taoensso.timbre :as log]
     [taoensso.tufte :refer [p profile]]
-    [top.kzre.krro.canvas.core.layer.render.download :as download]
     [top.kzre.krro.core.util.promise :as promise]
     [top.kzre.krro.plugin.painting.core.layer.clone :as clone]
     [top.kzre.krro.plugin.painting.core.layer.dispose :as dispose]
@@ -11,16 +10,15 @@
     [top.kzre.krro.plugin.painting.core.schedule.protocol :as proto])
   (:import
     (java.util.concurrent
-      ExecutorService
       Executors
+      ExecutorService
       ThreadFactory
       TimeUnit)
     (top.kzre.krro.core.util
       CoalescedTask
       ExecutorServiceAsyncAdapter
       LatestTaskRunner
-      Mergable)
-    (top.kzre.krro.util.tile TiledCanvas)))
+      Mergable)))
 
 (defn- as-vec
   "把单组脏参数规范化为向量。
@@ -31,7 +29,6 @@
 (defrecord Params
   [task-id
    scheduler
-   canvas
    layers
    tile-size
    changes
@@ -40,7 +37,8 @@
    current-layer-id
    viewport
    viewport-w
-   viewport-h]
+   viewport-h
+   promise]
   Mergable
   (merge [this other]
     (log/debug "merge scheduler task.")
@@ -64,14 +62,15 @@
                            scheduler canvas
                            layers tile-size changes
                            image-width image-height current-layer-id
-                           viewport viewport-w viewport-h]}]
+                           viewport viewport-w viewport-h
+                           promise]}]
              ;; 所有权转移给调度器
              (proto/set-layers! scheduler layers)
              (profile
                {:id :run-schedule-task}
                (p :run-schedule-task
                   (promise/plet<
-                    [result (proto/render! scheduler
+                    [view-canvas (proto/render! scheduler
                                            {:tile-size        tile-size
                                             :changes          changes
                                             :image-width      image-width
@@ -80,24 +79,11 @@
                                             :viewport         viewport
                                             :viewport-w       viewport-w
                                             :viewport-h       viewport-h})]
-                    (let [^TiledCanvas
-                          diff-canvas (:canvas result)
-                          clipped-dirties (:dirty-tiles result)]
-                      (try
-                        (profile
-                          {:id :download-diff-canvas
-                           :data {:tile-count
-                                  (.size (.getTiles diff-canvas))}}
-                          (p :download-diff-canvas
-                             (promise/await (download/download!
-                                              diff-canvas))))
-
-                        (.deleteTiles canvas clipped-dirties)
-                        (.mergeCanvas canvas diff-canvas)
-                        canvas
-                        (finally
-                          (.close diff-canvas)))
-                      canvas)))))))
+                    (try
+                      (promise/resolve! promise view-canvas)
+                      (catch Throwable t
+                        (log/error t "schedule executor failed")
+                        (.close view-canvas)))))))))
 
 (defonce ^:private ^ExecutorService schedule-exec-pool
          (Executors/newSingleThreadExecutor
@@ -131,14 +117,16 @@
   [task-id scheduler layers & {:keys [tile-size]
                        :or {tile-size pc/global-tile-size}
                        :as opts}]
-  (let [params  (map->Params
+  (let [promise (promise/promise)
+        params  (map->Params
                   (assoc opts
                     :task-id   task-id
                     :scheduler scheduler
                     :tile-size tile-size
-                    :layers    (mapv clone/clone-layer layers)))]
-    (promise/from-completable-future
-      (.submit executor* task-id params))))
+                    :layers    (mapv clone/clone-layer layers)
+                    :promise promise))]
+    (.submit executor* task-id params)
+    promise))
 
 
 (defn shutdown!

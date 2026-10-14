@@ -6,11 +6,13 @@
     [top.kzre.krro.core.core :as kcc]
     [top.kzre.krro.core.util.computing-graph :as cg]
     [top.kzre.krro.core.util.diff :as diff]
+    [top.kzre.krro.plugin.painting.core.schedule.canvas :as schedule.canvas]
     [top.kzre.krro.plugin.painting.core.schedule.composite :as composite]
     [top.kzre.krro.plugin.painting.core.schedule.context :as context]
     [top.kzre.krro.plugin.painting.core.schedule.protocol :as proto]
     [top.kzre.krro.plugin.painting.core.schedule.result :as result]
-    [top.kzre.krro.plugin.painting.core.schedule.util :as schedule.util])
+    [top.kzre.krro.plugin.painting.core.schedule.util :as schedule.util]
+    [top.kzre.krro.plugin.painting.core.schedule.view :as view])
   (:import
    (top.kzre.krro.core.util.computing_graph ComputingGraph)
    (top.kzre.krro.core.util.diff IDiff)))
@@ -213,6 +215,18 @@
 ;; 顶层入口
 ;; ═══════════════════════════════════════════════
 
+(defn- build-receiver
+  [node
+   {:keys [backdrop] :as _scheduler}
+   ctx]
+  (let [backend (context/render-backend ctx)]
+    (case backend
+      :error (throw (ex-info "unsupported-render-backend" {}))
+      (let [norm-node (view/make-normalize-layer-transform-node node)
+            merged (schedule.canvas/make-merge-canvas-node backdrop norm-node)]
+        {:root merged
+         :nodes [norm-node merged]}))))
+
 (defn build-graph
   "构建计算图。
 
@@ -223,19 +237,22 @@
                      组内部递归产生的 above-nodes 完整保留"
   ^ComputingGraph
   [layers
-   {:keys [backdrop] :as scheduler}
+   scheduler
    {:keys [view-matrix current-layer-id] :as ctx}]
   (let [ctx-node     (context/make-context-node ctx)
         composed     (schedule.util/compose-transform layers view-matrix)
         throughed    (pass-though composed)
-
         current-path (when current-layer-id
                        (path/get-path throughed current-layer-id))
         {:keys [nodes root above-nodes]} (build-level throughed current-path ctx)
-        result-node  (result/make-result-node root)
-        all-nodes    (into [ctx-node result-node] nodes)]
+        {recv-nodes :nodes
+         recv-root  :root}
+        (build-receiver root scheduler ctx)
+        result-node  (result/make-result-node recv-root)
+        all-nodes (into [ctx-node result-node] (concat nodes recv-nodes))]
     {:graph       (apply cg/graph all-nodes)
      :above-nodes above-nodes}))
+
 
 (defrecord RenderGraphDiff []
   IDiff

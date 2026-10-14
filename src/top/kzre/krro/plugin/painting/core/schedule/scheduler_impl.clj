@@ -76,12 +76,15 @@
     (assoc state :graph new-graph
                  :context new-ctx)))
 
+(defn- empty-backdrop [{:keys [backdrop] :as _scheduler}]
+  (TiledCanvas.
+    (.getTileSize ^TiledCanvas backdrop)
+    (.getDefaultPixel ^TiledCanvas backdrop)))
 
 (defrecord RenderScheduler
   [config
    state-atom
-   ^TiledCanvas backdrop
-   ]
+   ^TiledCanvas backdrop]
   proto/IRenderScheduler
   (set-layers! [_ layers]
     (diff-layers! state-atom layers))
@@ -90,27 +93,19 @@
         (promise/then
           (fn [_]
             (swap! state-atom diff-state! this ctx)
-            (let [{:keys [graph layers context]} @state-atom
-                  {:keys [tile-size view-dirty-tiles]} context]
+            (let [{:keys [graph layers]} @state-atom]
               (if (and (seq layers) graph)
                 ;; 返回的是差分画布，外部持有所有权
                 (-> (cg/reduce-to graph (result/result-key))
                     (cg/solve)
                     (promise/fmap
                       (fn [computed]
-                        (let [layer (get computed (result/result-key))
-                              result
-                              {:canvas (.copy (proto/canvas layer))
-                               :dirty-tiles view-dirty-tiles}]
+                        (let [result
+                              (.copy (proto/canvas (get computed (result/result-key))))]
                           ;; 保险起见的最终清理清理
                           (apply util/close-safely (vals computed))
                           result))))
-                (promise/resolved
-                  {:canvas
-                   (doto
-                     (TiledCanvas. tile-size (RGB/rgba 0 0 0 0))
-                     (.setReadonly true))
-                   :dirty-tiles view-dirty-tiles})))))))
+                (promise/resolved (empty-backdrop this))))))))
   AutoCloseable
   (close [_]
     (let [{:keys [graph gl-composite-context layers]} @state-atom]

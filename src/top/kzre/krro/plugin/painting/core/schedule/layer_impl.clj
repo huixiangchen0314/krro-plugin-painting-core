@@ -13,7 +13,8 @@
    ^floats transform
    ^boolean visible
    ^float opacity
-   blend-mode]
+   blend-mode
+   ^boolean wrap?]
   proto/ILayer
   (layer-id [_] id)
   (canvas [_] canvas)
@@ -22,7 +23,9 @@
   (opacity [_] opacity)
   (blend-mode [_] blend-mode)
   AutoCloseable
-  (close [_] (.close canvas)))
+  (close [_]
+    (when-not wrap?
+      (.close canvas))))
 
 
 (defn make-layer
@@ -34,4 +37,7 @@
    {:pre [(some? id)
           (some? canvas)
           (boolean? visible)]}
-   (->Layer id canvas transform visible opacity blend-mode)))
+   (->Layer id canvas transform visible opacity blend-mode false)))
+
+(defn wrap-layer [id canvas]
+  (->Layer id canvas util/identity-matrix true 1.0 :normal true))

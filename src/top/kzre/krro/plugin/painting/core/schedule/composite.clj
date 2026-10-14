@@ -11,13 +11,53 @@
     [top.kzre.krro.plugin.painting.core.schedule.layer-impl :as layer-impl]
     [clojure.set :as set]
     [top.kzre.krro.plugin.painting.core.schedule.protocol :as proto]
-    [taoensso.timbre :as log])
+    [taoensso.timbre :as log]
+    [top.kzre.krro.canvas.core.layer.render.merge :as merge])
   (:import
     [java.lang AutoCloseable]
     (top.kzre.krro.canvas.core.layer LayerUtils)
+    (top.kzre.krro.core.util.computing_graph INode)
     (top.kzre.krro.plugin.painting.core.schedule.cache RasterCache)
     (top.kzre.krro.util.math KMath)
-    (top.kzre.krro.util.tile CanvasUtils TiledCanvas)))
+    (top.kzre.krro.util.tile TiledCanvas)))
+
+(defn- backend->merge-fn [backend]
+  (case backend
+    :gl (gl.merge/gl-merge-layers-fn)
+    (merge/default-merge-layers-fn)))
+
+(defn composite-layers
+  "直接调用底层 render-layers!——不做调度合并——合并由上层调度器决定。
+   返回 Promise 在合成完成时以 composited 画布完成。"
+  [^INode node layers
+   {:keys [view-matrix viewport-h viewport-w
+           tile-size image-width image-height image-dirty-tiles
+           gl-composite-context]
+    :as ctx}]
+  (let [backend (context/render-backend ctx)
+        resolved-layers
+        (mapv #(util/->raster-layer % :backend backend) layers)
+        merge-fn (backend->merge-fn backend)
+        opts
+        (cond->
+          {:tile-size tile-size
+           :view-width viewport-w
+           :view-height viewport-h
+           :view-matrix view-matrix
+           :dirty-tiles image-dirty-tiles
+           :image-width image-width
+           :image-height image-height
+           :merge-fn merge-fn}
+          (= :gl backend)
+          (assoc :gl-composite-context gl-composite-context))]
+    (promise/plet
+      [composited (promise/spawn
+                    (fn []
+                      (render/render resolved-layers opts)))]
+      (layer-impl/make-layer
+        (cg/node-id node)
+        composited))))
+
 
 ;; ═══════════════════════════════════════════════
 ;; 状态
@@ -29,16 +69,6 @@
 
 (defn make-state []
   (->CompositeState nil false))
-
-;; ═══════════════════════════════════════════════
-;; 内部辅助
-;; ═══════════════════════════════════════════════
-
-(defn- composite-viewport-id
-  "CompositeNode 的稳定 viewport id——同一节点实例永远返回同一个 id。"
-  [node]
-  (keyword (str "composite-" (hash (cg/node-id node)))))
-
 
 (defn- update-cache
   "更新缓存状态：
@@ -53,36 +83,6 @@
     (dissoc state :cache)))
 
 
-(defn- composite-layers
-  "直接调用底层 render-layers!——不做调度合并——合并由上层调度器决定。
-   返回 Promise 在合成完成时以 composited 画布完成。"
-  [node layers
-   {:keys [view-matrix viewport-h viewport-w
-           tile-size image-width image-height image-dirty-tiles
-           gl-composite-context]
-    :as ctx}]
-  (promise/plet
-    [composited (promise/spawn
-                  (fn []
-                    (render/render
-                      (mapv
-                        (fn [l]
-                          (util/->raster-layer l :backend :gl) )
-                        layers)
-                      {:tile-size        tile-size
-                       :view-width       viewport-w
-                       :view-height      viewport-h
-                       :view-matrix      view-matrix
-                       :dirty-tiles      image-dirty-tiles
-                       :image-width      image-width
-                       :image-height     image-height
-                       :merge-fn (gl.merge/gl-merge-layers-fn)
-                       :gl-composite-context gl-composite-context})))]
-    ;; 缓存gl
-    ;(swap! (:state-atom node) update-cache composited ctx)
-    (layer-impl/make-layer
-      (composite-viewport-id node)
-      composited)))
 
 (defn- composite-layers-cached
   "把各个图层变换到旧的视口空间，合成。
@@ -123,7 +123,7 @@
       (.mergeCanvas old-canvas composited)
       (.close composited)
       (layer-impl/make-layer
-        (composite-viewport-id node)
+        (cg/node-id node)
         ;; 计算结果所有权不属于我们
         (.copy old-canvas)
         to-new-view-matrix))))
