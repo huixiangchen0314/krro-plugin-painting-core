@@ -37,6 +37,14 @@
     (assoc ctx :view-matrix (:view-matrix old-ctx))
     (assoc ctx :view-matrix (vp/viewport->mat2d (:viewport ctx)))))
 
+(defn assoc-full-dirty-tiles
+  [{:keys [tile-size viewport-w viewport-h]
+    :as ctx}]
+  (let [dirty-tiles (set (LayerUtils/canvasTiles tile-size viewport-w viewport-h))]
+    (assoc ctx :view-dirty-tiles
+               dirty-tiles
+               :image-dirty-tiles
+               dirty-tiles)))
 
 (defn assoc-view-dirty-tiles
   "计算视口脏瓦片。
@@ -54,8 +62,7 @@
                 change]} ctx]
 
     (if  (util/contains-change? change ViewportRefreshed)
-      (assoc ctx :view-dirty-tiles
-                 (set (LayerUtils/canvasTiles tile-size viewport-w viewport-h)))
+      (assoc-full-dirty-tiles ctx)
 
       ;; ── 正常路径：逐组计算
       (let [pairs (util/change-dirty-pairs change)

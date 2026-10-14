@@ -7,7 +7,8 @@
     [top.kzre.krro.plugin.painting.core.layer.clone :as clone]
     [top.kzre.krro.plugin.painting.core.layer.dispose :as dispose]
     [top.kzre.krro.plugin.painting.core.project.canvas :as pc]
-    [top.kzre.krro.plugin.painting.core.schedule.protocol :as proto])
+    [top.kzre.krro.plugin.painting.core.schedule.protocol :as proto]
+    [top.kzre.krro.canvas.core.layer.render.download :as download])
   (:import
     (java.util.concurrent
       Executors
@@ -80,7 +81,9 @@
                                             :viewport-w       viewport-w
                                             :viewport-h       viewport-h})]
                     (try
-                      (promise/resolve! promise view-canvas)
+                      (promise/plet<
+                        [downloaded (download/download! view-canvas)]
+                        (promise/resolve! promise view-canvas))
                       (catch Throwable t
                         (log/error t "schedule executor failed")
                         (.close view-canvas)))))))))

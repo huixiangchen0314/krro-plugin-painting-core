@@ -4,9 +4,13 @@
     [top.kzre.krro.core.util.computing-graph :as cg]
     [top.kzre.krro.core.util.promise :as promise]
     [top.kzre.krro.plugin.painting.core.schedule.protocol :as proto]
-    [top.kzre.krro.plugin.painting.core.schedule.composite :as composite])
-  (:import (top.kzre.krro.core.util.computing_graph INode)
-           (top.kzre.krro.util.math KMath)))
+    [top.kzre.krro.plugin.painting.core.schedule.composite :as composite]
+    [top.kzre.krro.plugin.painting.core.schedule.context :as context]
+    [top.kzre.krro.plugin.painting.core.schedule.layer-impl :as layer-impl])
+  (:import (top.kzre.krro.canvas.core.layer LayerUtils)
+           (top.kzre.krro.core.util.computing_graph INode)
+           (top.kzre.krro.util.math KMath)
+           (top.kzre.krro.util.tile TiledCanvas)))
 
 (defrecord NormalizeLayerTransformNode
   [layer-id]
@@ -18,10 +22,37 @@
     (let [transform (proto/transform layer)]
       (if (KMath/mat2dIsIdentity transform)
         (promise/resolved layer)
-        (composite/composite-layers this [layer] ctx))))
+        (composite/composite-layers this [layer] (context/assoc-full-dirty-tiles ctx)))))
   (release [_ _]))
 
 (defn make-normalize-layer-transform-node
   "把图层变换归一化到标准变换"
   [^INode node]
   (->NormalizeLayerTransformNode (cg/node-id node)))
+
+(defrecord BlitCanvasLayerNode
+  [^TiledCanvas backdrop layer-id]
+  cg/INode
+  (node-id [_] (keyword (str layer-id "-normalize-layer-transform-node")))
+  (dependencies [_]
+    [:context layer-id])
+  (compute [this [ctx layer]]
+    (let [transform (proto/transform layer)
+          ^TiledCanvas canvas (proto/canvas layer)
+          tile-size (.getTileSize canvas)
+          layer-tiles (.getTiles canvas)]
+      (if (KMath/mat2dIsIdentity transform)
+        (.deleteTiles backdrop layer-tiles)
+        (let [view-tiles (LayerUtils/transformTiles layer-tiles tile-size transform)]
+          (.deleteTiles backdrop view-tiles))))
+    (composite/composite-layers
+      this
+      [(layer-impl/wrap-layer (cg/node-id this) backdrop)
+       layer]
+      (context/assoc-full-dirty-tiles ctx)))
+  (release [_ _]))
+
+(defn make-blit-canvas-layer-node
+  "把图层变换归一化到标准变换"
+  [^TiledCanvas backdrop ^INode node]
+  (->BlitCanvasLayerNode backdrop (cg/node-id node)))

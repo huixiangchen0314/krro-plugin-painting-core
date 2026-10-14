@@ -222,6 +222,11 @@
   (let [backend (context/render-backend ctx)]
     (case backend
       :error (throw (ex-info "unsupported-render-backend" {}))
+      :gl
+      (let [norm-node (view/make-blit-canvas-layer-node backdrop node)
+            blitted (schedule.canvas/make-blit-canvas-node backdrop norm-node)]
+        {:root blitted
+         :nodes [norm-node blitted]})
       (let [norm-node (view/make-normalize-layer-transform-node node)
             merged (schedule.canvas/make-merge-canvas-node backdrop norm-node)]
         {:root merged

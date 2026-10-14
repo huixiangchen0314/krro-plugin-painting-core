@@ -117,15 +117,12 @@
                     (promise/fmap
                       (fn [computed]
                         (let [result
-                              (doto
-                                (.copy (proto/canvas (get computed (result/result-key))))
-                                (.setReadonly true))]
+                              (.copy (proto/canvas (get computed (result/result-key))))]
                           ;; 保险起见的最终清理清理
                           (apply util/close-safely (vals computed))
                           result))))
                 (promise/resolved
-                  (doto (empty-backdrop this)
-                    (.setReadonly true)))))))))
+                  (empty-backdrop this))))))))
   AutoCloseable
   (close [_]
     (let [{:keys [graph gl-composite-context layers]} @state-atom]
@@ -164,3 +161,7 @@
        (atom (make-state))
        (TiledCanvas. pc/global-tile-size
                      (RGB/rgba 0 0 0 0))))))
+
+;; TODO 1 新的享元api
+;; TODO 2 修整节点，避免依赖结果
+;; TODO 3

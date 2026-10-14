@@ -1,14 +1,14 @@
 (ns top.kzre.krro.plugin.painting.core.schedule.canvas
   (:require
+   [top.kzre.krro.canvas.core.layer.render.download :as download]
    [top.kzre.krro.core.util.computing-graph :as cg]
-   [top.kzre.krro.plugin.painting.core.schedule.protocol :as proto]
-   [top.kzre.krro.core.util.promise :as promise]
+   [top.kzre.krro.core.util.promise :as promise :refer [plet]]
    [top.kzre.krro.plugin.painting.core.schedule.layer-impl :as layer-impl]
-   [top.kzre.krro.canvas.core.layer.render.download :as download])
+   [top.kzre.krro.plugin.painting.core.schedule.protocol :as proto])
   (:import
-    (top.kzre.krro.core.util.computing_graph INode)
-    (top.kzre.krro.util.math KMath)
-    (top.kzre.krro.util.tile TiledCanvas)))
+   (top.kzre.krro.core.util.computing_graph INode)
+   (top.kzre.krro.util.math KMath)
+   (top.kzre.krro.util.tile TiledCanvas)))
 
 (defrecord MergeCanvasNode
   [^TiledCanvas backdrop
@@ -28,10 +28,8 @@
                    (.mergeCanvas canvas))]
       ;; 想持久化持有瓦片, 就必须把瓦片下载下来，不然会泄漏
       ;; 这个节点是回退路径，一般是 cpu软件渲染，或者gpu拓展是非差的节点使用
-      (-> (download/download! merged)
-          (promise/fmap
-            (fn [_]
-              (layer-impl/wrap-layer (cg/node-id this) merged))))))
+      (plet [downloaded (download/download! merged)]
+            (layer-impl/wrap-layer (cg/node-id this) downloaded))))
   (release [_ _]
     ;; backdrop 是借用，不释放
     ))
@@ -50,3 +48,32 @@
    backdrop 由调度器持有，本节点借用不释放。"
   [^TiledCanvas backdrop ^INode node]
   (->MergeCanvasNode backdrop (cg/node-id node)))
+
+
+(defrecord BlitCanvasNode
+  [^TiledCanvas backdrop
+   layer-id]
+
+  cg/INode
+  (node-id [_] (keyword (str layer-id "-backdrop-overwrite")))
+  (dependencies [_] [layer-id])
+  (compute [this [layer]]
+    (let [transform (proto/transform layer)]
+      (when-not (KMath/mat2dIsIdentity transform)
+        (throw (ex-info "layer transform must be identity" {:node (cg/node-id this)}))))
+    (let [canvas (proto/canvas layer)]
+      (.clear ^TiledCanvas backdrop)
+      (.mergeCanvas backdrop canvas)
+      (promise/resolved
+        (layer-impl/wrap-layer (cg/node-id this) backdrop))))
+  (release [_ _]
+    ;; backdrop 是借用，不释放
+    ))
+
+
+(defn make-blit-canvas-node
+  "构造 BlitCanvasNode。
+  把合成结果合并到 backdrop中，不进行下载。
+  能表示完整的合成结果，比如单个 fbo 附着纹理."
+  [^TiledCanvas backdrop ^INode node]
+  (->BlitCanvasNode backdrop (cg/node-id node)))
