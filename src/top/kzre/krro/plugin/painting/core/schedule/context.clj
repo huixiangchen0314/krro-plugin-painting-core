@@ -145,6 +145,4 @@
 (defn render-backend
   "获取渲染后端"
   [ctx]
-  (if-let [gl-composite-context (:gl-composite-context ctx)]
-    :gl
-    :default))
+  (:backend ctx :default))

@@ -28,23 +28,28 @@
 (defn- make-state []
   (map->SchedulerState {}))
 
-(defn ensure-gl-composite-context!
+(defn- ensure-facilities!
   "确保 state-atom 里的 :gl-composite-context 就绪。
 
    已有则原样返回（Promise<Atom>）。
    没有则在 GL 线程构建，成功后 swap! 写入 state-atom。
 
    返回 Promise<Atom>——解析后 :gl-composite-context 已就绪。"
-  [{:keys [config state-atom]}]
-  (if (some? (:gl-composite-context @state-atom))
-    (promise/resolved state-atom)
-    (->  (:gl-composite-context-builder config)
-        (.build)
-        (promise/from-completable-future)
-        (promise/fmap
-          (fn [composite-ctx]
-            (swap! state-atom assoc :gl-composite-context composite-ctx)
-            state-atom)))))
+  [{:keys [config state-atom]
+    :as _scheduler}]
+  (let [backend (:backend config)]
+    (case backend
+      :gl
+      (if (some? (:gl-composite-context @state-atom))
+        (promise/resolved state-atom)
+        (->  (:gl-composite-context-builder config)
+             (.build)
+             (promise/from-completable-future)
+             (promise/fmap
+               (fn [composite-ctx]
+                 (swap! state-atom assoc :gl-composite-context composite-ctx)
+                 state-atom))))
+      (promise/resolved state-atom))))
 
 (defn- diff-layers!
   [state-atom new-layers]
@@ -55,13 +60,24 @@
       (dispose/dispose-layers! layers))
     (swap! state-atom assoc :layers new-layers)))
 
+(defn- diff-context
+  [{:keys [config state-atom] :as _scheduler}
+   new-context]
+  (let [{:keys [context gl-composite-context]} @state-atom
+        ctx-diff    (context/diff-info context new-context)
+        new-ctx
+        (-> (context/diff context new-context ctx-diff)
+            (assoc :gl-composite-context gl-composite-context)
+            (merge (select-keys
+                     config
+                     [:backend])))]
+    new-ctx))
 
-(defn diff-state! [{:keys [graph layers context gl-composite-context] :as state}
-             scheduler new-context]
-  (let [ctx-diff    (context/diff-info context new-context)
-        new-ctx     (-> (context/diff context new-context ctx-diff)
-                      (assoc :gl-composite-context gl-composite-context))
-        building    (graph/build-graph layers scheduler new-ctx )
+(defn diff-state!
+  [{:keys [graph layers] :as state}
+   scheduler
+   new-ctx]
+  (let [building    (graph/build-graph layers scheduler new-ctx)
         new-graph   (:graph building)
         result-node (get (cg/nodes new-graph) (result/result-key))
         above-nodes (:above-nodes building)]
@@ -89,23 +105,27 @@
   (set-layers! [_ layers]
     (diff-layers! state-atom layers))
   (render! [this ctx]
-    (-> (ensure-gl-composite-context! this)
+    (-> (ensure-facilities! this)
         (promise/then
           (fn [_]
-            (swap! state-atom diff-state! this ctx)
+            (let [new-ctx (diff-context this ctx)]
+              (swap! state-atom diff-state! this new-ctx))
             (let [{:keys [graph layers]} @state-atom]
               (if (and (seq layers) graph)
-                ;; 返回的是差分画布，外部持有所有权
                 (-> (cg/reduce-to graph (result/result-key))
                     (cg/solve)
                     (promise/fmap
                       (fn [computed]
                         (let [result
-                              (.copy (proto/canvas (get computed (result/result-key))))]
+                              (doto
+                                (.copy (proto/canvas (get computed (result/result-key))))
+                                (.setReadonly true))]
                           ;; 保险起见的最终清理清理
                           (apply util/close-safely (vals computed))
                           result))))
-                (promise/resolved (empty-backdrop this))))))))
+                (promise/resolved
+                  (doto (empty-backdrop this)
+                    (.setReadonly true)))))))))
   AutoCloseable
   (close [_]
     (let [{:keys [graph gl-composite-context layers]} @state-atom]
@@ -132,7 +152,7 @@
       (cond->
         config
         ;; 使用 gl 合成
-        (:gl? config)
+        (= :gl (:backend config))
         (assoc
           ;; 指定合成上下文，或者使用默认的 lwjgl glfw 离屏渲染上下文
           :gl-composite-context-builder
