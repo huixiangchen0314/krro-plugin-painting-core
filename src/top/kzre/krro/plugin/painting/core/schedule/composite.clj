@@ -32,7 +32,7 @@
   [^INode node layers
    {:keys [view-matrix viewport-h viewport-w
            tile-size image-width image-height image-dirty-tiles
-           gl-composite-context]
+           gl-composite-context image-tiles image-aabb]
     :as ctx}]
   (let [backend (context/render-backend ctx)
         resolved-layers
@@ -47,6 +47,9 @@
            :dirty-tiles image-dirty-tiles
            :image-width image-width
            :image-height image-height
+           ;; 派生数据也一并这里计算
+           :image-aabb image-aabb
+           :image-tiles image-tiles
            :merge-fn merge-fn}
           (= :gl backend)
           (assoc :gl-composite-context gl-composite-context))]

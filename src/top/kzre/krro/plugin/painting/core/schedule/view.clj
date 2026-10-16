@@ -8,10 +8,9 @@
     [top.kzre.krro.plugin.painting.core.schedule.layer-impl :as layer-impl]
     [top.kzre.krro.plugin.painting.core.schedule.protocol :as proto])
   (:import
-   (top.kzre.krro.canvas.core.layer LayerUtils)
-   (top.kzre.krro.core.util.computing_graph INode)
-   (top.kzre.krro.util.math KMath)
-   (top.kzre.krro.util.tile TiledCanvas)))
+    (top.kzre.krro.core.util.computing_graph INode)
+    (top.kzre.krro.util.math KMath)
+    (top.kzre.krro.util.tile TiledCanvas)))
 
 (defrecord NormalizeLayerTransformNode
   [layer-id ]
@@ -37,20 +36,19 @@
   (node-id [_] (keyword (str BlitCanvasLayerNode "-" layer-id)))
   (dependencies [_]
     [:context layer-id])
-  (compute [this [ctx layer]]
-    (let [transform (proto/transform layer)
-          ^TiledCanvas canvas (proto/canvas layer)
-          tile-size (.getTileSize canvas)
-          layer-tiles (.getTiles canvas)]
-      (if (KMath/mat2dIsIdentity transform)
-        (.deleteTiles backdrop layer-tiles)
-        (let [view-tiles (LayerUtils/transformTiles layer-tiles tile-size transform)]
-          (.deleteTiles backdrop view-tiles))))
-    (composite/composite-layers
-      this
-      [(layer-impl/wrap-layer (cg/node-id this) backdrop)
-       layer]
-      (context/assoc-full-dirty-tiles ctx)))
+  (compute [this
+            [{:keys [view-dirty-tiles image-tiles]
+              :as ctx} layer]]
+    (.deleteTiles backdrop view-dirty-tiles)
+    (.keepTiles backdrop image-tiles)
+    (if (and (.isEmpty (.getTiles ^TiledCanvas backdrop))
+             (KMath/mat2dIsIdentity (proto/transform layer)))
+      (promise/resolved layer)
+      (composite/composite-layers
+        this
+        [(layer-impl/wrap-layer (cg/node-id this) backdrop)
+         layer]
+        (context/assoc-full-dirty-tiles ctx))))
   (release [_ _]))
 
 (defn make-blit-canvas-layer-node

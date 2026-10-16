@@ -102,20 +102,33 @@
      :max-x (reduce max (map :x pts))
      :max-y (reduce max (map :y pts))}))
 
-(defn assoc-image-dirty-tiles [ctx _old-ctx]
-  (let [{:keys [view-dirty-tiles view-matrix tile-size
+(defn- assoc-image-bound [ctx _old-ctx]
+  (let [{:keys [view-matrix tile-size
                 image-width image-height]} ctx]
     (if (and image-width image-height view-matrix)
       (let [image-aabb (transform-points-aabb view-matrix image-width image-height)
-            image-clipped-dirty-tiles
-            (LayerUtils/clipTilesAABB view-dirty-tiles tile-size
-                                      (:min-x image-aabb) (:min-y image-aabb)
-                                      (:max-x image-aabb) (:max-y image-aabb))]
+            image-tiles (LayerUtils/aabbTiles tile-size
+                                              (:min-x image-aabb) (:min-y image-aabb)
+                                              (:max-x image-aabb) (:max-y image-aabb))]
         (assoc ctx
           :image-aabb image-aabb
-          :image-dirty-tiles image-clipped-dirty-tiles))
+          :image-tiles image-tiles))
       (assoc ctx
         :image-aabb nil
+        :image-tiles nil))))
+
+(defn- assoc-image-dirty-tiles [ctx _old-ctx]
+  (let [{:keys [view-dirty-tiles tile-size
+                image-aabb]} ctx]
+    (if image-aabb
+      (let [image-clipped-dirty-tiles
+            (LayerUtils/clipTilesAABB
+              view-dirty-tiles tile-size
+              (:min-x image-aabb) (:min-y image-aabb)
+              (:max-x image-aabb) (:max-y image-aabb))]
+        (assoc ctx
+          :image-dirty-tiles image-clipped-dirty-tiles))
+      (assoc ctx
         :image-dirty-tiles view-dirty-tiles))))
 
 (defn assoc-mem-budget
@@ -144,6 +157,7 @@
   (-> new-ctx
       (normalize-changes)
       (assoc-view-matrix old-ctx same-viewport?)
+      (assoc-image-bound old-ctx)
       (assoc-view-dirty-tiles old-ctx)
       (assoc-image-dirty-tiles old-ctx)
       (assoc-mem-budget)
