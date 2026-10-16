@@ -81,9 +81,10 @@
                                             :viewport-w       viewport-w
                                             :viewport-h       viewport-h})]
                     (try
-                      (promise/plet<
-                        [downloaded (download/download! view-canvas)]
-                        (promise/resolve! promise view-canvas))
+                      ;(promise/plet<
+                        ;[downloaded (download/download! view-canvas)]
+                        ;(promise/resolve! promise view-canvas))
+                      (promise/resolve! promise view-canvas)
                       (catch Throwable t
                         (log/error t "schedule executor failed")
                         (.close view-canvas)))))))))

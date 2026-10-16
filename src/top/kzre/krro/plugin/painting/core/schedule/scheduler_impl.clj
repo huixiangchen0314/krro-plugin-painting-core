@@ -114,6 +114,11 @@
               (if (and (seq layers) graph)
                 (-> (cg/reduce-to graph (result/result-key))
                     (cg/solve)
+                    (promise/handle
+                      (fn [v e]
+                        (when e
+                          (log/error e "schedule failed"))
+                        v))
                     (promise/fmap
                       (fn [computed]
                         (let [result

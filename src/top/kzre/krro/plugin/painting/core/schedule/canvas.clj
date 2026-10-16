@@ -15,7 +15,7 @@
    layer-id]
 
   cg/INode
-  (node-id [_] (keyword (str layer-id "-backdrop-merged")))
+  (node-id [_] (keyword (str MergeCanvasNode layer-id)))
   (dependencies [_] [:context layer-id])
   (compute [this [{:keys [view-dirty-tiles image-dirty-tiles]} layer]]
     (let [transform (proto/transform layer)]
@@ -55,7 +55,7 @@
    layer-id]
 
   cg/INode
-  (node-id [_] (keyword (str layer-id "-backdrop-overwrite")))
+  (node-id [_] (keyword (str BlitCanvasNode layer-id)))
   (dependencies [_] [layer-id])
   (compute [this [layer]]
     (let [transform (proto/transform layer)]
