@@ -1,18 +1,13 @@
 (ns top.kzre.krro.plugin.painting.core.state
   "运行时状态：事件、笔刷、缓冲区、累积长度。"
   (:require
-   [top.kzre.krro.canvas.core.core :as canv]
-   [top.kzre.krro.canvas.core.layer.core :as lc]
-   [top.kzre.krro.canvas.core.layer.util :as util]
-   [top.kzre.krro.core.core :as kcc]
+    [top.kzre.krro.canvas.core.layer.core :as lc]
+    [top.kzre.krro.core.core :as kcc]
    [top.kzre.krro.core.frame :as frame]
-   [top.kzre.krro.core.util.promise :as promise]
-   [top.kzre.krro.plugin.painting.core.project.canvas :as pc]
+    [top.kzre.krro.plugin.painting.core.project.canvas :as pc]
    [top.kzre.krro.plugin.painting.core.spec :as spec])
   (:import
-   (java.util Collection Set)
-   (top.kzre.krro.plugin.painting.core.project.canvas CanvasData)
-   (top.kzre.krro.util.tile CanvasUtils TiledCanvas)))
+    (top.kzre.krro.util.tile TiledCanvas)))
 
 (defn frames-with-canvas-id
   "返回所有显示指定画布的 Frame。"

@@ -14,14 +14,16 @@
       :viewport
       current-tool)
     ))
-
+;; 抽取到UI
+;; TODO 抽取成独立范式
 (defmethod tool-event :default [_ _] nil)
-
+;; TODO 抽象提取出来，以便复用
 ;; 分发工具事件
 (rf/reg-event-fx
   store/app-id :tool/dispatch-event
-  (fn [cofx [_ record-id event-map frame]]
-    (let [record (:record cofx)
+  (fn [cofx event-v]
+    (let [[_ record-id event-map frame] event-v
+          record (:record cofx)
           current-tool (get-in record [:canvas-state :current-tool])
           tool (record/current-tool record)]
       (when-let [event-id
@@ -32,7 +34,9 @@
                      (p/dispatch-event tool event-map cofx))
                    ;; 再进行基于配置的分派
                    (tool-event current-tool event-map))]
-        {:dispatch [event-id record-id event-map frame]}
+        {:dispatch
+         ;; 替换事件ID，后面的参数透传
+         (into [event-id] (rest event-v))}
         ))))
 
 (rf/reg-event-fx

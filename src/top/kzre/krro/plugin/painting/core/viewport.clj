@@ -10,7 +10,13 @@
    ^double offset-y   ;; 视口左上角在逻辑空间中的 Y 坐标
    ^double zoom])     ;; 缩放比例，>1 放大，<1 缩小
 
-(defonce default-viewport (->ViewPort 0.0 0.0 1.0))
+(defonce ^:private default-viewport* (->ViewPort 0.0 0.0 1.0))
+
+(defn make-viewport
+  ([] default-viewport*))
+
+(defn identity-viewport
+  [] (make-viewport))
 
 ;; ── 坐标转换 ──────────────────────────────────
 (defn screen->logic
@@ -25,11 +31,19 @@
   {:x (* (- (double lx) (:offset-x vp)) (:zoom vp))
    :y (* (- (double ly) (:offset-y vp)) (:zoom vp))})
 
-;; ── 状态管理 ──────────────────────────────────
-(def viewport-param-key ::viewport)
 
-(defn get-viewport [frame]
-  (or (frame/param frame viewport-param-key) default-viewport))
+(def ^:private frame-key* ::viewport)
+
+(defn frame-key [] frame-key*)
+
+(defn set-viewport! [frame viewport]
+  {:pre [(some? viewport)]}
+  (frame/set-param! frame (frame-key) viewport))
+
+(defn get-viewport
+  "这个假定一个 frame 一个 viewport，虽然这个假定是对的，但不该放在这里"
+  [frame]
+  (or (frame/param frame (frame-key)) (make-viewport)))
 
 (defn viewport->mat2d [vp]
   (let [zoom (:zoom vp)
@@ -37,64 +51,3 @@
         offy (:offset-y vp)]
     (KMath/mat2dCompose (- (* offx zoom)) (- (* offy zoom)) zoom zoom 0)))
 
-(defn get-viewport-transform [frame]
-  (-> frame
-      (get-viewport)
-      (viewport->mat2d)))
-
-(defn set-viewport! [frame viewport]
-  (frame/set-param! frame viewport-param-key viewport))
-
-;; ── 平移工具函数 ─────────────────────────────
-(defn pan!
-  "平移视口：dx, dy 为屏幕像素位移。"
-  [frame dx dy]
-  (let [vp (get-viewport frame)
-        zoom (:zoom vp)
-        new-offset-x (- (:offset-x vp) (/ dx zoom))
-        new-offset-y (- (:offset-y vp) (/ dy zoom))]
-    (set-viewport! frame (assoc vp
-                           :offset-x new-offset-x
-                           :offset-y new-offset-y))))
-
-(defn pan-to!
-  "将视口左上角移动到指定的逻辑坐标 (x, y)。"
-  [frame x y]
-  (let [vp (get-viewport frame)]
-    (set-viewport! frame (assoc vp :offset-x (double x) :offset-y (double y)))))
-
-;; ── 缩放工具函数 ─────────────────────────────
-(defn zoom!
-  "以画布中心为基准缩放视口，factor 为缩放倍率（>1 放大，<1 缩小），
-   例如 (zoom! frame 1.1)。"
-  [frame factor]
-  (let [vp (get-viewport frame)
-        new-zoom (-> (:zoom vp) (* factor) (max 0.01) (min 100.0))
-        ; 保持中心点不变需要知道画布尺寸，这里采用简单偏移补偿：
-        ; 没有画布尺寸信息，暂时不做中心补偿，直接改变 zoom
-        ; 如需中心缩放，请在外部使用 zoom-at-point!
-        ]
-    (set-viewport! frame (assoc vp :zoom new-zoom))))
-
-(defn zoom-at-point!
-  "以屏幕坐标 (sx, sy) 为中心缩放视口，factor 为缩放倍率。
-   通常用于鼠标滚轮缩放。"
-  [frame sx sy factor]
-  (let [vp (get-viewport frame)
-        old-zoom (:zoom vp)
-        new-zoom (-> old-zoom (* factor) (max 0.01) (min 100.0))
-        ;; 计算鼠标指向的逻辑坐标
-        lx (+ (/ sx old-zoom) (:offset-x vp))
-        ly (+ (/ sy old-zoom) (:offset-y vp))
-        ;; 新视口左上角应为 lx - sx / new-zoom
-        new-offset-x (- lx (/ sx new-zoom))
-        new-offset-y (- ly (/ sy new-zoom))]
-    (set-viewport! frame (assoc vp
-                           :zoom new-zoom
-                           :offset-x new-offset-x
-                           :offset-y new-offset-y))))
-
-(defn reset-viewport!
-  "重置视口为默认状态（偏移 0,0，缩放 1.0）。"
-  [frame]
-  (set-viewport! frame default-viewport))

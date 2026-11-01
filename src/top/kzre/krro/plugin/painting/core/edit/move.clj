@@ -2,7 +2,7 @@
   (:require
    [top.kzre.krro.canvas.core.layer.util :as util]
    [top.kzre.krro.core.custom :as custom]
-   [top.kzre.krro.core.reframe :as rf]
+   [top.kzre.krro.core.reframe.core :as rf]
    [top.kzre.krro.plugin.painting.core.edit.interceptors :refer [cleanup-tool-interceptor]]
    [top.kzre.krro.plugin.painting.core.edit.protocol :as p]
    [top.kzre.krro.plugin.painting.core.layer.tiles :as tiles]

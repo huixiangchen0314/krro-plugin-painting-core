@@ -3,8 +3,7 @@
     [top.kzre.krro.core.util.computing-graph :as cg]
     [top.kzre.krro.core.util.promise :as promise]
     [top.kzre.krro.plugin.painting.core.schedule.graph :as graph]
-    [top.kzre.krro.plugin.painting.core.schedule.protocol :as proto])
-  (:import (java.lang AutoCloseable)))
+    [top.kzre.krro.plugin.painting.core.schedule.protocol :as proto]))
 
 
 ;; 将光栅图层适配为原始输入节点

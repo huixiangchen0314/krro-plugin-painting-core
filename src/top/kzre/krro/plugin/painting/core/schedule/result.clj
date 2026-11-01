@@ -21,7 +21,7 @@
            viewport-h])
 (defn make-state
   []
-  (->ResultState nil vp/default-viewport 0 0))
+  (->ResultState nil (vp/make-viewport) 0 0))
 
 (defrecord ResultNode [dep-id
                        state-atom]

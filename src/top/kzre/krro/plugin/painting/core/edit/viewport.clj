@@ -1,7 +1,7 @@
 (ns top.kzre.krro.plugin.painting.core.edit.viewport
   (:require
    [top.kzre.krro.core.custom :as custom]
-   [top.kzre.krro.core.reframe :as rf]
+   [top.kzre.krro.core.reframe.core :as rf]
    [top.kzre.krro.plugin.painting.core.edit.interceptors :refer [tool-context-interceptor]]
    [top.kzre.krro.plugin.painting.core.edit.protocol :as p]
    [top.kzre.krro.plugin.painting.core.store :as store]
@@ -33,7 +33,8 @@
   (cleanup! [_ _]
     nil)
   (overlay [_ _]
-    nil))
+    nil)
+  (dispatch-event [_ _ _] nil))
 
 ;; 设置视口
 (rf/reg-fx

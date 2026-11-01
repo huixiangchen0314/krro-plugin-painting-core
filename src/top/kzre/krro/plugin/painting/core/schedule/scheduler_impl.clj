@@ -7,7 +7,6 @@
    [top.kzre.krro.plugin.painting.core.project.canvas :as pc]
    [top.kzre.krro.plugin.painting.core.schedule.context :as context]
    [top.kzre.krro.plugin.painting.core.schedule.evaluate :as evaluate]
-   [top.kzre.krro.plugin.painting.core.schedule.gl :as schedule.gl]
    [top.kzre.krro.plugin.painting.core.schedule.graph :as graph]
    [top.kzre.krro.plugin.painting.core.schedule.layer :as schedule.layer]
    [top.kzre.krro.plugin.painting.core.schedule.layer-impl]
@@ -15,10 +14,11 @@
    [top.kzre.krro.plugin.painting.core.schedule.result :as result]
    [top.kzre.krro.plugin.painting.core.schedule.util :as util])
   (:import
-   (java.lang AutoCloseable)
-   (top.kzre.colorutils.color RGB)
-   (top.kzre.krro.core.util.computing_graph ComputingGraph)
-   (top.kzre.krro.util.tile TiledCanvas)))
+    (java.lang AutoCloseable)
+    (top.kzre.colorutils.color RGB)
+    (top.kzre.krro.canvas.gl.tile GLAtlas)
+    (top.kzre.krro.core.util.computing_graph ComputingGraph)
+    (top.kzre.krro.util.tile TiledCanvas)))
 
 (defrecord SchedulerState [^ComputingGraph graph
                            layers
@@ -42,9 +42,7 @@
       :gl
       (if (some? (:gl-composite-context @state-atom))
         (promise/resolved state-atom)
-        (->  (:gl-composite-context-builder config)
-             (.build)
-             (promise/from-completable-future)
+        (->  (:gl-composite-context-promise config)
              (promise/fmap
                (fn [composite-ctx]
                  (swap! state-atom assoc :gl-composite-context composite-ctx)
@@ -110,7 +108,7 @@
           (fn [_]
             (let [new-ctx (diff-context this ctx)]
               (swap! state-atom diff-state! this new-ctx))
-            (let [{:keys [graph layers]} @state-atom]
+            (let [{:keys [graph layers gl-composite-context]} @state-atom]
               (if (and (seq layers) graph)
                 (-> (cg/reduce-to graph (result/result-key))
                     (cg/solve)
@@ -123,6 +121,11 @@
                       (fn [computed]
                         (let [result
                               (.copy (proto/canvas (get computed (result/result-key))))]
+                          ;; 清理除了GL 缓存外的所有瓦片,减少编辑时候的 COW 触发
+                          (when gl-composite-context
+                            (doseq [l layers]
+                              (when-let [c (:canvas l)]
+                                (GLAtlas/keepGLTile ^TiledCanvas c))))
                           ;; 保险起见的最终清理清理
                           (apply util/close-safely (vals computed))
                           result))))
@@ -157,9 +160,9 @@
         (= :gl (:backend config))
         (assoc
           ;; 指定合成上下文，或者使用默认的 lwjgl glfw 离屏渲染上下文
-          :gl-composite-context-builder
-          (:gl-composite-context-builder config
-            (schedule.gl/default-composite-context-builder))
+          :gl-composite-context-promise
+          (or (:gl-composite-context-promise config)
+            (throw (ex-info ":gl-composite-context-promise cannot be nil" {})))
           ))]
      (->RenderScheduler
        polyfill
