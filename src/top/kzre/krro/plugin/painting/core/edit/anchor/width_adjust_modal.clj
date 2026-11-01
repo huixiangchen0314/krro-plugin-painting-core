@@ -9,9 +9,9 @@
    [top.kzre.krro.core.reframe.transaction :as tx :refer [transaction-interceptor]]
    [top.kzre.krro.plugin.painting.core.edit.anchor.state :as anchor.state]
    [top.kzre.krro.plugin.painting.core.edit.common :as common]
-   [top.kzre.krro.plugin.painting.core.edit.interceptors :refer
-     [cleanup-tool-interceptor tool-context-interceptor]]
+   [top.kzre.krro.plugin.painting.core.edit.interceptors :refer [ tool-context-interceptor]]
    [top.kzre.krro.plugin.painting.core.store :as store]
+   [top.kzre.krro.plugin.painting.core.edit.tool :refer [cleanup-tool-interceptor]]
    [top.kzre.krro.plugin.painting.core.transactions.anchor-width-adjust-modal
      :as tx-width])
   (:import
@@ -35,7 +35,7 @@
   (fn [cofx _]
     (let [ctx       (:krro.painting/tool-context cofx)
           {:keys [layer layer-type layer-transform viewport event transaction-kind]} ctx
-          tool-data (get-in (:record cofx) [:canvas-state :tool-data])
+          tool-data (get-in (:record cofx) [ :tool-data])
           {:keys [active-anchor selected-anchors]} tool-data]
       (cond
         (not= :vector layer-type)
@@ -66,7 +66,7 @@
   (fn [cofx _]
     (let [ctx (:krro.painting/tool-context cofx)
           {:keys [layer layer-transform viewport event layer-type transaction-kind]} ctx
-          tool-data (get-in (:record cofx) [:canvas-state :tool-data])
+          tool-data (get-in (:record cofx) [ :tool-data])
           {:keys [active-anchor]} tool-data]
       (cond
         (not= :vector layer-type)
@@ -93,7 +93,7 @@
   (fn [cofx _]
     (let [ctx (:krro.painting/tool-context cofx)
           {:keys [layer layer-transform viewport event layer-type transaction-kind]} ctx
-          tool-data (get-in (:record cofx) [:canvas-state :tool-data])
+          tool-data (get-in (:record cofx) [ :tool-data])
           {:keys [active-anchor]} tool-data
           {:keys [layer-type transaction-kind]} ctx]
       (cond

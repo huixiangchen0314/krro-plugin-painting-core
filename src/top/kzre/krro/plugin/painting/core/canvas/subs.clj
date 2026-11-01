@@ -32,7 +32,7 @@
   store/app-id
   :current-tool
   (fn [record]
-    (get-in record [:record :canvas-state :current-tool])))
+    (get-in record [:record  :current-tool])))
 
 (rf/reg-sub
   store/app-id

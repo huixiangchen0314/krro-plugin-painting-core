@@ -3,8 +3,8 @@
    [top.kzre.krro.canvas.core.layer.util :as util]
    [top.kzre.krro.core.custom :as custom]
    [top.kzre.krro.core.reframe.core :as rf]
-   [top.kzre.krro.plugin.painting.core.edit.interceptors :refer [cleanup-tool-interceptor]]
-   [top.kzre.krro.plugin.painting.core.edit.protocol :as p]
+   [top.kzre.krro.plugin.painting.core.edit.tool :as tool :refer [cleanup-tool-interceptor]]
+
    [top.kzre.krro.plugin.painting.core.layer.tiles :as tiles]
    [top.kzre.krro.plugin.painting.core.project.canvas :as pc]
    [top.kzre.krro.plugin.painting.core.store :as store]
@@ -25,7 +25,7 @@
                   :doc "移动工具的死区（像素），位移小于此值时忽略移动。")
 
 (defrecord MoveState [init-cursor-x init-cursor-y original-layer last-layer parent-transform]
-  p/IToolData
+  tool/IToolData
   (dispatch-event [_ event-map cofx] )
 
   (cleanup! [_ _]
@@ -47,7 +47,7 @@
                   p  (vp/screen->logic viewport x y)
                   layer (util/find-layer-by-path path layers)
                   parent-transform (util/parent-transform path layers)]
-              {:record (assoc-in record [:canvas-state :tool-data]
+              {:record (assoc-in record [ :tool-data]
                                  (->MoveState (:x p) (:y p) layer layer parent-transform))})))
         {:fx [:warn "No active layer."]}))))
 
@@ -55,7 +55,7 @@
   store/app-id :move-tool/drag
   (fn [cofx [_ record-id {:keys [x y]} frame]]
     (let [record (:record cofx)
-          state (get-in record [:canvas-state :tool-data])]
+          state (get-in record [ :tool-data])]
       (when (instance? MoveState state)
         (let [speed      (custom/get-custom :krro.painting/move-tool-speed frame)
               dead-zone  (custom/get-custom :krro.painting/move-tool-dead-zone frame)
@@ -89,6 +89,6 @@
   store/app-id :move-tool/release
   (fn [cofx [_ record-id _ _]]
     (let [record (:record cofx)
-          state (get-in record [:canvas-state :tool-data])]
+          state (get-in record [ :tool-data])]
       (when (instance? MoveState state)
         {:fx [[:record-canvas-edited record-id]]}))))

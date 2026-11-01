@@ -3,16 +3,15 @@
     [top.kzre.krro.core.reframe.core :as rf]
     [top.kzre.krro.core.reframe.transaction :as tx :refer [transaction-interceptor]]
     [top.kzre.krro.plugin.painting.core.brush.core :as brush]
-    [top.kzre.krro.plugin.painting.core.edit.interceptors :refer [cleanup-tool-interceptor
-                                                                 tool-context-interceptor
+    [top.kzre.krro.plugin.painting.core.edit.interceptors :refer [tool-context-interceptor
                                                                  tool-context-key]]
-    [top.kzre.krro.plugin.painting.core.edit.protocol :as p]
+    [top.kzre.krro.plugin.painting.core.edit.tool :as tool :refer [cleanup-tool-interceptor]]
     [top.kzre.krro.plugin.painting.core.store :as store]
     [top.kzre.krro.plugin.painting.core.transactions.vector-stroke :as tx-vector-stroke]))
 
 
 (defrecord VectorBrushState [stroke layer-backup layer-transform layer-transform-inv]
-  p/IToolData
+  tool/IToolData
   (dispatch-event [_ event-map cofx] )
   ;; 工具状态不该持有非托管数据，事务持有
   (cleanup! [_ _] nil)

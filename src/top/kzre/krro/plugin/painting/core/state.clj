@@ -1,4 +1,4 @@
-(ns top.kzre.krro.plugin.painting.core.state
+(ns  top.kzre.krro.plugin.painting.core.state
   "运行时状态：事件、笔刷、缓冲区、累积长度。"
   (:require
     [top.kzre.krro.canvas.core.layer.core :as lc]
@@ -42,7 +42,7 @@
                      :second-last-press-time  0
                      }))
 
-(defn layer-backup [^CanvasState rt] (:layer-backup rt))
+(defn ^:deprecated layer-backup [^CanvasState rt] (:layer-backup rt))
 
 
 

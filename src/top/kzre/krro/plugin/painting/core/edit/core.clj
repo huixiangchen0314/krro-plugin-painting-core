@@ -23,9 +23,9 @@
   [_ event-map]
   (case (:type event-map)
     (case (:type event-map)
-      :press :viewport-tool/press
-      :drag :viewport-tool/drag
-      :scroll :viewport-tool/scroll
+      :press :viewport-pan/press
+      :drag :viewport-pan/drag
+      :scroll :viewport-pan/scroll
       nil)))
 
 (defmethod dispatch/tool-event :brush

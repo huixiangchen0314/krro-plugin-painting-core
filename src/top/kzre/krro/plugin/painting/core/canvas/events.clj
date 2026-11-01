@@ -9,24 +9,24 @@
 (defn set-selected-layer
   [record layer-id]
   (-> record
-      (assoc-in [:canvas-state :selected-layer-id] layer-id)
-      (assoc-in [:canvas-state :selected-layer-ids] [layer-id])))
+      (assoc-in [ :selected-layer-id] layer-id)
+      (assoc-in [ :selected-layer-ids] [layer-id])))
 
 (defn append-selected-layer
   "向 record 的选中图层列表追加一个图层 ID（去重），并更新当前选中 ID 为该图层。"
   [record layer-id]
   (-> record
-      (update-in [:canvas-state :selected-layer-ids]
+      (update-in [ :selected-layer-ids]
                  (fn [ids]
                    (-> (or ids [])
                        (conj layer-id)
                        (distinct)
                        (vec))))
-      (assoc-in [:canvas-state :selected-layer-id] layer-id)))
+      (assoc-in [ :selected-layer-id] layer-id)))
 
 (defn clear-dirty-tiles
   [record]
-  (assoc-in record [:canvas-state :dirty-tiles] #{}))
+  (assoc-in record [ :dirty-tiles] #{}))
 
 ;; 日志
 (rf/reg-event-fx
@@ -44,7 +44,7 @@
     (let [cd (:canvas-data (:record cofx))]
       (if (= (:current-layer-id cd) layer-id)
         {:record (:record cofx)}
-        (let [state (:canvas-state record-id)
+        (let [state ( record-id)
               dirty-tiles (:dirty-tiles state)]
           {:record (-> (:record cofx)
                        (record/set-current-layer layer-id)

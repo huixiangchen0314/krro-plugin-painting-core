@@ -23,13 +23,14 @@
     (get @record-data canvas-id)
     {:canvas-id   canvas-id
      :canvas-data (pc/canvas-data! canvas-id)
-     :canvas-state (state/canvas-runtime canvas-id)}))
+      ;(state/canvas-runtime canvas-id)
+     }))
 
 (defn- update-record! [{:keys [canvas-id canvas-data canvas-state]
                        :as record}]
   (when canvas-data (kcc/update-by-id! :krro.painting/canvas canvas-id (constantly canvas-data)))
   (when canvas-state (swap! state/canvas-runtimes assoc canvas-id canvas-state))
-  (swap! record-data assoc canvas-id (dissoc record :canvas-data :canvas-state)))
+  (swap! record-data assoc canvas-id (dissoc record :canvas-data )))
 
 (defn reg-canvas-store
   "为指定 canvas-id 注册 reframe store（作为一个独立 record）。

@@ -4,7 +4,7 @@
     [top.kzre.krro.canvas.core.layer.util :as util]
     [top.kzre.krro.core.reframe.core :as rf]
     [top.kzre.krro.plugin.painting.core.brush.core :as brush]
-    [top.kzre.krro.plugin.painting.core.edit.interceptors :refer [cleanup-tool-interceptor]]
+    [top.kzre.krro.plugin.painting.core.edit.tool :refer [cleanup-tool-interceptor]]
     [top.kzre.krro.plugin.painting.core.store :as store]
     [top.kzre.krro.plugin.painting.core.viewport :as vp]
     [top.kzre.krro.plugin.painting.core.tool.util :as tool-util])

@@ -5,7 +5,7 @@
    [top.kzre.krro.core.reframe.transaction :as tx]
    [top.kzre.krro.plugin.painting.core.algo.segment]
    [top.kzre.krro.plugin.painting.core.edit.anchor.anchor-quadtree :as tree]
-   [top.kzre.krro.plugin.painting.core.edit.protocol :as p]
+   [top.kzre.krro.plugin.painting.core.edit.tool :as p]
    [top.kzre.krro.plugin.painting.core.transactions.anchor-extrude-modal :as anchor-extrude-modal]
    [top.kzre.krro.plugin.painting.core.transactions.anchor-width-adjust-modal :as tx-width]
    [top.kzre.krro.plugin.painting.core.viewport :as vp])

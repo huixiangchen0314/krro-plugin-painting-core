@@ -3,12 +3,12 @@
    [top.kzre.krro.core.custom :as custom]
    [top.kzre.krro.core.reframe.core :as rf]
    [top.kzre.krro.plugin.painting.core.edit.interceptors :refer [tool-context-interceptor]]
-   [top.kzre.krro.plugin.painting.core.edit.protocol :as p]
+   [top.kzre.krro.plugin.painting.core.edit.tool :as tool ]
    [top.kzre.krro.plugin.painting.core.store :as store]
    [top.kzre.krro.plugin.painting.core.viewport :as vp]
    [top.kzre.krro.plugin.painting.core.changes.viewport :as viewport])
   (:import
-   (top.kzre.krro.plugin.painting.core.edit.protocol IToolData)))
+    (top.kzre.krro.plugin.painting.core.edit.tool IToolData)))
 
 (custom/defcustom :krro.painting/viewport-pan-speed
                   1.0
@@ -43,46 +43,46 @@
     (vp/set-viewport! frame viewport)))
 
 (rf/reg-event-fx
-  store/app-id :viewport-tool/press
+  store/app-id :viewport-pan/press
   (fn [cofx [_ _ {:keys [x y]} frame]]
     (let [original-viewport (vp/get-viewport frame)
           record (:record cofx)]
-      {:record (assoc-in record [:canvas-state :viewport-state]
+      {:record (assoc-in record [ :viewport-state]
                          (->ViewportState x y original-viewport true))})))
 
 
 (rf/reg-event-fx
-  store/app-id :viewport-tool/drag
+  store/app-id :viewport-pan/drag
   [(tool-context-interceptor)]
   (fn [cofx [_ record-id {:keys [x y] } frame]]
     (let [record (:record cofx)
-          state (get-in record [:canvas-state :viewport-state])]
+          state (get-in record [ :viewport-state])]
       (when (instance? ViewportState state)
         (let [speed (custom/get-custom :krro.painting/viewport-pan-speed frame)
               dead-zone (custom/get-custom :krro.painting/viewport-pan-dead-zone frame)
-              init-cursor-x (get-in record [:canvas-state :viewport-state :init-cursor-x])
-              init-cursor-y (get-in record [:canvas-state :viewport-state :init-cursor-y])
+              init-cursor-x (get-in record [ :viewport-state :init-cursor-x])
+              init-cursor-y (get-in record [ :viewport-state :init-cursor-y])
               dx (* speed (- x init-cursor-x))
               dy (* speed (- y init-cursor-y))]
           (if (and (< (Math/abs (double dx)) dead-zone)
                    (< (Math/abs (double dy)) dead-zone))
             nil
-            (let [tool-data (get-in record [:canvas-state :tool-data])
-                  original-viewport (get-in record [:canvas-state :viewport-state :original-viewport])
+            (let [tool-data (get-in record [ :tool-data])
+                  original-viewport (get-in record [ :viewport-state :original-viewport])
                   zoom (:zoom original-viewport)
                   new-viewport (-> original-viewport
                                    (update-in [:offset-x] (fn [offset-x] (- offset-x (/ dx zoom))))
                                    (update-in [:offset-y] (fn [offset-y] (- offset-y (/ dy zoom)))))]
               {:fx [[:set-viewport frame new-viewport]
                     [:tool/flush-overlay
-                     (when (and tool-data (satisfies? p/IToolData tool-data))
-                       (p/overlay tool-data (:krro.painting/tool-context cofx)))
+                     (when (and tool-data (satisfies? tool/IToolData tool-data))
+                       (tool/overlay tool-data (:krro.painting/tool-context cofx)))
                      frame]
                     [:render-canvas record-id (viewport/refreshed) ]]})))))))
 
 
 (rf/reg-event-fx
-  store/app-id :viewport-tool/scroll
+  store/app-id :viewport-pan/scroll
   [(tool-context-interceptor)]
   (fn [cofx [_ record-id {:keys [x y delta-y]} frame]]
     (when delta-y
@@ -103,19 +103,19 @@
                            :zoom new-zoom
                            :offset-x new-offset-x
                            :offset-y new-offset-y)
-            tool-data (get-in record [:canvas-state :tool-data])
-            viewport-state (get-in record [:canvas-state :viewport-state])]
+            tool-data (get-in record [ :tool-data])
+            viewport-state (get-in record [ :viewport-state])]
         {:record
          (when (and (instance? ViewportState viewport-state)
                     (:moving? viewport-state))
-           (update-in record [:canvas-state :viewport-state]
+           (update-in record [ :viewport-state]
                       merge
                       {:init-cursor-x x
                        :init-cursor-y y
                        :original-viewport new-viewport}))
          :fx [[:set-viewport frame new-viewport]
               [:tool/flush-overlay
-               (when (and tool-data (satisfies? p/IToolData tool-data))
-                 (p/overlay tool-data (assoc ctx :viewport new-viewport)))
+               (when (and tool-data (satisfies? tool/IToolData tool-data))
+                 (tool/overlay tool-data (assoc ctx :viewport new-viewport)))
                frame]
               [:render-canvas record-id [(viewport/refreshed)] ]]}))))

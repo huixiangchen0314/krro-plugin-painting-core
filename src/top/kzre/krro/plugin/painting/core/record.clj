@@ -34,7 +34,7 @@
 
 (defn current-tool [record]
   (or (get-in record [:canvas-data :tool-data])
-      (get-in record [:canvas-state :tool-data])))
+      (get-in record [ :tool-data])))
 
 (defn current-layer-id
   [record]

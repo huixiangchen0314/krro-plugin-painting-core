@@ -8,9 +8,8 @@
     [top.kzre.krro.plugin.painting.core.edit.anchor.anchor-quadtree :as tree :refer [anchor-quadtree-interceptor]]
     [top.kzre.krro.plugin.painting.core.edit.anchor.state :as anchor.state]
     [top.kzre.krro.plugin.painting.core.edit.common :as common]
-    [top.kzre.krro.plugin.painting.core.edit.interceptors :refer [cleanup-tool-interceptor
-                                                                  tool-context-interceptor]]
-    [top.kzre.krro.plugin.painting.core.edit.protocol :as p]
+    [top.kzre.krro.plugin.painting.core.edit.interceptors :refer [tool-context-interceptor]]
+    [top.kzre.krro.plugin.painting.core.edit.tool :as tool :refer [cleanup-tool-interceptor]]
     [top.kzre.krro.plugin.painting.core.store :as store])
   (:import
     (top.kzre.krro.canvas.core QuadTree QuadTree$NearestResult)
@@ -26,7 +25,7 @@
       (if (= :vector layer-type)
         (let [record (:record cofx)]
           {:record (-> record
-                       (assoc-in [:canvas-state :tool-data :last-layer-point] layer-event)) })
+                       (assoc-in [ :tool-data :last-layer-point] layer-event)) })
         {:fx [[:warn (str "Anchor tool is invalid for " layer-type)]]}))))
 
 ;; TODO 使用oplog, 逻辑派发出去
@@ -41,7 +40,7 @@
           {:keys [layer-event layer layers layer-type layer-transform]} ctx]
       (if (= :vector layer-type)
         (let [record (:record cofx)
-              tool-data (get-in record [:canvas-state :tool-data])
+              tool-data (get-in record [ :tool-data])
               selected (:selected-anchors tool-data #{})
               ]
           (when (seq selected)
@@ -57,9 +56,9 @@
                 (tree/update-anchors! record-id old-paths paths selected)
                 {:record (-> record
                              (assoc-in [:canvas-data :layers] new-layers)
-                             (assoc-in [:canvas-state :tool-data :last-layer-point] layer-event))
+                             (assoc-in [ :tool-data :last-layer-point] layer-event))
                  :fx [[:tool/flush-overlay
-                       (p/overlay tool-data ctx)
+                       (tool/overlay tool-data ctx)
                        frame]
                       [:render-canvas record-id nil layer-transform]]}))))
         {:fx [[:warn (str "Anchor tool is invalid for" layer-type)]]}))))
@@ -78,7 +77,7 @@
            (if (= :vector layer-type)
              (when (= 1 click-count)
                (let [record (:record cofx)
-                     tool-data (get-in record [:canvas-state :tool-data])
+                     tool-data (get-in record [ :tool-data])
                      selected-set (:selected-anchors tool-data #{})
                      shift? (get-in event-map [:modifiers :shift] false)
                      threshold 10.0
@@ -98,14 +97,14 @@
                                         #{closest-anchor})
                          new-tool-data (assoc tool-data :selected-anchors new-selected
                                                         :active-anchor closest-anchor)]
-                     {:record (assoc-in record [:canvas-state :tool-data] new-tool-data)
-                      :fx [[:tool/flush-overlay (p/overlay new-tool-data ctx) frame]]})
+                     {:record (assoc-in record [ :tool-data] new-tool-data)
+                      :fx [[:tool/flush-overlay (tool/overlay new-tool-data ctx) frame]]})
                    (if shift?
                      {:record record
-                      :fx [[:tool/flush-overlay (p/overlay tool-data ctx) frame]]}
+                      :fx [[:tool/flush-overlay (tool/overlay tool-data ctx) frame]]}
                      (let [new-tool-data (assoc tool-data :selected-anchors #{}
                                                           :active-anchor nil)]
-                       {:record (assoc-in record [:canvas-state :tool-data] new-tool-data)
-                        :fx [[:tool/flush-overlay (p/overlay new-tool-data ctx) frame]]})))))
+                       {:record (assoc-in record [ :tool-data] new-tool-data)
+                        :fx [[:tool/flush-overlay (tool/overlay new-tool-data ctx) frame]]})))))
              {:fx [[:warn (str "Anchor tool is invalid for" layer-type)]]}))))))
 

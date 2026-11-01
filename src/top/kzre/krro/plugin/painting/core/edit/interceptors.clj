@@ -1,32 +1,12 @@
 (ns top.kzre.krro.plugin.painting.core.edit.interceptors
   (:require
-   [top.kzre.krro.canvas.core.layer.util :as util]
-   [top.kzre.krro.plugin.painting.core.edit.protocol :as p]
-   [top.kzre.krro.plugin.painting.core.record :as record]
-   [top.kzre.krro.plugin.painting.core.tool.util :as tool-util]
-   [top.kzre.krro.plugin.painting.core.viewport :as vp]
-   [top.kzre.krro.core.reframe.transaction :as tx])
+    [top.kzre.krro.canvas.core.layer.util :as util]
+    [top.kzre.krro.core.reframe.transaction :as tx]
+    [top.kzre.krro.plugin.painting.core.record :as record]
+    [top.kzre.krro.plugin.painting.core.tool.util :as tool-util]
+    [top.kzre.krro.plugin.painting.core.viewport :as vp])
   (:import
    (top.kzre.krro.util.math KMath)))
-
-(defn cleanup-tool-interceptor
-  "返回一个 interceptor，在事件执行前检查并清理旧的工具状态（如果存在）。"
-  ([] (cleanup-tool-interceptor nil))
-  ([state-clz & {:keys [factory]}]
-   {:before
-    (fn [context]
-      (let [record (get-in context [:coeffects :record])
-            tool-data (get-in record [:canvas-state :tool-data])]
-        (if (and tool-data
-                 (or (nil? state-clz) (not (instance? state-clz tool-data))))
-          ;; 工具存在，并且不是指定类型
-          (do
-            (when (satisfies? p/IToolData tool-data)
-              (p/cleanup! tool-data context))
-            (let [new-tool-data (when factory (factory context))]
-              (assoc-in context [:coeffects :record :canvas-state :tool-data] new-tool-data)))
-          ;; 无旧数据，直接放行
-          context)))}))
 
 (defn tool-context-key [] :krro.painting/tool-context)
 
@@ -66,13 +46,13 @@
                            (assoc event-map :x (:x layer-point) :y (:y layer-point)))
                          event-map)
            now (:timestamp event-map)
-           last-press-time (get-in record [:canvas-state :last-press-time])
+           last-press-time (get-in record [ :last-press-time])
            click-threshold 300
            ;; ---- 点击计数维护 ----
            click-count (cond
                          (= :release (:type event-map))
                          (let [is-click (when last-press-time (< (- now last-press-time) click-threshold))
-                               second-last-press-time (get-in record [:canvas-state :second-last-press-time])
+                               second-last-press-time (get-in record [ :second-last-press-time])
                                is-double (when (and is-click second-last-press-time)
                                               (< (- last-press-time second-last-press-time) click-threshold))
                                ]
@@ -86,8 +66,8 @@
            updated-record (cond
                             (= :press (:type event-map))
                             (-> record
-                                (assoc-in [:canvas-state :last-press-time] now)
-                                (assoc-in [:canvas-state :second-last-press-time] last-press-time))
+                                (assoc-in [ :last-press-time] now)
+                                (assoc-in [ :second-last-press-time] last-press-time))
                             :else record)
 
            tx (tx/current cofx)

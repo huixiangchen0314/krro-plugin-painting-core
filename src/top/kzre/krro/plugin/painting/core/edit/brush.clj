@@ -2,9 +2,9 @@
   (:require
    [top.kzre.krro.core.reframe.core :as rf]
    [top.kzre.krro.core.reframe.transaction :as tx :refer [transaction-interceptor]]
-   [top.kzre.krro.plugin.painting.core.edit.interceptors :refer [cleanup-tool-interceptor
-                                                                 tool-context-interceptor
+   [top.kzre.krro.plugin.painting.core.edit.interceptors :refer [tool-context-interceptor
                                                                  tool-context-key]]
+   [top.kzre.krro.plugin.painting.core.edit.tool :refer [cleanup-tool-interceptor]]
    [top.kzre.krro.plugin.painting.core.store :as store]
    [top.kzre.krro.plugin.painting.core.transactions.brush-stroke :as tx-brush-stroke])
   (:import
