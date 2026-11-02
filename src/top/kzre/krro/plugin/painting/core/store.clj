@@ -23,7 +23,6 @@
     (get @record-data canvas-id)
     {:canvas-id   canvas-id
      :canvas-data (pc/canvas-data! canvas-id)
-      ;(state/canvas-runtime canvas-id)
      }))
 
 (defn- update-record! [{:keys [canvas-id canvas-data canvas-state]

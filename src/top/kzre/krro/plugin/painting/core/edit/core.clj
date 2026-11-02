@@ -22,11 +22,10 @@
 (defmethod dispatch/tool-event :viewport
   [_ event-map]
   (case (:type event-map)
-    (case (:type event-map)
-      :press :viewport-pan/press
-      :drag :viewport-pan/drag
-      :scroll :viewport-pan/scroll
-      nil)))
+    :press :viewport-pan/press
+    :drag :viewport-pan/drag
+    :scroll :viewport-pan/scroll
+    nil))
 
 (defmethod dispatch/tool-event :brush
   [_ event-map]

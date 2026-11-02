@@ -56,7 +56,8 @@
           layers (:layers cd)]
       (doseq [l layers]
         (destroy/destroy-layer l))
-      (store/unreg-canvas-store record-id))))
+      ;(store/unreg-canvas-store record-id)
+      )))
 
 
 (rf/reg-fx
